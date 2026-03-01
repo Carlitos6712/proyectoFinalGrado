@@ -1,0 +1,15 @@
+# Ignorar archivos de entorno
+.env
+
+# Ignorar dependencias de Composer (si las usas)
+vendor/
+
+# Ignorar archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Ignorar logs
+*.log
+
+# Ignorar posibles datos locales de Docker (si usas montajes locales)
+/database/data/

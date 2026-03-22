@@ -1,6 +1,6 @@
 <?php
 /**
- * Formulario de creación de un nuevo producto.
+ * Formulario de edición de un producto existente.
  *
  * @package  Es21Plus
  * @author   Carlos Vico
@@ -18,14 +18,21 @@ $success = '';
 try {
     $productoModel  = new Producto();
     $categoriaModel = new Categoria();
-    $categorias     = $categoriaModel->listar();
+
+    $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+    if (!$id) {
+        header('Location: index.php');
+        exit;
+    }
+
+    $producto   = $productoModel->obtener($id);
+    $categorias = $categoriaModel->listar();
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nombre      = trim($_POST['nombre']      ?? '');
         $descripcion = trim($_POST['descripcion'] ?? '');
         $precio      = (float)  ($_POST['precio']      ?? 0);
         $categoriaId = filter_input(INPUT_POST, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
-        $stock       = (int)    ($_POST['stock']        ?? 0);
         $stockMinimo = (int)    ($_POST['stock_minimo'] ?? 5);
         $codigoRef   = trim($_POST['codigo_ref'] ?? '') ?: null;
 
@@ -36,8 +43,8 @@ try {
             throw new AppException('El precio no puede ser negativo.', 400);
         }
 
-        $productoModel->crear($nombre, $descripcion, $precio, $categoriaId, $stock, $stockMinimo, $codigoRef);
-        $_SESSION['flash_success'] = 'Producto creado correctamente.';
+        $productoModel->actualizar($id, $nombre, $descripcion, $precio, $categoriaId, $stockMinimo, $codigoRef);
+        $_SESSION['flash_success'] = 'Producto actualizado correctamente.';
         header('Location: index.php');
         exit;
     }
@@ -52,7 +59,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nuevo Producto – MotoStock Pro</title>
+    <title>Editar Producto – MotoStock Pro</title>
     <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body class="layout">
@@ -143,7 +150,7 @@ try {
                 <span class="breadcrumb-sep">›</span>
                 <a href="index.php" class="breadcrumb-item">Productos</a>
                 <span class="breadcrumb-sep">›</span>
-                <span class="breadcrumb-item active">Nuevo Producto</span>
+                <span class="breadcrumb-item active">Editar Producto</span>
             </nav>
         </div>
         <div class="topbar-right">
@@ -163,8 +170,14 @@ try {
         <!-- Page header -->
         <div class="page-header">
             <div class="page-header-info">
-                <h1 class="page-title">Nuevo Producto</h1>
-                <p class="page-subtitle">Añade un nuevo producto al inventario</p>
+                <h1 class="page-title">Editar Producto</h1>
+                <p class="page-subtitle">
+                    <?php if (isset($producto)): ?>
+                        Modificando: <strong><?= htmlspecialchars($producto['nombre'], ENT_QUOTES, 'UTF-8') ?></strong>
+                    <?php else: ?>
+                        Modifica los datos del producto seleccionado
+                    <?php endif; ?>
+                </p>
             </div>
             <div class="page-actions">
                 <a href="index.php" class="btn-ghost">
@@ -185,10 +198,11 @@ try {
         </div>
         <?php endif; ?>
 
+        <?php if (isset($producto)): ?>
         <div class="card card-form">
             <div class="card-header">
                 <h2 class="card-title">Datos del Producto</h2>
-                <p class="card-subtitle">Completa los campos para registrar el nuevo producto</p>
+                <p class="card-subtitle">Los campos marcados con <span class="field-required">*</span> son obligatorios</p>
             </div>
             <div class="card-body">
                 <form method="POST" class="form-grid-wrapper">
@@ -197,37 +211,29 @@ try {
                         <div class="form-field form-field-full">
                             <label class="field-label" for="nombre">Nombre <span class="field-required">*</span></label>
                             <input class="field-input" type="text" id="nombre" name="nombre" required
-                                   placeholder="Ej. Pastilla de freno delantera"
-                                   value="<?= htmlspecialchars($_POST['nombre'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                   placeholder="Nombre del producto"
+                                   value="<?= htmlspecialchars($producto['nombre'], ENT_QUOTES, 'UTF-8') ?>">
                         </div>
 
                         <div class="form-field form-field-full">
                             <label class="field-label" for="descripcion">Descripción</label>
                             <textarea class="field-input field-textarea" id="descripcion" name="descripcion" rows="3"
-                                      placeholder="Descripción opcional del producto…"><?= htmlspecialchars($_POST['descripcion'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                                      placeholder="Descripción opcional del producto…"><?= htmlspecialchars($producto['descripcion'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
                         </div>
 
                         <div class="form-field">
                             <label class="field-label" for="precio">Precio (€) <span class="field-required">*</span></label>
                             <input class="field-input" type="number" id="precio" name="precio" step="0.01" min="0" required
                                    placeholder="0.00"
-                                   value="<?= htmlspecialchars($_POST['precio'] ?? '0', ENT_QUOTES, 'UTF-8') ?>">
+                                   value="<?= htmlspecialchars((string)$producto['precio'], ENT_QUOTES, 'UTF-8') ?>">
                             <span class="field-hint">Precio de venta al público</span>
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="stock">Stock Inicial</label>
-                            <input class="field-input" type="number" id="stock" name="stock" min="0"
-                                   placeholder="0"
-                                   value="<?= (int)($_POST['stock'] ?? 0) ?>">
-                            <span class="field-hint">Unidades disponibles al crear</span>
                         </div>
 
                         <div class="form-field">
                             <label class="field-label" for="stock_minimo">Stock Mínimo</label>
                             <input class="field-input" type="number" id="stock_minimo" name="stock_minimo" min="0"
                                    placeholder="5"
-                                   value="<?= (int)($_POST['stock_minimo'] ?? 5) ?>">
+                                   value="<?= (int)($producto['stock_minimo'] ?? 5) ?>">
                             <span class="field-hint">Alerta cuando el stock baje de este valor</span>
                         </div>
 
@@ -235,7 +241,7 @@ try {
                             <label class="field-label" for="codigo_ref">Código de Referencia</label>
                             <input class="field-input" type="text" id="codigo_ref" name="codigo_ref"
                                    placeholder="Ej. REF-001"
-                                   value="<?= htmlspecialchars($_POST['codigo_ref'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                   value="<?= htmlspecialchars($producto['codigo_ref'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <span class="field-hint">Referencia interna o del fabricante</span>
                         </div>
 
@@ -245,7 +251,7 @@ try {
                                 <option value="">Sin categoría</option>
                                 <?php foreach ($categorias as $cat): ?>
                                     <option value="<?= (int)$cat['id'] ?>"
-                                        <?= (string)($_POST['categoria_id'] ?? '') === (string)$cat['id'] ? 'selected' : '' ?>>
+                                        <?= (int)$cat['id'] === (int)$producto['categoria_id'] ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8') ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -260,12 +266,13 @@ try {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
-                            Crear Producto
+                            Guardar Cambios
                         </button>
                     </div>
                 </form>
             </div>
         </div>
+        <?php endif; ?>
 
     </main>
 </div>

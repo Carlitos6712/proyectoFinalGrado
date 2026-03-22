@@ -1,55 +1,235 @@
 <?php
-require_once 'Database.php';
+require_once __DIR__ . '/AppException.php';
+require_once __DIR__ . '/Database.php';
 
-class Producto {
-    private $conn;
+/**
+ * Modelo de gestión de productos del inventario.
+ *
+ * @package  Es21Plus\Includes
+ * @author   Carlos Vico
+ * @version  1.0.0
+ */
+class Producto
+{
+    private PDO $pdo;
 
-    public function __construct() {
-        $db = new Database();
-        $this->conn = $db->getConnection();
+    /**
+     * @throws AppException Si falla la conexión.
+     */
+    public function __construct()
+    {
+        $this->pdo = Database::getInstance();
     }
 
-    public function listar() {
-        $sql = "SELECT p.*, c.nombre as categoria_nombre 
-                FROM productos p 
-                LEFT JOIN categorias c ON p.categoria_id = c.id";
-        $result = $this->conn->query($sql);
-        return $result->fetch_all(MYSQLI_ASSOC);
+    /**
+     * Lista todos los productos activos con su categoría.
+     *
+     * Usa LEFT JOIN para evitar N+1 y excluye soft-deleted.
+     *
+     * @return array<int, array<string, mixed>> Filas de productos.
+     */
+    public function listar(): array
+    {
+        $stmt = $this->pdo->query(
+            "SELECT p.*, c.nombre AS categoria_nombre
+             FROM productos p
+             LEFT JOIN categorias c ON p.categoria_id = c.id
+             WHERE p.deleted_at IS NULL
+             ORDER BY p.nombre"
+        );
+        return $stmt->fetchAll();
     }
 
-    public function crear($nombre, $descripcion, $precio, $categoria_id) {
-        $stmt = $this->conn->prepare("INSERT INTO productos (nombre, descripcion, precio, categoria_id) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("ssdi", $nombre, $descripcion, $precio, $categoria_id);
-        return $stmt->execute();
+    /**
+     * Obtiene un producto activo por su ID.
+     *
+     * @param int $id Identificador del producto.
+     * @throws AppException Si el producto no existe o está eliminado.
+     * @return array<string, mixed>
+     */
+    public function obtener(int $id): array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT p.*, c.nombre AS categoria_nombre
+             FROM productos p
+             LEFT JOIN categorias c ON p.categoria_id = c.id
+             WHERE p.id = :id AND p.deleted_at IS NULL"
+        );
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            throw new AppException("Producto #{$id} no encontrado.", 404);
+        }
+        return $row;
     }
 
-    public function obtener($id) {
-        $stmt = $this->conn->prepare("SELECT * FROM productos WHERE id = ?");
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        return $stmt->get_result()->fetch_assoc();
+    /**
+     * Crea un nuevo producto en el inventario.
+     *
+     * @param string      $nombre      Nombre del producto.
+     * @param string      $descripcion Descripción opcional.
+     * @param float       $precio      Precio unitario.
+     * @param int|null    $categoriaId ID de categoría (puede ser null).
+     * @param int         $stock       Stock inicial.
+     * @param int         $stockMinimo Umbral de alerta de stock.
+     * @param string|null $codigoRef   Código de referencia.
+     * @return int ID del producto creado.
+     */
+    public function crear(
+        string $nombre,
+        string $descripcion,
+        float $precio,
+        ?int $categoriaId,
+        int $stock = 0,
+        int $stockMinimo = 5,
+        ?string $codigoRef = null
+    ): int {
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO productos
+             (nombre, descripcion, precio, categoria_id, stock, stock_minimo, codigo_ref)
+             VALUES (:nombre, :descripcion, :precio, :categoria_id, :stock, :stock_minimo, :codigo_ref)"
+        );
+        $stmt->execute([
+            ':nombre'       => $nombre,
+            ':descripcion'  => $descripcion,
+            ':precio'       => $precio,
+            ':categoria_id' => $categoriaId,
+            ':stock'        => $stock,
+            ':stock_minimo' => $stockMinimo,
+            ':codigo_ref'   => $codigoRef,
+        ]);
+        return (int) $this->pdo->lastInsertId();
     }
 
-    public function actualizar($id, $nombre, $descripcion, $precio, $categoria_id) {
-        $stmt = $this->conn->prepare("UPDATE productos SET nombre = ?, descripcion = ?, precio = ?, categoria_id = ? WHERE id = ?");
-        $stmt->bind_param("ssdii", $nombre, $descripcion, $precio, $categoria_id, $id);
-        return $stmt->execute();
+    /**
+     * Actualiza los datos de un producto existente.
+     *
+     * @param int         $id          ID del producto a actualizar.
+     * @param string      $nombre      Nuevo nombre.
+     * @param string      $descripcion Nueva descripción.
+     * @param float       $precio      Nuevo precio.
+     * @param int|null    $categoriaId Nueva categoría.
+     * @param int         $stockMinimo Nuevo umbral de alerta.
+     * @param string|null $codigoRef   Nuevo código de referencia.
+     * @return bool
+     */
+    public function actualizar(
+        int $id,
+        string $nombre,
+        string $descripcion,
+        float $precio,
+        ?int $categoriaId,
+        int $stockMinimo = 5,
+        ?string $codigoRef = null
+    ): bool {
+        $stmt = $this->pdo->prepare(
+            "UPDATE productos
+             SET nombre = :nombre, descripcion = :descripcion, precio = :precio,
+                 categoria_id = :categoria_id, stock_minimo = :stock_minimo,
+                 codigo_ref = :codigo_ref
+             WHERE id = :id AND deleted_at IS NULL"
+        );
+        return $stmt->execute([
+            ':id'           => $id,
+            ':nombre'       => $nombre,
+            ':descripcion'  => $descripcion,
+            ':precio'       => $precio,
+            ':categoria_id' => $categoriaId,
+            ':stock_minimo' => $stockMinimo,
+            ':codigo_ref'   => $codigoRef,
+        ]);
     }
 
-    public function eliminar($id) {
-        $stmt = $this->conn->prepare("DELETE FROM productos WHERE id = ?");
-        $stmt->bind_param("i", $id);
-        return $stmt->execute();
+    /**
+     * Soft-delete: marca el producto como eliminado sin borrar el registro.
+     *
+     * @param int $id ID del producto.
+     * @return bool
+     */
+    public function eliminar(int $id): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE productos SET deleted_at = NOW() WHERE id = :id AND deleted_at IS NULL"
+        );
+        return $stmt->execute([':id' => $id]);
     }
 
-    public function filtrar_por_categoria($categoria_id) {
-        $stmt = $this->conn->prepare("SELECT p.*, c.nombre as categoria_nombre 
-                                      FROM productos p 
-                                      LEFT JOIN categorias c ON p.categoria_id = c.id 
-                                      WHERE p.categoria_id = ?");
-        $stmt->bind_param("i", $categoria_id);
-        $stmt->execute();
-        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    /**
+     * Busca productos por nombre o código de referencia.
+     *
+     * @param string   $termino     Término de búsqueda.
+     * @param int|null $categoriaId Filtro opcional por categoría.
+     * @return array<int, array<string, mixed>>
+     */
+    public function buscar(string $termino, ?int $categoriaId = null): array
+    {
+        $sql = "SELECT p.*, c.nombre AS categoria_nombre
+                FROM productos p
+                LEFT JOIN categorias c ON p.categoria_id = c.id
+                WHERE p.deleted_at IS NULL
+                  AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino)";
+        $params = [':termino' => "%{$termino}%"];
+
+        if ($categoriaId !== null) {
+            $sql .= " AND p.categoria_id = :categoria_id";
+            $params[':categoria_id'] = $categoriaId;
+        }
+        $sql .= " ORDER BY p.nombre";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Lista productos cuyo stock está por debajo del stock_minimo.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function filtrarStockBajo(): array
+    {
+        $stmt = $this->pdo->query(
+            "SELECT p.*, c.nombre AS categoria_nombre
+             FROM productos p
+             LEFT JOIN categorias c ON p.categoria_id = c.id
+             WHERE p.deleted_at IS NULL AND p.stock <= p.stock_minimo
+             ORDER BY p.stock ASC"
+        );
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Actualiza el stock de un producto (usado por Movimiento).
+     *
+     * @param int    $id       ID del producto.
+     * @param int    $cantidad Cantidad a sumar (positiva) o restar (negativa).
+     * @throws AppException Si el stock resultante sería negativo.
+     * @return bool
+     */
+    public function actualizarStock(int $id, int $cantidad): bool
+    {
+        $producto = $this->obtener($id);
+        $nuevoStock = $producto['stock'] + $cantidad;
+        if ($nuevoStock < 0) {
+            throw new AppException("Stock insuficiente. Stock actual: {$producto['stock']}.", 400);
+        }
+        $stmt = $this->pdo->prepare(
+            "UPDATE productos SET stock = :stock WHERE id = :id"
+        );
+        return $stmt->execute([':stock' => $nuevoStock, ':id' => $id]);
+    }
+
+    /**
+     * Cuenta el total de productos con movimientos activos.
+     *
+     * @param int $id ID del producto.
+     * @return int
+     */
+    public function contarMovimientos(int $id): int
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM movimientos WHERE producto_id = :id"
+        );
+        $stmt->execute([':id' => $id]);
+        return (int) $stmt->fetchColumn();
     }
 }
-?>

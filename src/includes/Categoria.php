@@ -1,74 +1,110 @@
 <?php
-require_once 'Database.php';
+require_once __DIR__ . '/AppException.php';
+require_once __DIR__ . '/Database.php';
 
-class Categoria {
-    private $conn;
-
-    public function __construct() {
-        $db = new Database();
-        $this->conn = $db->getConnection();
-    }
+/**
+ * Modelo de gestión de categorías del inventario.
+ *
+ * @package  Es21Plus\Includes
+ * @author   Carlos Vico
+ * @version  1.0.0
+ */
+class Categoria
+{
+    private PDO $pdo;
 
     /**
-     * Lista todas las categorías
-     * @return array Arreglo asociativo con las categorías
+     * @throws AppException Si falla la conexión.
      */
-    public function listar() {
-        $sql = "SELECT * FROM categorias ORDER BY nombre";
-        $result = $this->conn->query($sql);
-        return $result->fetch_all(MYSQLI_ASSOC);
+    public function __construct()
+    {
+        $this->pdo = Database::getInstance();
     }
 
     /**
-     * Obtiene una categoría por su ID
-     * @param int $id
-     * @return array|null
+     * Lista todas las categorías con el conteo de productos activos.
+     *
+     * @return array<int, array<string, mixed>>
      */
-    public function obtenerPorId($id) {
-        $stmt = $this->conn->prepare("SELECT * FROM categorias WHERE id = ?");
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        return $result->fetch_assoc();
+    public function listar(): array
+    {
+        $stmt = $this->pdo->query(
+            "SELECT c.*, COUNT(p.id) AS total_productos
+             FROM categorias c
+             LEFT JOIN productos p ON p.categoria_id = c.id AND p.deleted_at IS NULL
+             GROUP BY c.id
+             ORDER BY c.nombre"
+        );
+        return $stmt->fetchAll();
     }
 
     /**
-     * Crea una nueva categoría
-     * @param string $nombre
-     * @param string $descripcion
+     * Obtiene una categoría por su ID.
+     *
+     * @param int $id ID de la categoría.
+     * @throws AppException Si la categoría no existe.
+     * @return array<string, mixed>
+     */
+    public function obtenerPorId(int $id): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM categorias WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            throw new AppException("Categoría #{$id} no encontrada.", 404);
+        }
+        return $row;
+    }
+
+    /**
+     * Crea una nueva categoría.
+     *
+     * @param string $nombre      Nombre de la categoría.
+     * @param string $descripcion Descripción opcional.
+     * @return int ID de la categoría creada.
+     */
+    public function crear(string $nombre, string $descripcion = ''): int
+    {
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO categorias (nombre, descripcion) VALUES (:nombre, :descripcion)"
+        );
+        $stmt->execute([':nombre' => $nombre, ':descripcion' => $descripcion]);
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    /**
+     * Actualiza una categoría existente.
+     *
+     * @param int    $id          ID de la categoría.
+     * @param string $nombre      Nuevo nombre.
+     * @param string $descripcion Nueva descripción.
      * @return bool
      */
-    public function crear($nombre, $descripcion = '') {
-        $stmt = $this->conn->prepare("INSERT INTO categorias (nombre, descripcion) VALUES (?, ?)");
-        $stmt->bind_param("ss", $nombre, $descripcion);
-        return $stmt->execute();
+    public function actualizar(int $id, string $nombre, string $descripcion = ''): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE categorias SET nombre = :nombre, descripcion = :descripcion WHERE id = :id"
+        );
+        return $stmt->execute([':nombre' => $nombre, ':descripcion' => $descripcion, ':id' => $id]);
     }
 
     /**
-     * Actualiza una categoría existente
-     * @param int $id
-     * @param string $nombre
-     * @param string $descripcion
-     * @return bool
-     */    
-
-    public function actualizar($id, $nombre, $descripcion = '') {
-        $stmt = $this->conn->prepare("UPDATE categorias SET nombre = ?, descripcion = ? WHERE id = ?");
-        $stmt->bind_param("ssi", $nombre, $descripcion, $id);
-        return $stmt->execute();
-    }
-
-    /**
-     * Elimina una categoría por su ID
-     * @param int $id
+     * Elimina una categoría (solo si no tiene productos activos).
+     *
+     * @param int $id ID de la categoría.
+     * @throws AppException Si la categoría tiene productos activos.
      * @return bool
      */
-
-    public function eliminar($id) {
-        $stmt = $this->conn->prepare("DELETE FROM categorias WHERE id = ?");
-        $stmt->bind_param("i", $id);
-        return $stmt->execute();
- 
+    public function eliminar(int $id): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM productos WHERE categoria_id = :id AND deleted_at IS NULL"
+        );
+        $stmt->execute([':id' => $id]);
+        if ((int) $stmt->fetchColumn() > 0) {
+            throw new AppException('No se puede eliminar: la categoría tiene productos activos.', 409);
+        }
+        $del = $this->pdo->prepare("DELETE FROM categorias WHERE id = :id");
+        return $del->execute([':id' => $id]);
     }
 }
-?>

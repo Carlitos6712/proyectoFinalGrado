@@ -1,6 +1,6 @@
 <?php
 /**
- * Listado principal de productos del inventario.
+ * Historial y registro de movimientos de stock.
  *
  * @package  Es21Plus
  * @author   Carlos Vico
@@ -10,33 +10,60 @@ session_start();
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
-require_once __DIR__ . '/includes/Categoria.php';
+require_once __DIR__ . '/includes/Movimiento.php';
+
+$error   = '';
+$producto    = null;
+$movimientos = [];
+$resumen     = [];
 
 $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-$productos      = [];
-$categorias     = [];
-$stockBajoCount = 0;
-$error          = '';
+$productoId = filter_input(INPUT_GET, 'producto_id', FILTER_VALIDATE_INT)
+           ?? filter_input(INPUT_POST, 'producto_id', FILTER_VALIDATE_INT);
 
 try {
-    $productoModel  = new Producto();
-    $categoriaModel = new Categoria();
-    $productos       = $productoModel->listar();
-    $categorias      = $categoriaModel->listar();
-    $stockBajoCount  = count($productoModel->filtrarStockBajo());
+    $productoModel   = new Producto();
+    $movimientoModel = new Movimiento();
+
+    if (!$productoId) {
+        header('Location: index.php');
+        exit;
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $tipo          = $_POST['tipo']         ?? '';
+        $cantidad      = (int) ($_POST['cantidad'] ?? 0);
+        $observaciones = trim($_POST['observaciones'] ?? '');
+
+        $movimientoModel->registrar($productoId, $tipo, $cantidad, $observaciones);
+        $_SESSION['flash_success'] = 'Movimiento registrado correctamente.';
+        header("Location: movimientos.php?producto_id={$productoId}");
+        exit;
+    }
+
+    $producto    = $productoModel->obtener($productoId);
+    $movimientos = $movimientoModel->listarPorProducto($productoId);
+    $resumen     = $movimientoModel->resumenStock($productoId);
+
+} catch (AppException $e) {
+    $error = $e->getMessage();
 } catch (\Throwable $e) {
-    $error = 'Error al cargar datos: ' . $e->getMessage();
+    $error = 'Error inesperado: ' . $e->getMessage();
 }
+
+$entradas = (int)($resumen['entradas'] ?? 0);
+$salidas  = (int)($resumen['salidas']  ?? 0);
+$balance  = $entradas - $salidas;
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard – MotoStock Pro</title>
+    <title>Movimientos – MotoStock Pro</title>
     <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body class="layout">
@@ -125,18 +152,12 @@ try {
             <nav class="breadcrumb-nav">
                 <a href="index.php" class="breadcrumb-item">Inicio</a>
                 <span class="breadcrumb-sep">›</span>
-                <span class="breadcrumb-item active">Dashboard</span>
+                <a href="index.php" class="breadcrumb-item">Productos</a>
+                <span class="breadcrumb-sep">›</span>
+                <span class="breadcrumb-item active">Movimientos</span>
             </nav>
         </div>
         <div class="topbar-right">
-            <?php if ($stockBajoCount > 0): ?>
-            <a href="index.php" class="topbar-alert" title="<?= $stockBajoCount ?> producto(s) con stock bajo">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                </svg>
-                <span class="notif-dot"></span>
-            </a>
-            <?php endif; ?>
             <div class="topbar-user">
                 <div class="user-avatar">CV</div>
                 <div class="user-info">
@@ -182,167 +203,153 @@ try {
         </div>
         <?php endif; ?>
 
+        <?php if ($producto): ?>
+
         <!-- Page header -->
         <div class="page-header">
             <div class="page-header-info">
-                <h1 class="page-title">Dashboard</h1>
-                <p class="page-subtitle">Resumen general del inventario de productos</p>
+                <h1 class="page-title">Movimientos de Stock</h1>
+                <p class="page-subtitle">
+                    Producto: <strong><?= htmlspecialchars($producto['nombre'], ENT_QUOTES, 'UTF-8') ?></strong>
+                    &nbsp;·&nbsp; Stock actual: <strong><?= (int)$producto['stock'] ?> uds.</strong>
+                </p>
             </div>
             <div class="page-actions">
-                <a href="nuevo_producto.php" class="btn-primary">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                <a href="index.php" class="btn-ghost">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
                     </svg>
-                    Nuevo Producto
+                    Volver
                 </a>
             </div>
         </div>
 
         <!-- Stat cards -->
-        <div class="stat-cards">
-            <div class="stat-card">
-                <div class="stat-card-icon stat-icon-blue">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                    </svg>
-                </div>
-                <div class="stat-card-body">
-                    <span class="stat-value"><?= count($productos) ?></span>
-                    <span class="stat-label">Total Productos</span>
-                </div>
-            </div>
-            <div class="stat-card <?= $stockBajoCount > 0 ? 'stat-card-warning' : '' ?>">
-                <div class="stat-card-icon stat-icon-orange">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                    </svg>
-                </div>
-                <div class="stat-card-body">
-                    <span class="stat-value"><?= $stockBajoCount ?></span>
-                    <span class="stat-label">Stock Bajo</span>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-card-icon stat-icon-purple">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
-                    </svg>
-                </div>
-                <div class="stat-card-body">
-                    <span class="stat-value"><?= count($categorias) ?></span>
-                    <span class="stat-label">Categorías</span>
-                </div>
-            </div>
+        <div class="stat-cards stat-cards-3">
             <div class="stat-card">
                 <div class="stat-card-icon stat-icon-green">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+                    </svg>
+                </div>
+                <div class="stat-card-body">
+                    <span class="stat-value stat-value-green"><?= $entradas ?></span>
+                    <span class="stat-label">Entradas totales</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon stat-icon-red">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+                    </svg>
+                </div>
+                <div class="stat-card-body">
+                    <span class="stat-value stat-value-red"><?= $salidas ?></span>
+                    <span class="stat-label">Salidas totales</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon stat-icon-blue">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
                     </svg>
                 </div>
                 <div class="stat-card-body">
-                    <a href="movimientos.php" class="stat-value stat-link">Ver</a>
-                    <span class="stat-label">Movimientos</span>
+                    <span class="stat-value stat-value-blue"><?= $balance ?></span>
+                    <span class="stat-label">Balance neto</span>
                 </div>
             </div>
         </div>
 
-        <!-- Toolbar -->
-        <div class="data-toolbar">
-            <div class="search-box">
-                <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                <input type="text" id="buscar-input" class="search-input" placeholder="Buscar nombre o referencia…" autocomplete="off">
+        <!-- New movement form -->
+        <div class="card card-form" style="max-width:520px;">
+            <div class="card-header">
+                <h2 class="card-title">Registrar Movimiento</h2>
+                <p class="card-subtitle">Entrada o salida de stock para este producto</p>
             </div>
-            <select id="filtro-categoria" class="filter-select">
-                <option value="">Todas las categorías</option>
-                <?php foreach ($categorias as $cat): ?>
-                    <option value="<?= (int)$cat['id'] ?>">
-                        <?= htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8') ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="producto_id" value="<?= (int)$producto['id'] ?>">
+
+                    <div class="form-field" style="margin-bottom:1rem;">
+                        <label class="field-label" for="tipo">Tipo <span class="field-required">*</span></label>
+                        <select class="field-input field-select" id="tipo" name="tipo" required>
+                            <option value="entrada">Entrada (suma stock)</option>
+                            <option value="salida">Salida (resta stock)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field" style="margin-bottom:1rem;">
+                        <label class="field-label" for="cantidad">Cantidad <span class="field-required">*</span></label>
+                        <input class="field-input" type="number" id="cantidad" name="cantidad" min="1" required value="1">
+                        <span class="field-hint">Número de unidades del movimiento</span>
+                    </div>
+
+                    <div class="form-field" style="margin-bottom:1.5rem;">
+                        <label class="field-label" for="observaciones">Observaciones</label>
+                        <textarea class="field-input field-textarea" id="observaciones" name="observaciones" rows="2"
+                                  placeholder="Motivo del movimiento, proveedor, etc."></textarea>
+                    </div>
+
+                    <div class="card-footer" style="padding:0;border:0;margin-top:0;">
+                        <a href="index.php" class="btn-ghost">Cancelar</a>
+                        <button type="submit" class="btn-primary">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Registrar
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
 
-        <!-- Data table -->
+        <!-- Movement history -->
+        <div class="page-header" style="margin-top:2rem;">
+            <div class="page-header-info">
+                <h2 class="page-title" style="font-size:1.1rem;">Historial de Movimientos</h2>
+                <p class="page-subtitle"><?= count($movimientos) ?> movimiento(s) registrado(s)</p>
+            </div>
+        </div>
+
         <div class="data-table-wrapper">
-            <table class="data-table" id="tabla-productos">
+            <?php if (empty($movimientos)): ?>
+            <div class="td-empty" style="padding:2.5rem;text-align:center;">
+                No hay movimientos registrados para este producto.
+            </div>
+            <?php else: ?>
+            <table class="data-table">
                 <thead>
                     <tr>
-                        <th class="td-check"><input type="checkbox" id="selectAll" aria-label="Seleccionar todos"></th>
-                        <th>Ref</th>
-                        <th>Producto</th>
-                        <th>Categoría</th>
-                        <th>Precio</th>
-                        <th>Stock</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
+                        <th>#</th>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Cantidad</th>
+                        <th>Observaciones</th>
                     </tr>
                 </thead>
-                <tbody id="tbody-productos">
-                    <?php foreach ($productos as $p):
-                        $esBajo    = (int)$p['stock'] <= (int)($p['stock_minimo'] ?? 5);
-                        $stockMax  = max((int)($p['stock_minimo'] ?? 5) * 3, 1);
-                        $stockPct  = min(100, round((int)$p['stock'] / $stockMax * 100));
-                        $inicial   = mb_strtoupper(mb_substr($p['nombre'], 0, 1, 'UTF-8'), 'UTF-8');
-                    ?>
-                    <tr class="<?= $esBajo ? 'row-low-stock' : '' ?>">
-                        <td class="td-check"><input type="checkbox" aria-label="Seleccionar fila"></td>
+                <tbody>
+                <?php foreach ($movimientos as $mov): ?>
+                    <tr>
+                        <td><span class="ref-code"><?= (int)$mov['id'] ?></span></td>
+                        <td><?= htmlspecialchars($mov['fecha'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td>
-                            <span class="ref-code"><?= htmlspecialchars($p['codigo_ref'] ?? '–', ENT_QUOTES, 'UTF-8') ?></span>
-                        </td>
-                        <td>
-                            <div class="product-cell">
-                                <div class="product-avatar"><?= $inicial ?></div>
-                                <span class="product-name"><?= htmlspecialchars($p['nombre'], ENT_QUOTES, 'UTF-8') ?></span>
-                            </div>
-                        </td>
-                        <td>
-                            <span class="category-pill"><?= htmlspecialchars($p['categoria_nombre'] ?? 'Sin categoría', ENT_QUOTES, 'UTF-8') ?></span>
-                        </td>
-                        <td class="td-price"><?= number_format((float)$p['precio'], 2, ',', '.') ?> €</td>
-                        <td>
-                            <div class="stock-cell">
-                                <span class="stock-value <?= $esBajo ? 'stock-value-low' : '' ?>"><?= (int)$p['stock'] ?></span>
-                                <div class="stock-bar-track">
-                                    <div class="stock-bar <?= $esBajo ? 'stock-bar-low' : '' ?>" style="width:<?= $stockPct ?>%"></div>
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            <?php if ($esBajo): ?>
-                                <span class="status-pill status-pill-warning">Stock bajo</span>
+                            <?php if ($mov['tipo'] === 'entrada'): ?>
+                                <span class="status-pill status-pill-success">Entrada</span>
                             <?php else: ?>
-                                <span class="status-pill status-pill-success">Disponible</span>
+                                <span class="status-pill status-pill-danger">Salida</span>
                             <?php endif; ?>
                         </td>
-                        <td class="td-actions">
-                            <a href="movimientos.php?producto_id=<?= (int)$p['id'] ?>" class="action-btn action-btn-blue" title="Ver movimientos">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-                                </svg>
-                            </a>
-                            <a href="editar_producto.php?id=<?= (int)$p['id'] ?>" class="action-btn action-btn-green" title="Editar producto">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                </svg>
-                            </a>
-                            <a href="eliminar_producto.php?id=<?= (int)$p['id'] ?>" class="action-btn action-btn-red" title="Eliminar producto" data-confirm="delete">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                                </svg>
-                            </a>
-                        </td>
+                        <td><strong><?= (int)$mov['cantidad'] ?></strong></td>
+                        <td><?= htmlspecialchars($mov['observaciones'] ?? '–', ENT_QUOTES, 'UTF-8') ?></td>
                     </tr>
-                    <?php endforeach; ?>
-                    <?php if (empty($productos)): ?>
-                    <tr>
-                        <td colspan="8" class="td-empty">No hay productos registrados.</td>
-                    </tr>
-                    <?php endif; ?>
+                <?php endforeach; ?>
                 </tbody>
             </table>
+            <?php endif; ?>
         </div>
+
+        <?php endif; ?>
 
     </main>
 </div>

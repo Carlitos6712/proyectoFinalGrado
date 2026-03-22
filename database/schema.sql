@@ -1,32 +1,61 @@
--- Crear la base de datos si no existe
-CREATE DATABASE IF NOT EXISTS inventario_motos;
+-- =============================================================
+-- Sistema de Inventario para Mecánico de Motos – DDL completo
+-- @author  Carlos Vico
+-- @version 1.1.0
+-- =============================================================
+
+CREATE DATABASE IF NOT EXISTS inventario_motos CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE inventario_motos;
 
--- Tabla de categorías
-CREATE TABLE categorias (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
-    descripcion TEXT
-);
-
--- Tabla de productos
-CREATE TABLE productos (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(200) NOT NULL,
+-- -------------------------------------------------------------
+-- Tabla: categorias
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS categorias (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    nombre      VARCHAR(100) NOT NULL,
     descripcion TEXT,
-    precio DECIMAL(10,2),
-    stock INT DEFAULT 0,
-    categoria_id INT,
-    FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL
-);
+    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Tabla de movimientos de stock
-CREATE TABLE movimientos (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    producto_id INT NOT NULL,
-    tipo ENUM('entrada', 'salida') NOT NULL,
-    cantidad INT NOT NULL,
-    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+-- -------------------------------------------------------------
+-- Tabla: productos
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS productos (
+    id           INT            AUTO_INCREMENT PRIMARY KEY,
+    nombre       VARCHAR(200)   NOT NULL,
+    descripcion  TEXT,
+    precio       DECIMAL(10,2)  DEFAULT 0.00,
+    stock        INT            DEFAULT 0,
+    stock_minimo INT            DEFAULT 5,
+    codigo_ref   VARCHAR(50),
+    imagen       VARCHAR(255),
+    categoria_id INT,
+    created_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at   TIMESTAMP      NULL DEFAULT NULL,
+    FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------------------------------------------
+-- Tabla: movimientos
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS movimientos (
+    id            INT       AUTO_INCREMENT PRIMARY KEY,
+    producto_id   INT       NOT NULL,
+    tipo          ENUM('entrada','salida') NOT NULL,
+    cantidad      INT       NOT NULL,
     observaciones TEXT,
+    usuario       VARCHAR(100) DEFAULT 'admin',
+    fecha         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------------------------------------------
+-- Datos iniciales de categorías
+-- -------------------------------------------------------------
+INSERT IGNORE INTO categorias (id, nombre, descripcion) VALUES
+(1, 'Frenos',      'Pastillas, discos, cables y líquido de frenos'),
+(2, 'Motor',       'Filtros, bujías, aceites y componentes de motor'),
+(3, 'Transmisión', 'Cadenas, piñones, coronas y variadores'),
+(4, 'Electricidad','Bombillas, baterías, reguladores y cableado'),
+(5, 'Carrocería',  'Carenados, retrovisores, manillares y accesorios');

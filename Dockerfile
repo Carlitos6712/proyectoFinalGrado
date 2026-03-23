@@ -1,18 +1,26 @@
-# Usar imagen oficial de PHP con Apache
-FROM php:8.2-apache
+# =============================================================
+# Dockerfile – es21plus · Sistema de Inventario para Motos
+# @author Carlos Vico
+# =============================================================
+FROM php:apache
 
-# Instalar extensiones para conectarse a MySQL
-RUN docker-php-ext-install mysqli pdo_mysql
+# Instalar extensiones PDO para MySQL
+RUN docker-php-ext-install pdo_mysql
 
-# Habilitar módulo de reescritura (útil si usas rutas amigables)
+# Habilitar módulos de Apache necesarios
 RUN a2enmod rewrite
 
-# Copiar el código de la aplicación al directorio web de Apache
+# Copiar configuración de Apache (permite acceso al directorio en Docker+Windows)
+COPY apache.conf /etc/apache2/sites-available/000-default.conf
+
+# Copiar configuración PHP personalizada
+COPY php.ini /usr/local/etc/php/conf.d/custom.ini
+
+# Copiar el código fuente
 COPY ./src /var/www/html/
 
-# Configurar permisos para que Apache pueda leer/escribir si es necesario
+# Permisos correctos para www-data
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
-# Exponer el puerto 80
 EXPOSE 80

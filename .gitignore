@@ -1,5 +1,6 @@
 # Ignorar archivos de entorno
 .env
+.env.example
 
 # Ignorar dependencias de Composer (si las usas)
 vendor/

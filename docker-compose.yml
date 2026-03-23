@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Servicio de base de datos MySQL
   db:
@@ -7,12 +5,12 @@ services:
     container_name: inventario_motos_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: luigi21plus      
+      MYSQL_ROOT_PASSWORD: luigi21plus
       MYSQL_DATABASE: inventario_motos
       MYSQL_USER: admin
-      MYSQL_PASSWORD: luigi21plus                
+      MYSQL_PASSWORD: luigi21plus
     ports:
-      - "3306:3306"                           
+      - "3307:3306"   # 3306 ocupado por MySQL local → usamos 3307 en el host
     volumes:
       # Carga inicial de la base de datos
       - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
@@ -23,14 +21,23 @@ services:
 
   # Servicio web con PHP
   web:
-    build: .                                  
+    build: .
     container_name: inventario_motos_web
     restart: unless-stopped
     ports:
-      - "8080:80"                              
-      # Accedes a la app en http://localhost:8080
+      - "8080:80"
+    # Variables de entorno que PHP leerá via $_ENV
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: inventario_motos
+      DB_USER: admin
+      DB_PASS: luigi21plus
+      APP_ENV: development
+      APP_DEBUG: "true"
+      STOCK_MINIMO_ALERTA: 5
     volumes:
-      # Monta el código en modo desarrollo (cambios en caliente)
+      # Hot-reload: cambios en src se reflejan sin rebuild
       - ./src:/var/www/html
     depends_on:
       - db

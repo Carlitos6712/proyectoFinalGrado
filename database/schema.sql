@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS intentos_login (
 INSERT IGNORE INTO usuarios (username, password_hash, nombre_completo, email)
 VALUES (
     'admin',
-    '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- password: password
+    '$2y$12$MDmgrjjK.zTikDB2VkDiy.ZWaiWJpGWb93cPY0k8UcI0lg25ZVpRG', -- password: admin123
     'Carlos Vico',
     'admin@es21plus.local'
 );

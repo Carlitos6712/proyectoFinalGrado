@@ -6,7 +6,7 @@
  * @author   Carlos Vico
  * @version  1.0.0
  */
-session_start();
+require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
@@ -63,7 +63,7 @@ $balance  = $entradas - $salidas;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Movimientos – MotoStock Pro</title>
+    <title>Movimientos – es21plus</title>
     <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body class="layout">
@@ -75,7 +75,7 @@ $balance  = $entradas - $salidas;
             <svg class="logo-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
             </svg>
-            <span class="logo-text">Moto<strong>Stock</strong></span>
+            <span class="logo-text">es21<strong>plus</strong></span>
         </div>
         <button class="sidebar-close" id="sidebarClose" aria-label="Cerrar menú">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -87,7 +87,7 @@ $balance  = $entradas - $salidas;
     <nav class="sidebar-nav">
         <div class="nav-section">
             <span class="nav-section-label">Principal</span>
-            <a href="index.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'index.php' ? 'active' : '' ?>">
+            <a href="index.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['index.php','dashboard.php']) ? 'active' : '' ?>">
                 <span class="nav-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
@@ -95,7 +95,7 @@ $balance  = $entradas - $salidas;
                 </span>
                 <span class="nav-label">Dashboard</span>
             </a>
-            <a href="nuevo_producto.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['nuevo_producto.php','editar_producto.php','eliminar_producto.php']) ? 'active' : '' ?>">
+            <a href="productos.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['productos.php','nuevo_producto.php','editar_producto.php','eliminar_producto.php']) ? 'active' : '' ?>">
                 <span class="nav-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -152,18 +152,23 @@ $balance  = $entradas - $salidas;
             <nav class="breadcrumb-nav">
                 <a href="index.php" class="breadcrumb-item">Inicio</a>
                 <span class="breadcrumb-sep">›</span>
-                <a href="index.php" class="breadcrumb-item">Productos</a>
+                <a href="productos.php" class="breadcrumb-item">Productos</a>
                 <span class="breadcrumb-sep">›</span>
                 <span class="breadcrumb-item active">Movimientos</span>
             </nav>
         </div>
         <div class="topbar-right">
             <div class="topbar-user">
-                <div class="user-avatar">CV</div>
+                <div class="user-avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr($_SESSION['usuario_nombre'] ?? 'U', 0, 2)), ENT_QUOTES, 'UTF-8') ?></div>
                 <div class="user-info">
-                    <span class="user-fullname">Carlos Vico</span>
+                    <span class="user-fullname"><?= htmlspecialchars($_SESSION['usuario_nombre'] ?? 'Usuario', ENT_QUOTES, 'UTF-8') ?></span>
                     <span class="user-role-label">Admin</span>
                 </div>
+                <a href="logout.php" class="logout-btn" title="Cerrar sesión">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                </a>
             </div>
         </div>
     </header>
@@ -215,7 +220,7 @@ $balance  = $entradas - $salidas;
                 </p>
             </div>
             <div class="page-actions">
-                <a href="index.php" class="btn-ghost">
+                <a href="productos.php" class="btn-ghost">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
                     </svg>
@@ -292,7 +297,7 @@ $balance  = $entradas - $salidas;
                     </div>
 
                     <div class="card-footer" style="padding:0;border:0;margin-top:0;">
-                        <a href="index.php" class="btn-ghost">Cancelar</a>
+                        <a href="productos.php" class="btn-ghost">Cancelar</a>
                         <button type="submit" class="btn-primary">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                 <polyline points="20 6 9 17 4 12"/>

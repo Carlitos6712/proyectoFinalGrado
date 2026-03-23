@@ -65,6 +65,11 @@ try {
  */
 function handleGet(Movimiento $modelo): void
 {
+    if (isset($_GET['grafico'])) {
+        $dias = filter_input(INPUT_GET, 'dias', FILTER_VALIDATE_INT) ?: 7;
+        jsonResponse(true, $modelo->estadisticasPorDia($dias), 'Estadísticas por día.');
+    }
+
     $productoId = filter_input(INPUT_GET, 'producto_id', FILTER_VALIDATE_INT);
 
     if ($productoId && isset($_GET['resumen'])) {

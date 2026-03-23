@@ -1,5 +1,5 @@
 /* ==========================================================================
-   estilos.css – MotoStock Pro Admin Dashboard
+   estilos.css – es21plus Admin Dashboard
    Autor: Carlos Vico
    Diseño: Admin panel profesional tipo SaaS (Vercel / Linear / Supabase)
    ========================================================================== */
@@ -2513,4 +2513,51 @@ input[type="checkbox"] {
   .stat-cards-3 {
     grid-template-columns: 1fr;
   }
+}
+
+/* ==========================================================================
+   Dashboard
+   ========================================================================== */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+.chart-card {
+  margin-top: 1.5rem;
+}
+.chart-card .card-body {
+  padding: 1.5rem;
+}
+.empty-chart {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2rem;
+}
+@media (max-width: 768px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Login page ─────────────────────────────── */
+body.login-page { margin: 0; padding: 0; }
+
+/* ── Logout button in topbar ────────────────── */
+.logout-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    color: var(--text-muted);
+    transition: background-color 0.2s, color 0.2s;
+    margin-left: 0.5rem;
+    text-decoration: none;
+}
+.logout-btn:hover {
+    background-color: var(--danger-light, rgba(239,68,68,0.1));
+    color: var(--danger);
+    text-decoration: none;
 }

@@ -59,3 +59,37 @@ INSERT IGNORE INTO categorias (id, nombre, descripcion) VALUES
 (3, 'Transmisión', 'Cadenas, piñones, coronas y variadores'),
 (4, 'Electricidad','Bombillas, baterías, reguladores y cableado'),
 (5, 'Carrocería',  'Carenados, retrovisores, manillares y accesorios');
+
+-- -------------------------------------------------------------
+-- Tabla: usuarios (autenticación)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS usuarios (
+    id              INT          AUTO_INCREMENT PRIMARY KEY,
+    username        VARCHAR(50)  UNIQUE NOT NULL,
+    password_hash   VARCHAR(255) NOT NULL,
+    nombre_completo VARCHAR(100) NOT NULL,
+    email           VARCHAR(150),
+    activo          TINYINT(1)   DEFAULT 1,
+    last_login      TIMESTAMP    NULL DEFAULT NULL,
+    created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------------------------------------------
+-- Tabla: intentos_login (rate limiting)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS intentos_login (
+    id         INT         AUTO_INCREMENT PRIMARY KEY,
+    ip         VARCHAR(45) NOT NULL,
+    intentos   INT         DEFAULT 1,
+    bloqueado_hasta TIMESTAMP NULL DEFAULT NULL,
+    updated_at TIMESTAMP   DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Usuario por defecto: admin / admin123 (cambiar en producción)
+INSERT IGNORE INTO usuarios (username, password_hash, nombre_completo, email)
+VALUES (
+    'admin',
+    '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- password: password
+    'Carlos Vico',
+    'admin@es21plus.local'
+);

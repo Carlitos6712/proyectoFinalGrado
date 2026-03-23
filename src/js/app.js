@@ -1,5 +1,5 @@
 /**
- * @fileoverview MotoStock Pro – Frontend interactions.
+ * @fileoverview es21plus – Frontend interactions.
  * @author Carlos Vico
  * @version 1.0.0
  */

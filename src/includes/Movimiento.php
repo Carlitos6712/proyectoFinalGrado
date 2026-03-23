@@ -127,4 +127,44 @@ class Movimiento
         $stmt->execute();
         return $stmt->fetchAll();
     }
+
+    /**
+     * Retorna estadísticas de movimientos agrupadas por día (últimos N días).
+     *
+     * @author Carlos Vico
+     * @param int $dias Número de días a consultar (default 7).
+     * @return array<int, array{fecha: string, entradas: int, salidas: int}>
+     */
+    public function estadisticasPorDia(int $dias = 7): array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT
+                DATE(fecha) AS fecha,
+                SUM(CASE WHEN tipo = 'entrada' THEN cantidad ELSE 0 END) AS entradas,
+                SUM(CASE WHEN tipo = 'salida'  THEN cantidad ELSE 0 END) AS salidas
+             FROM movimientos
+             WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL :dias DAY)
+             GROUP BY DATE(fecha)
+             ORDER BY DATE(fecha) ASC"
+        );
+        $stmt->bindValue(':dias', $dias, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Cuenta el total de movimientos del mes actual.
+     *
+     * @author Carlos Vico
+     * @return int
+     */
+    public function contarEsteMes(): int
+    {
+        $stmt = $this->pdo->query(
+            "SELECT COUNT(*) FROM movimientos
+             WHERE YEAR(fecha) = YEAR(CURDATE())
+               AND MONTH(fecha) = MONTH(CURDATE())"
+        );
+        return (int) $stmt->fetchColumn();
+    }
 }

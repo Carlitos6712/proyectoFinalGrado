@@ -232,4 +232,34 @@ class Producto
         $stmt->execute([':id' => $id]);
         return (int) $stmt->fetchColumn();
     }
+
+    /**
+     * Calcula el valor total del inventario (suma de precio × stock).
+     *
+     * @author Carlos Vico
+     * @return float Valor total en euros.
+     */
+    public function valorInventario(): float
+    {
+        $stmt = $this->pdo->query(
+            "SELECT COALESCE(SUM(precio * stock), 0) AS total
+             FROM productos
+             WHERE deleted_at IS NULL"
+        );
+        return (float) $stmt->fetchColumn();
+    }
+
+    /**
+     * Cuenta el total de productos activos.
+     *
+     * @author Carlos Vico
+     * @return int
+     */
+    public function contarActivos(): int
+    {
+        $stmt = $this->pdo->query(
+            "SELECT COUNT(*) FROM productos WHERE deleted_at IS NULL"
+        );
+        return (int) $stmt->fetchColumn();
+    }
 }

@@ -6,6 +6,7 @@
  *
  * @package  Es21Plus
  * @author   Carlos Vico
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 require_once __DIR__ . '/includes/AppException.php';

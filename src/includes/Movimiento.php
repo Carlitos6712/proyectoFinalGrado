@@ -8,6 +8,7 @@ require_once __DIR__ . '/Producto.php';
  *
  * @package  Es21Plus\Includes
  * @author   Carlos Vico
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 class Movimiento
@@ -132,6 +133,7 @@ class Movimiento
      * Retorna estadísticas de movimientos agrupadas por día (últimos N días).
      *
      * @author Carlos Vico
+ * @author   miguelrechefdez
      * @param int $dias Número de días a consultar (default 7).
      * @return array<int, array{fecha: string, entradas: int, salidas: int}>
      */
@@ -156,6 +158,7 @@ class Movimiento
      * Cuenta el total de movimientos del mes actual.
      *
      * @author Carlos Vico
+ * @author   miguelrechefdez
      * @return int
      */
     public function contarEsteMes(): int

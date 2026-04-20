@@ -12,6 +12,7 @@
  *
  * @package  Es21Plus\Tests
  * @author   Carlitos6712
+ * @author   miguelrechefdez
  */
 
 use PHPUnit\Framework\TestCase;

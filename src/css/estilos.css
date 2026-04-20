@@ -2570,3 +2570,65 @@ body.login-page { margin: 0; padding: 0; }
     color: var(--danger);
     text-decoration: none;
 }
+
+/* ── Delete confirmation modal ──────────────── */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,0.55);
+    backdrop-filter: blur(3px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.modal-overlay.modal-visible { display: flex; }
+body.modal-open { overflow: hidden; }
+
+.modal-box {
+    background: var(--surface, #fff);
+    border-radius: 16px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+    animation: modal-in 0.2s ease;
+    text-align: center;
+}
+@keyframes modal-in {
+    from { opacity: 0; transform: scale(0.94) translateY(-8px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+
+.modal-icon-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(239,68,68,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+}
+.modal-icon-svg { color: var(--danger, #ef4444); }
+
+.modal-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-primary, #0f172a);
+    margin: 0 0 0.5rem;
+}
+.modal-body {
+    font-size: 0.9rem;
+    color: var(--text-muted, #64748b);
+    margin: 0 0 1.5rem;
+    line-height: 1.5;
+}
+.modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+}
+.modal-actions .btn-ghost,
+.modal-actions .btn-danger { min-width: 110px; }

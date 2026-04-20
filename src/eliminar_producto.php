@@ -10,6 +10,7 @@ require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
+require_once __DIR__ . '/includes/csrf.php';
 
 try {
     $productoModel = new Producto();
@@ -23,16 +24,20 @@ try {
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['confirm'] ?? '') === '1') {
-        $movimientos = $productoModel->contarMovimientos($id);
-        // Permitimos soft delete aunque tenga movimientos (solo avisamos)
+        if (!validateCsrfToken('eliminar_producto', $_POST['csrf_token'] ?? '')) {
+            $_SESSION['flash_error'] = 'Token de seguridad inválido. Intenta de nuevo.';
+            header("Location: eliminar_producto.php?id={$id}");
+            exit;
+        }
         $productoModel->eliminar($id);
         $_SESSION['flash_success'] = 'Producto eliminado correctamente.';
         header('Location: productos.php');
         exit;
     }
 
-    $producto = $productoModel->obtener($id);
+    $producto         = $productoModel->obtener($id);
     $totalMovimientos = $productoModel->contarMovimientos($id);
+    $csrfToken        = generateCsrfToken('eliminar_producto');
 
 } catch (AppException $e) {
     $_SESSION['flash_error'] = $e->getMessage();
@@ -225,8 +230,9 @@ try {
             <?php endif; ?>
 
             <form method="POST" id="form-eliminar">
-                <input type="hidden" name="id"      value="<?= (int)$producto['id'] ?>">
-                <input type="hidden" name="confirm" value="1">
+                <input type="hidden" name="id"         value="<?= (int)$producto['id'] ?>">
+                <input type="hidden" name="confirm"    value="1">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
                 <div class="confirm-actions">
                     <a href="productos.php" class="btn-ghost">Cancelar</a>
                     <button type="submit" class="btn-danger" id="btn-confirmar">

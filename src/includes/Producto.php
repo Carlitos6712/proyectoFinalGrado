@@ -151,7 +151,8 @@ class Producto
         $stmt = $this->pdo->prepare(
             "UPDATE productos SET deleted_at = NOW() WHERE id = :id AND deleted_at IS NULL"
         );
-        return $stmt->execute([':id' => $id]);
+        $stmt->execute([':id' => $id]);
+        return $stmt->rowCount() > 0;
     }
 
     /**

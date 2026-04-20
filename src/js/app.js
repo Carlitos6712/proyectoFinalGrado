@@ -202,38 +202,120 @@ function initBusqueda() {
 }
 
 // ─────────────────────────────────────────────────────
-// DELETE CONFIRMATION
+// DELETE CONFIRMATION MODAL
 // ─────────────────────────────────────────────────────
 
 /**
+ * Creates and injects a reusable confirmation modal into the document body.
+ *
+ * @author Carlos Vico
+ * @returns {HTMLElement} The modal overlay element.
+ */
+function createDeleteModal() {
+    const overlay = document.createElement('div');
+    overlay.id        = 'delete-modal-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'modal-title');
+    overlay.innerHTML = `
+        <div class="modal-box">
+            <div class="modal-icon-wrap">
+                <svg class="modal-icon-svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+            </div>
+            <h2 class="modal-title" id="modal-title">¿Eliminar producto?</h2>
+            <p class="modal-body" id="modal-body">Esta acción marcará el producto como inactivo.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost" id="modal-cancel">Cancelar</button>
+                <button type="button" class="btn-danger" id="modal-confirm">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    </svg>
+                    Eliminar
+                </button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+    return overlay;
+}
+
+/**
+ * Shows the delete confirmation modal and resolves with user's decision.
+ *
+ * @author Carlos Vico
+ * @param {string} nombre - Product name to display in the modal.
+ * @returns {Promise<boolean>} True when user confirms, false when cancelled.
+ */
+function showDeleteModal(nombre) {
+    return new Promise((resolve) => {
+        let overlay = document.getElementById('delete-modal-overlay');
+        if (!overlay) overlay = createDeleteModal();
+
+        overlay.querySelector('#modal-body').textContent =
+            `"${nombre}" quedará inactivo. El historial de movimientos se conservará.`;
+
+        overlay.classList.add('modal-visible');
+        document.body.classList.add('modal-open');
+
+        const confirmBtn = overlay.querySelector('#modal-confirm');
+        const cancelBtn  = overlay.querySelector('#modal-cancel');
+
+        /**
+         * Closes the modal and resolves the promise.
+         *
+         * @param {boolean} result - User's decision.
+         * @returns {void}
+         */
+        function close(result) {
+            overlay.classList.remove('modal-visible');
+            document.body.classList.remove('modal-open');
+            confirmBtn.replaceWith(confirmBtn.cloneNode(true));
+            cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+            resolve(result);
+        }
+
+        overlay.querySelector('#modal-confirm').addEventListener('click', () => close(true),  { once: true });
+        overlay.querySelector('#modal-cancel').addEventListener('click',  () => close(false), { once: true });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); }, { once: true });
+
+        document.addEventListener('keydown', function handler(e) {
+            if (e.key === 'Escape') { document.removeEventListener('keydown', handler); close(false); }
+        });
+
+        cancelBtn.focus();
+    });
+}
+
+/**
  * Intercepts clicks on delete links (data-confirm="delete") and shows
- * a native confirm dialog before allowing navigation.
+ * a styled modal dialog before allowing navigation.
  *
  * @author Carlos Vico
  * @returns {void}
  */
 function initEliminarConfirmacion() {
-    document.addEventListener('click', (e) => {
-        // Links to eliminar_producto.php with data-confirm attribute
+    document.addEventListener('click', async (e) => {
         const link = e.target.closest('a[data-confirm="delete"]');
         if (link) {
+            e.preventDefault();
             const row    = link.closest('tr');
             const nombre = row?.querySelector('.product-name')?.textContent?.trim()
                         ?? row?.querySelector('td:nth-child(3)')?.textContent?.trim()
                         ?? 'este producto';
-            if (!confirm(`¿Eliminar "${nombre}"?\nEsta acción marcará el producto como inactivo.`)) {
-                e.preventDefault();
-            }
+            const confirmed = await showDeleteModal(nombre);
+            if (confirmed) window.location.href = link.href;
             return;
         }
 
-        // Category delete buttons with data-confirm-cat attribute
         const catBtn = e.target.closest('button[data-confirm-cat]');
         if (catBtn) {
-            const nombre = catBtn.dataset.confirmCat ?? 'esta categoría';
-            if (!confirm(`¿Eliminar la categoría "${nombre}"?`)) {
-                e.preventDefault();
-            }
+            const nombre    = catBtn.dataset.confirmCat ?? 'esta categoría';
+            const confirmed = await showDeleteModal(nombre);
+            if (!confirmed) e.preventDefault();
         }
     });
 }

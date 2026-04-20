@@ -14,4 +14,5 @@ INSERT INTO productos (nombre, descripcion, precio, stock, stock_minimo, codigo_
 ('Piñón conductor 15T acero',               'Piñón de acero tratado térmicamente, 15 dientes, paso 525. Compatible con Kawasaki, Suzuki, Yamaha.',             18.50, 12, 4, 'TRA-002', 3),
 ('Regulador rectificador universal 12V',    'Regulador de voltaje 12V 35A para motos de 4 tiempos. Instalación plug & play en la mayoría de modelos.',         34.90,  2, 5, 'ELE-001', 4),
 ('Batería Yuasa YTZ10S 12V 8.6Ah',         'Batería AGM sin mantenimiento. Alta potencia de arranque en frío (190A). Para deportivas y naked.',                79.95,  6, 3, 'ELE-002', 4),
-('Carenado lateral izquierdo Yamaha R6 2020','Carenado ABS de alta calidad para Yamaha R6 modelo 2020. Prepintado en blanco, listo para pintar.',             145.00,  1, 2, 'CAR-001', 5);
+('Carenado lateral izquierdo Yamaha R6 2020','Carenado ABS de alta calidad para Yamaha R6 modelo 2020. Prepintado en blanco, listo para pintar.',             145.00,  1, 2, 'CAR-001', 5),
+('Kit de luces LED H4 6000K 55W',           'Kit de conversión a LED H4 para faro principal. Temperatura de color 6000K, luz blanca fría. Plug & play.',          34.50, 10, 4, 'ELE-003', 4);

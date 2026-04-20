@@ -6,6 +6,7 @@
  *
  * @package  Es21Plus\Includes
  * @author   Carlos Vico
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 

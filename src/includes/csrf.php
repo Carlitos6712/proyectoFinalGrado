@@ -8,6 +8,7 @@
  *
  * @package  Es21Plus\Includes
  * @author   Carlos Vico
+ * @author   miguelrechefdez
  */
 
 /**

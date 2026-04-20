@@ -7,6 +7,7 @@
  *
  * @package  Es21Plus
  * @author   Carlitos6712
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 

@@ -6,6 +6,7 @@
  *   docker exec inventario_motos_web php /tmp/phpunit.phar --bootstrap /var/www/html/tests/bootstrap.php /var/www/html/tests/
  *
  * @author Carlitos6712
+ * @author   miguelrechefdez
  */
 
 // Env vars are already set by docker-compose; re-declare for CLI runs

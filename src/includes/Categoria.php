@@ -7,6 +7,7 @@ require_once __DIR__ . '/Database.php';
  *
  * @package  Es21Plus\Includes
  * @author   Carlos Vico
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 class Categoria

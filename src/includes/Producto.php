@@ -7,6 +7,7 @@ require_once __DIR__ . '/Database.php';
  *
  * @package  Es21Plus\Includes
  * @author   Carlos Vico
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 class Producto
@@ -238,6 +239,7 @@ class Producto
      * Calcula el valor total del inventario (suma de precio × stock).
      *
      * @author Carlos Vico
+ * @author   miguelrechefdez
      * @return float Valor total en euros.
      */
     public function valorInventario(): float
@@ -254,6 +256,7 @@ class Producto
      * Cuenta el total de productos activos.
      *
      * @author Carlos Vico
+ * @author   miguelrechefdez
      * @return int
      */
     public function contarActivos(): int

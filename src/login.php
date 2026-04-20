@@ -185,6 +185,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <div class="login-footer">
+        <a href="landing.php" style="color:#6366f1;text-decoration:none;">&larr; Volver al inicio</a>
+        &nbsp;&middot;&nbsp;
         &copy; <?= date('Y') ?> es21plus · Carlos Vico
     </div>
 </div>

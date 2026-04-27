@@ -17,6 +17,7 @@
  * @author   miguelrechefdez
  */
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 class PaginacionTest extends TestCase
@@ -58,7 +59,7 @@ class PaginacionTest extends TestCase
 
     // ── Producto::listarPaginado ──────────────────────────────
 
-    /** @test */
+    #[Test]
     public function listar_paginado_page1_returns_first_slice(): void
     {
         // Create 5 products so we can paginate with porPagina=2
@@ -70,7 +71,7 @@ class PaginacionTest extends TestCase
         $this->assertCount(2, $page1);
     }
 
-    /** @test */
+    #[Test]
     public function listar_paginado_page2_returns_different_rows(): void
     {
         for ($i = 1; $i <= 5; $i++) {
@@ -86,7 +87,7 @@ class PaginacionTest extends TestCase
         $this->assertEmpty(array_intersect($ids1, $ids2), 'Pages must not overlap');
     }
 
-    /** @test */
+    #[Test]
     public function listar_paginado_filters_by_termino(): void
     {
         $id = $this->makeProduct('TEST_pag_filtro_unico_xyz');
@@ -99,7 +100,7 @@ class PaginacionTest extends TestCase
         $this->assertCount(1, array_filter($ids, fn($i) => $i === $id));
     }
 
-    /** @test */
+    #[Test]
     public function listar_paginado_filters_by_categoria_id(): void
     {
         // Use categoria 1 (Frenos) which always exists from schema seed
@@ -113,7 +114,7 @@ class PaginacionTest extends TestCase
         $this->assertNotContains($id2, $ids);
     }
 
-    /** @test */
+    #[Test]
     public function listar_paginado_excludes_soft_deleted(): void
     {
         $id = $this->makeProduct('TEST_pag_deleted');
@@ -128,7 +129,7 @@ class PaginacionTest extends TestCase
 
     // ── Producto::contarFiltrados ─────────────────────────────
 
-    /** @test */
+    #[Test]
     public function contar_filtrados_returns_integer(): void
     {
         $count = $this->productoModel->contarFiltrados();
@@ -136,7 +137,7 @@ class PaginacionTest extends TestCase
         $this->assertGreaterThanOrEqual(0, $count);
     }
 
-    /** @test */
+    #[Test]
     public function contar_filtrados_increments_when_product_added(): void
     {
         $antes = $this->productoModel->contarFiltrados();
@@ -144,7 +145,7 @@ class PaginacionTest extends TestCase
         $this->assertSame($antes + 1, $this->productoModel->contarFiltrados());
     }
 
-    /** @test */
+    #[Test]
     public function contar_filtrados_with_termino_matches_listar_count(): void
     {
         $this->makeProduct('TEST_pag_term_alpha');
@@ -158,14 +159,14 @@ class PaginacionTest extends TestCase
 
     // ── Movimiento::contarPorProducto ─────────────────────────
 
-    /** @test */
+    #[Test]
     public function contar_por_producto_returns_zero_for_no_movements(): void
     {
         $id = $this->makeProduct('TEST_pag_mov_zero');
         $this->assertSame(0, $this->movimientoModel->contarPorProducto($id));
     }
 
-    /** @test */
+    #[Test]
     public function contar_por_producto_returns_correct_count(): void
     {
         $id = $this->makeProduct('TEST_pag_mov_count');
@@ -177,7 +178,7 @@ class PaginacionTest extends TestCase
 
     // ── Movimiento::listarPorProductoPaginado ─────────────────
 
-    /** @test */
+    #[Test]
     public function listar_movimientos_paginado_returns_correct_slice(): void
     {
         $id = $this->makeProduct('TEST_pag_mov_slice');
@@ -189,7 +190,7 @@ class PaginacionTest extends TestCase
         $this->assertCount(2, $page1);
     }
 
-    /** @test */
+    #[Test]
     public function listar_movimientos_paginado_pages_dont_overlap(): void
     {
         $id = $this->makeProduct('TEST_pag_mov_overlap');
@@ -203,7 +204,7 @@ class PaginacionTest extends TestCase
         $this->assertEmpty(array_intersect($p1ids, $p2ids));
     }
 
-    /** @test */
+    #[Test]
     public function listar_movimientos_paginado_most_recent_first(): void
     {
         $id = $this->makeProduct('TEST_pag_mov_order');

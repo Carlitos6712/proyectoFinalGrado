@@ -18,6 +18,7 @@
  * @author   miguelrechefdez
  */
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 class ProductoTest extends TestCase
@@ -71,14 +72,14 @@ class ProductoTest extends TestCase
 
     // ── listar ────────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function listar_returns_array(): void
     {
         $result = $this->model->listar();
         $this->assertIsArray($result);
     }
 
-    /** @test */
+    #[Test]
     public function listar_excludes_soft_deleted_products(): void
     {
         $id = $this->insertProduct(['nombre' => 'TEST_soft_del']);
@@ -89,7 +90,7 @@ class ProductoTest extends TestCase
         $this->assertNotContains($id, $ids);
     }
 
-    /** @test */
+    #[Test]
     public function listar_includes_active_products(): void
     {
         $id = $this->insertProduct(['nombre' => 'TEST_activo']);
@@ -100,7 +101,7 @@ class ProductoTest extends TestCase
 
     // ── obtener ───────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function obtener_returns_correct_product(): void
     {
         $id = $this->insertProduct(['nombre' => 'TEST_obtener', 'precio' => 42.00]);
@@ -112,14 +113,14 @@ class ProductoTest extends TestCase
         $this->assertEquals(42.00, (float) $row['precio']);
     }
 
-    /** @test */
+    #[Test]
     public function obtener_throws_for_nonexistent_id(): void
     {
         $this->expectException(AppException::class);
         $this->model->obtener(999999);
     }
 
-    /** @test */
+    #[Test]
     public function obtener_throws_for_soft_deleted_product(): void
     {
         $id = $this->insertProduct(['nombre' => 'TEST_del_obtener']);
@@ -132,7 +133,7 @@ class ProductoTest extends TestCase
 
     // ── crear ─────────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function crear_returns_new_integer_id(): void
     {
         $id = $this->model->crear('TEST_crear', 'desc', 9.99, null, 5, 2, 'TST-99');
@@ -142,7 +143,7 @@ class ProductoTest extends TestCase
         $this->assertGreaterThan(0, $id);
     }
 
-    /** @test */
+    #[Test]
     public function crear_persists_all_fields(): void
     {
         $id = $this->model->crear('TEST_campos', 'mi descripcion', 7.50, null, 3, 1, 'TST-88');
@@ -158,7 +159,7 @@ class ProductoTest extends TestCase
 
     // ── actualizar ────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function actualizar_modifies_fields(): void
     {
         $id = $this->insertProduct(['nombre' => 'TEST_actualizar', 'precio' => 10.00]);
@@ -172,7 +173,7 @@ class ProductoTest extends TestCase
 
     // ── buscar ────────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function buscar_finds_product_by_name(): void
     {
         $id = $this->insertProduct(['nombre' => 'TEST_buscar_unique_xyz']);
@@ -183,7 +184,7 @@ class ProductoTest extends TestCase
         $this->assertContains($id, $ids);
     }
 
-    /** @test */
+    #[Test]
     public function buscar_returns_empty_for_no_match(): void
     {
         $results = $this->model->buscar('zzz_no_existe_jamas_99999');
@@ -192,7 +193,7 @@ class ProductoTest extends TestCase
 
     // ── filtrarStockBajo ──────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function filtrar_stock_bajo_includes_product_at_minimum(): void
     {
         $id = $this->insertProduct([
@@ -205,7 +206,7 @@ class ProductoTest extends TestCase
         $this->assertContains($id, $ids);
     }
 
-    /** @test */
+    #[Test]
     public function filtrar_stock_bajo_excludes_product_above_minimum(): void
     {
         $id = $this->insertProduct([
@@ -220,7 +221,7 @@ class ProductoTest extends TestCase
 
     // ── actualizarStock ───────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function actualizar_stock_increments_correctly(): void
     {
         $id = $this->insertProduct(['nombre' => 'TEST_stock_inc', 'stock' => 10]);
@@ -231,7 +232,7 @@ class ProductoTest extends TestCase
         $this->assertSame(15, (int) $row['stock']);
     }
 
-    /** @test */
+    #[Test]
     public function actualizar_stock_decrements_correctly(): void
     {
         $id = $this->insertProduct(['nombre' => 'TEST_stock_dec', 'stock' => 10]);
@@ -242,7 +243,7 @@ class ProductoTest extends TestCase
         $this->assertSame(7, (int) $row['stock']);
     }
 
-    /** @test */
+    #[Test]
     public function actualizar_stock_throws_when_result_would_be_negative(): void
     {
         $id = $this->insertProduct(['nombre' => 'TEST_stock_neg', 'stock' => 2]);

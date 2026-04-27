@@ -16,6 +16,7 @@
  * @author   miguelrechefdez
  */
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 class CategoriaTest extends TestCase
@@ -68,13 +69,13 @@ class CategoriaTest extends TestCase
 
     // ── listar ────────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function listar_returns_array(): void
     {
         $this->assertIsArray($this->model->listar());
     }
 
-    /** @test */
+    #[Test]
     public function listar_includes_total_productos_key(): void
     {
         $cats = $this->model->listar();
@@ -82,7 +83,7 @@ class CategoriaTest extends TestCase
         $this->assertArrayHasKey('total_productos', $cats[0]);
     }
 
-    /** @test */
+    #[Test]
     public function listar_total_productos_counts_only_active(): void
     {
         $catId = $this->createCategoria('TEST_listar_count');
@@ -106,7 +107,7 @@ class CategoriaTest extends TestCase
 
     // ── obtenerPorId ──────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function obtener_por_id_returns_correct_category(): void
     {
         $id = $this->createCategoria('TEST_obtener_cat');
@@ -117,7 +118,7 @@ class CategoriaTest extends TestCase
         $this->assertSame('TEST_obtener_cat', $row['nombre']);
     }
 
-    /** @test */
+    #[Test]
     public function obtener_por_id_throws_for_nonexistent_id(): void
     {
         $this->expectException(AppException::class);
@@ -126,7 +127,7 @@ class CategoriaTest extends TestCase
 
     // ── crear ─────────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function crear_returns_positive_integer_id(): void
     {
         $id = $this->createCategoria('TEST_crear_cat');
@@ -134,7 +135,7 @@ class CategoriaTest extends TestCase
         $this->assertGreaterThan(0, $id);
     }
 
-    /** @test */
+    #[Test]
     public function crear_persists_nombre_and_descripcion(): void
     {
         $id = $this->createCategoria('TEST_persist_cat', 'mi descripción');
@@ -146,7 +147,7 @@ class CategoriaTest extends TestCase
 
     // ── actualizar ────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function actualizar_modifies_nombre_and_descripcion(): void
     {
         $id = $this->createCategoria('TEST_act_before');
@@ -160,7 +161,7 @@ class CategoriaTest extends TestCase
 
     // ── eliminar ──────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function eliminar_removes_category_with_no_products(): void
     {
         $id = $this->createCategoria('TEST_eliminar_cat');
@@ -172,7 +173,7 @@ class CategoriaTest extends TestCase
         $this->model->obtenerPorId($id);
     }
 
-    /** @test */
+    #[Test]
     public function eliminar_throws_when_category_has_active_products(): void
     {
         $catId = $this->createCategoria('TEST_eliminar_con_prod');

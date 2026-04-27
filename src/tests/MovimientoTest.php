@@ -18,6 +18,7 @@
  * @author   miguelrechefdez
  */
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 class MovimientoTest extends TestCase
@@ -50,7 +51,7 @@ class MovimientoTest extends TestCase
 
     // ── registrar ─────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function registrar_returns_integer_id(): void
     {
         $id = $this->model->registrar($this->productoId, 'entrada', 5, 'test entrada');
@@ -58,7 +59,7 @@ class MovimientoTest extends TestCase
         $this->assertGreaterThan(0, $id);
     }
 
-    /** @test */
+    #[Test]
     public function registrar_entrada_increases_stock(): void
     {
         $antes = (int) $this->productoModel->obtener($this->productoId)['stock'];
@@ -69,7 +70,7 @@ class MovimientoTest extends TestCase
         $this->assertSame($antes + 8, $despues);
     }
 
-    /** @test */
+    #[Test]
     public function registrar_salida_decreases_stock(): void
     {
         $antes = (int) $this->productoModel->obtener($this->productoId)['stock'];
@@ -80,28 +81,28 @@ class MovimientoTest extends TestCase
         $this->assertSame($antes - 4, $despues);
     }
 
-    /** @test */
+    #[Test]
     public function registrar_throws_on_invalid_tipo(): void
     {
         $this->expectException(AppException::class);
         $this->model->registrar($this->productoId, 'transferencia', 1, '');
     }
 
-    /** @test */
+    #[Test]
     public function registrar_throws_on_zero_cantidad(): void
     {
         $this->expectException(AppException::class);
         $this->model->registrar($this->productoId, 'entrada', 0, '');
     }
 
-    /** @test */
+    #[Test]
     public function registrar_throws_on_negative_cantidad(): void
     {
         $this->expectException(AppException::class);
         $this->model->registrar($this->productoId, 'entrada', -3, '');
     }
 
-    /** @test */
+    #[Test]
     public function registrar_salida_throws_when_stock_insufficient(): void
     {
         // Product has 20 stock; try to take out 100
@@ -111,7 +112,7 @@ class MovimientoTest extends TestCase
 
     // ── listarPorProducto ─────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function listar_por_producto_returns_movements_for_product(): void
     {
         $this->model->registrar($this->productoId, 'entrada', 2, 'mov A');
@@ -122,7 +123,7 @@ class MovimientoTest extends TestCase
         $this->assertCount(2, $movs);
     }
 
-    /** @test */
+    #[Test]
     public function listar_por_producto_returns_empty_for_no_movements(): void
     {
         $movs = $this->model->listarPorProducto($this->productoId);
@@ -131,7 +132,7 @@ class MovimientoTest extends TestCase
 
     // ── resumenStock ──────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function resumen_stock_calculates_correct_balance(): void
     {
         $this->model->registrar($this->productoId, 'entrada', 10, '');
@@ -145,7 +146,7 @@ class MovimientoTest extends TestCase
         $this->assertSame(12, (int) $resumen['balance']);
     }
 
-    /** @test */
+    #[Test]
     public function resumen_stock_returns_zeros_for_no_movements(): void
     {
         $resumen = $this->model->resumenStock($this->productoId);
@@ -157,7 +158,7 @@ class MovimientoTest extends TestCase
 
     // ── contarEsteMes ─────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function contar_este_mes_returns_non_negative_integer(): void
     {
         $count = $this->model->contarEsteMes();
@@ -165,7 +166,7 @@ class MovimientoTest extends TestCase
         $this->assertGreaterThanOrEqual(0, $count);
     }
 
-    /** @test */
+    #[Test]
     public function contar_este_mes_increments_after_registrar(): void
     {
         $antes = $this->model->contarEsteMes();
@@ -177,7 +178,7 @@ class MovimientoTest extends TestCase
 
     // ── ultimosMovimientos ────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function ultimos_movimientos_respects_limit(): void
     {
         for ($i = 0; $i < 5; $i++) {
@@ -188,7 +189,7 @@ class MovimientoTest extends TestCase
         $this->assertCount(3, $movs);
     }
 
-    /** @test */
+    #[Test]
     public function ultimos_movimientos_returns_most_recent_first(): void
     {
         $this->model->registrar($this->productoId, 'entrada', 1, 'primero');

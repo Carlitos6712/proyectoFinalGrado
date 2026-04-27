@@ -13,10 +13,14 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Movimiento.php';
 
-$error   = '';
-$producto    = null;
-$movimientos = [];
-$resumen     = [];
+$error        = '';
+$producto     = null;
+$movimientos  = [];
+$resumen      = [];
+$totalMovs    = 0;
+$totalPaginas = 1;
+
+const POR_PAGINA_MOVIMIENTOS = 10;
 
 $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
@@ -45,9 +49,13 @@ try {
         exit;
     }
 
-    $producto    = $productoModel->obtener($productoId);
-    $movimientos = $movimientoModel->listarPorProducto($productoId);
-    $resumen     = $movimientoModel->resumenStock($productoId);
+    $producto     = $productoModel->obtener($productoId);
+    $resumen      = $movimientoModel->resumenStock($productoId);
+    $totalMovs    = $movimientoModel->contarPorProducto($productoId);
+    $paginaActual = max(1, (int) filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT));
+    $totalPaginas = max(1, (int) ceil($totalMovs / POR_PAGINA_MOVIMIENTOS));
+    $paginaActual = min($paginaActual, $totalPaginas);
+    $movimientos  = $movimientoModel->listarPorProductoPaginado($productoId, $paginaActual, POR_PAGINA_MOVIMIENTOS);
 
 } catch (AppException $e) {
     $error = $e->getMessage();
@@ -314,7 +322,7 @@ $balance  = $entradas - $salidas;
         <div class="page-header" style="margin-top:2rem;">
             <div class="page-header-info">
                 <h2 class="page-title" style="font-size:1.1rem;">Historial de Movimientos</h2>
-                <p class="page-subtitle"><?= count($movimientos) ?> movimiento(s) registrado(s)</p>
+                <p class="page-subtitle"><?= $totalMovs ?> movimiento(s) registrado(s)</p>
             </div>
         </div>
 
@@ -354,6 +362,44 @@ $balance  = $entradas - $salidas;
             </table>
             <?php endif; ?>
         </div>
+
+        <?php if ($totalPaginas > 1 || $totalMovs > 0): ?>
+        <div class="pagination-bar">
+            <span class="pagination-info">
+                <?php
+                $desde = ($paginaActual - 1) * POR_PAGINA_MOVIMIENTOS + 1;
+                $hasta = min($paginaActual * POR_PAGINA_MOVIMIENTOS, $totalMovs);
+                echo $totalMovs > 0
+                    ? "Mostrando {$desde}–{$hasta} de {$totalMovs} movimientos"
+                    : "0 movimientos";
+                ?>
+            </span>
+            <?php if ($totalPaginas > 1): ?>
+            <nav class="pagination" aria-label="Paginación de movimientos">
+                <?php
+                $buildUrl = fn(int $p) => "movimientos.php?producto_id={$productoId}&page={$p}";
+                ?>
+                <a href="<?= $buildUrl(1) ?>"
+                   class="page-btn <?= $paginaActual === 1 ? 'page-btn-disabled' : '' ?>">«</a>
+                <a href="<?= $buildUrl(max(1, $paginaActual - 1)) ?>"
+                   class="page-btn <?= $paginaActual === 1 ? 'page-btn-disabled' : '' ?>">‹</a>
+                <?php
+                $start = max(1, $paginaActual - 2);
+                $end   = min($totalPaginas, $paginaActual + 2);
+                for ($i = $start; $i <= $end; $i++): ?>
+                    <a href="<?= $buildUrl($i) ?>"
+                       class="page-btn <?= $i === $paginaActual ? 'page-btn-active' : '' ?>">
+                        <?= $i ?>
+                    </a>
+                <?php endfor; ?>
+                <a href="<?= $buildUrl(min($totalPaginas, $paginaActual + 1)) ?>"
+                   class="page-btn <?= $paginaActual === $totalPaginas ? 'page-btn-disabled' : '' ?>">›</a>
+                <a href="<?= $buildUrl($totalPaginas) ?>"
+                   class="page-btn <?= $paginaActual === $totalPaginas ? 'page-btn-disabled' : '' ?>">»</a>
+            </nav>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
 
         <?php endif; ?>
 

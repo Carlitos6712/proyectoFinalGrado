@@ -144,6 +144,12 @@ try {
             </nav>
         </div>
         <div class="topbar-right">
+            <a href="landing.php" class="topbar-back" title="Volver al inicio">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+                </svg>
+                <span>Inicio</span>
+            </a>
             <?php if ($stockBajoCount > 0): ?>
             <a href="productos.php" class="topbar-alert" title="<?= $stockBajoCount ?> producto(s) con stock bajo">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -270,7 +276,7 @@ try {
         <!-- Chart card -->
         <div class="card chart-card">
             <div class="card-header">
-                <h2 class="card-title">Movimientos – últimos 7 días</h2>
+                <h2 class="card-title">Movimientos – últimos 30 días</h2>
                 <p class="card-subtitle">Entradas y salidas de stock por día</p>
             </div>
             <div class="card-body">
@@ -377,28 +383,71 @@ try {
     const canvas = document.getElementById('chart-movimientos');
     if (!canvas) return;
     try {
-        const res  = await fetch('api/movimientos.php?grafico=1');
+        const res  = await fetch('api/movimientos.php?grafico=1&dias=30');
         const json = await res.json();
         if (!json.success || !json.data.length) {
-            canvas.parentElement.innerHTML = '<p class="empty-chart">Sin movimientos en los últimos 7 días.</p>';
+            canvas.parentElement.innerHTML =
+                '<p class="empty-chart">Sin movimientos en los últimos 30 días.</p>';
             return;
         }
-        const labels   = json.data.map(r => r.fecha);
+
+        const labels   = json.data.map(r => {
+            const [y, m, d] = r.fecha.split('-');
+            return `${d}/${m}`;
+        });
         const entradas = json.data.map(r => parseInt(r.entradas, 10));
         const salidas  = json.data.map(r => parseInt(r.salidas,  10));
+
         new Chart(canvas, {
             type: 'bar',
             data: {
                 labels,
                 datasets: [
-                    { label: 'Entradas', data: entradas, backgroundColor: 'rgba(34,197,94,0.7)', borderRadius: 6 },
-                    { label: 'Salidas',  data: salidas,  backgroundColor: 'rgba(239,68,68,0.7)', borderRadius: 6 }
+                    {
+                        label: 'Entradas',
+                        data: entradas,
+                        backgroundColor: 'rgba(34,197,94,0.75)',
+                        borderColor:     'rgba(34,197,94,1)',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                        borderSkipped: false
+                    },
+                    {
+                        label: 'Salidas',
+                        data: salidas,
+                        backgroundColor: 'rgba(239,68,68,0.75)',
+                        borderColor:     'rgba(239,68,68,1)',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                        borderSkipped: false
+                    }
                 ]
             },
             options: {
                 responsive: true,
-                plugins: { legend: { position: 'top' } },
-                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { usePointStyle: true, padding: 16, font: { size: 13 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} uds.`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 11 } }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { precision: 0, font: { size: 11 } },
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    }
+                }
             }
         });
     } catch (e) {

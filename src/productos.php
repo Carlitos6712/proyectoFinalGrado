@@ -22,12 +22,25 @@ $categorias     = [];
 $stockBajoCount = 0;
 $error          = '';
 
+const POR_PAGINA_PRODUCTOS = 15;
+
+$paginaActual = max(1, (int) filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT));
+$terminoBusq  = trim(filter_input(INPUT_GET, 'q',            FILTER_SANITIZE_SPECIAL_CHARS) ?? '');
+$catFiltro    = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
+$totalPaginas = 1;
+$totalItems   = 0;
+
 try {
     $productoModel  = new Producto();
     $categoriaModel = new Categoria();
-    $productos       = $productoModel->listar();
-    $categorias      = $categoriaModel->listar();
-    $stockBajoCount  = count($productoModel->filtrarStockBajo());
+
+    $totalItems     = $productoModel->contarFiltrados($terminoBusq ?: null, $catFiltro);
+    $totalPaginas   = max(1, (int) ceil($totalItems / POR_PAGINA_PRODUCTOS));
+    $paginaActual   = min($paginaActual, $totalPaginas);
+
+    $productos      = $productoModel->listarPaginado($paginaActual, POR_PAGINA_PRODUCTOS, $terminoBusq ?: null, $catFiltro);
+    $categorias     = $categoriaModel->listar();
+    $stockBajoCount = count($productoModel->filtrarStockBajo());
 } catch (\Throwable $e) {
     $error = 'Error al cargar datos: ' . $e->getMessage();
 }
@@ -296,6 +309,51 @@ try {
                 </tbody>
             </table>
         </div>
+
+        <?php if ($totalPaginas > 1 || $totalItems > 0): ?>
+        <div class="pagination-bar">
+            <span class="pagination-info">
+                <?php
+                $desde = ($paginaActual - 1) * POR_PAGINA_PRODUCTOS + 1;
+                $hasta = min($paginaActual * POR_PAGINA_PRODUCTOS, $totalItems);
+                echo $totalItems > 0
+                    ? "Mostrando {$desde}–{$hasta} de {$totalItems} productos"
+                    : "0 productos";
+                ?>
+            </span>
+            <?php if ($totalPaginas > 1): ?>
+            <nav class="pagination" aria-label="Paginación de productos">
+                <?php
+                $baseParams = [];
+                if ($terminoBusq)  $baseParams['q']           = $terminoBusq;
+                if ($catFiltro)    $baseParams['categoria_id'] = $catFiltro;
+                $buildUrl = fn(int $p) => 'productos.php?' . http_build_query(array_merge($baseParams, ['page' => $p]));
+                ?>
+                <a href="<?= $buildUrl(1) ?>"
+                   class="page-btn <?= $paginaActual === 1 ? 'page-btn-disabled' : '' ?>"
+                   aria-label="Primera página">«</a>
+                <a href="<?= $buildUrl(max(1, $paginaActual - 1)) ?>"
+                   class="page-btn <?= $paginaActual === 1 ? 'page-btn-disabled' : '' ?>"
+                   aria-label="Página anterior">‹</a>
+                <?php
+                $start = max(1, $paginaActual - 2);
+                $end   = min($totalPaginas, $paginaActual + 2);
+                for ($i = $start; $i <= $end; $i++): ?>
+                    <a href="<?= $buildUrl($i) ?>"
+                       class="page-btn <?= $i === $paginaActual ? 'page-btn-active' : '' ?>">
+                        <?= $i ?>
+                    </a>
+                <?php endfor; ?>
+                <a href="<?= $buildUrl(min($totalPaginas, $paginaActual + 1)) ?>"
+                   class="page-btn <?= $paginaActual === $totalPaginas ? 'page-btn-disabled' : '' ?>"
+                   aria-label="Página siguiente">›</a>
+                <a href="<?= $buildUrl($totalPaginas) ?>"
+                   class="page-btn <?= $paginaActual === $totalPaginas ? 'page-btn-disabled' : '' ?>"
+                   aria-label="Última página">»</a>
+            </nav>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
 
     </main>
 </div>

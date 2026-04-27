@@ -15,6 +15,7 @@
  * @author   miguelrechefdez
  */
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 class ProductoEliminarTest extends TestCase
@@ -51,7 +52,7 @@ class ProductoEliminarTest extends TestCase
     // Soft-delete behaviour
     // ────────────────────────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function eliminar_sets_deleted_at_timestamp(): void
     {
         $this->model->eliminar($this->productoId);
@@ -65,7 +66,7 @@ class ProductoEliminarTest extends TestCase
         $this->assertNotNull($deletedAt, 'deleted_at must be set after eliminar()');
     }
 
-    /** @test */
+    #[Test]
     public function deleted_product_does_not_appear_in_listar(): void
     {
         $this->model->eliminar($this->productoId);
@@ -80,7 +81,7 @@ class ProductoEliminarTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function deleted_product_throws_on_obtener(): void
     {
         $this->model->eliminar($this->productoId);
@@ -89,7 +90,7 @@ class ProductoEliminarTest extends TestCase
         $this->model->obtener($this->productoId);
     }
 
-    /** @test */
+    #[Test]
     public function eliminar_already_deleted_product_returns_false(): void
     {
         $this->model->eliminar($this->productoId);
@@ -106,14 +107,14 @@ class ProductoEliminarTest extends TestCase
     // contarMovimientos
     // ────────────────────────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function contar_movimientos_returns_zero_for_new_product(): void
     {
         $count = $this->model->contarMovimientos($this->productoId);
         $this->assertSame(0, $count);
     }
 
-    /** @test */
+    #[Test]
     public function contar_movimientos_returns_correct_count_after_insert(): void
     {
         // Insert 2 fake movement rows directly
@@ -131,7 +132,7 @@ class ProductoEliminarTest extends TestCase
     // CSRF helpers (will fail until functions are created)
     // ────────────────────────────────────────────────────────────────
 
-    /** @test */
+    #[Test]
     public function generate_csrf_token_returns_non_empty_string(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
@@ -144,7 +145,7 @@ class ProductoEliminarTest extends TestCase
         $this->assertNotEmpty($token);
     }
 
-    /** @test */
+    #[Test]
     public function valid_csrf_token_passes_validation(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
@@ -157,7 +158,7 @@ class ProductoEliminarTest extends TestCase
         $this->assertTrue($valid, 'A freshly generated token must pass validation');
     }
 
-    /** @test */
+    #[Test]
     public function invalid_csrf_token_fails_validation(): void
     {
         if (session_status() === PHP_SESSION_NONE) {

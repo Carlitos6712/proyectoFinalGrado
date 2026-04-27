@@ -169,8 +169,9 @@ class Producto
                 FROM productos p
                 LEFT JOIN categorias c ON p.categoria_id = c.id
                 WHERE p.deleted_at IS NULL
-                  AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino)";
-        $params = [':termino' => "%{$termino}%"];
+                  AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino2)";
+        $like   = "%{$termino}%";
+        $params = [':termino' => $like, ':termino2' => $like];
 
         if ($categoriaId !== null) {
             $sql .= " AND p.categoria_id = :categoria_id";

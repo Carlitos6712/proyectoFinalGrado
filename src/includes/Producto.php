@@ -267,4 +267,77 @@ class Producto
         );
         return (int) $stmt->fetchColumn();
     }
+
+    /**
+     * Cuenta productos activos aplicando los mismos filtros que listarPaginado.
+     *
+     * @param string|null $termino     Término de búsqueda (nombre o código ref).
+     * @param int|null    $categoriaId Filtro por categoría.
+     * @return int
+     */
+    public function contarFiltrados(?string $termino = null, ?int $categoriaId = null): int
+    {
+        $sql    = "SELECT COUNT(*) FROM productos p WHERE p.deleted_at IS NULL";
+        $params = [];
+
+        if ($termino !== null && $termino !== '') {
+            $sql .= " AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino2)";
+            $like              = "%{$termino}%";
+            $params[':termino']  = $like;
+            $params[':termino2'] = $like;
+        }
+        if ($categoriaId !== null) {
+            $sql .= " AND p.categoria_id = :categoria_id";
+            $params[':categoria_id'] = $categoriaId;
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Lista productos activos con paginación y filtros opcionales.
+     *
+     * @param int         $pagina      Página actual (1-indexed).
+     * @param int         $porPagina   Registros por página.
+     * @param string|null $termino     Término de búsqueda.
+     * @param int|null    $categoriaId Filtro por categoría.
+     * @return array<int, array<string, mixed>>
+     */
+    public function listarPaginado(
+        int $pagina,
+        int $porPagina,
+        ?string $termino = null,
+        ?int $categoriaId = null
+    ): array {
+        $offset = ($pagina - 1) * $porPagina;
+        $sql    = "SELECT p.*, c.nombre AS categoria_nombre
+                   FROM productos p
+                   LEFT JOIN categorias c ON p.categoria_id = c.id
+                   WHERE p.deleted_at IS NULL";
+        $params = [];
+
+        if ($termino !== null && $termino !== '') {
+            $sql .= " AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino2)";
+            $like              = "%{$termino}%";
+            $params[':termino']  = $like;
+            $params[':termino2'] = $like;
+        }
+        if ($categoriaId !== null) {
+            $sql .= " AND p.categoria_id = :categoria_id";
+            $params[':categoria_id'] = $categoriaId;
+        }
+
+        $sql .= " ORDER BY p.nombre LIMIT :limite OFFSET :offset";
+
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        $stmt->bindValue(':limite', $porPagina, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset,    PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
 }

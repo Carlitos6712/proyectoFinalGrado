@@ -357,10 +357,16 @@ Cuando Claude Code trabaje en este proyecto debe:
 
 1. Leer este `CLAUDE.md` completo antes de escribir código.
 2. Implementar las tareas **en el orden de prioridad** indicado.
-3. En cada archivo creado incluir la cabecera PHPDoc con `@author Carlos Vico`.
+3. En cada archivo creado incluir la cabecera PHPDoc con `@author Carlitos6712`.
 4. Tras cada tarea, verificar que el código sea coherente con los archivos existentes.
 5. Nunca modificar `.env` (solo `.env.example`).
 6. Mantener `database/schema.sql` actualizado con cada cambio de estructura.
+
+### Autoría en commits
+
+- **Nunca** incluir `Co-Authored-By: Claude` ni ninguna variante de Claude/Anthropic en los mensajes de commit.
+- **Nunca** añadir `@author Claude` ni `@author Anthropic` en PHPDoc ni en ningún archivo.
+- El único autor del proyecto es **Carlitos6712**. Claude Code es una herramienta, no un colaborador.
 
 ---
 
@@ -372,7 +378,7 @@ Cuando Claude Code trabaje en este proyecto debe:
  * Gestión de productos del inventario.
  *
  * @package  Es21Plus\Includes
- * @author   Carlos Vico
+ * @author   Carlitos6712
  * @version  1.0.0
  */
 class Producto

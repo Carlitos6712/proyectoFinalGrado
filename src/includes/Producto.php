@@ -279,14 +279,38 @@ class Producto
     }
 
     /**
+     * Mapa de valores de ?orden= a cláusulas ORDER BY seguras.
+     */
+    private const ORDEN_MAP = [
+        'nombre_asc'  => 'p.nombre ASC',
+        'nombre_desc' => 'p.nombre DESC',
+        'precio_asc'  => 'p.precio ASC',
+        'precio_desc' => 'p.precio DESC',
+        'stock_asc'   => 'p.stock ASC',
+        'stock_desc'  => 'p.stock DESC',
+        'fecha_asc'   => 'p.created_at ASC',
+        'fecha_desc'  => 'p.created_at DESC',
+    ];
+
+    /**
      * Cuenta productos activos aplicando los mismos filtros que listarPaginado.
      *
      * @param string|null $termino     Término de búsqueda (nombre o código ref).
      * @param int|null    $categoriaId Filtro por categoría.
+     * @param float|null  $precioMin   Precio mínimo (anticipado Fase 4).
+     * @param float|null  $precioMax   Precio máximo (anticipado Fase 4).
+     * @param int|null    $stockMin    Stock mínimo (anticipado Fase 4).
+     * @param int|null    $stockMax    Stock máximo (anticipado Fase 4).
      * @return int
      */
-    public function contarFiltrados(?string $termino = null, ?int $categoriaId = null): int
-    {
+    public function contarFiltrados(
+        ?string $termino = null,
+        ?int $categoriaId = null,
+        ?float $precioMin = null,
+        ?float $precioMax = null,
+        ?int $stockMin = null,
+        ?int $stockMax = null
+    ): int {
         $sql    = "SELECT COUNT(*) FROM productos p WHERE p.deleted_at IS NULL";
         $params = [];
 
@@ -300,6 +324,22 @@ class Producto
             $sql .= " AND p.categoria_id = :categoria_id";
             $params[':categoria_id'] = $categoriaId;
         }
+        if ($precioMin !== null) {
+            $sql .= " AND p.precio >= :precio_min";
+            $params[':precio_min'] = $precioMin;
+        }
+        if ($precioMax !== null) {
+            $sql .= " AND p.precio <= :precio_max";
+            $params[':precio_max'] = $precioMax;
+        }
+        if ($stockMin !== null) {
+            $sql .= " AND p.stock >= :stock_min";
+            $params[':stock_min'] = $stockMin;
+        }
+        if ($stockMax !== null) {
+            $sql .= " AND p.stock <= :stock_max";
+            $params[':stock_max'] = $stockMax;
+        }
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
@@ -307,26 +347,40 @@ class Producto
     }
 
     /**
-     * Lista productos activos con paginación y filtros opcionales.
+     * Lista productos activos con paginación y filtros combinables.
+     *
+     * Soporta todos los filtros de Fase 4: q, categoria_id, precio_min,
+     * precio_max, stock_min, stock_max, orden.
      *
      * @param int         $pagina      Página actual (1-indexed).
      * @param int         $porPagina   Registros por página.
      * @param string|null $termino     Término de búsqueda.
      * @param int|null    $categoriaId Filtro por categoría.
+     * @param float|null  $precioMin   Precio mínimo.
+     * @param float|null  $precioMax   Precio máximo.
+     * @param int|null    $stockMin    Stock mínimo.
+     * @param int|null    $stockMax    Stock máximo.
+     * @param string      $orden       Clave de ordenación (ver ORDEN_MAP).
      * @return array<int, array<string, mixed>>
      */
     public function listarPaginado(
         int $pagina,
         int $porPagina,
         ?string $termino = null,
-        ?int $categoriaId = null
+        ?int $categoriaId = null,
+        ?float $precioMin = null,
+        ?float $precioMax = null,
+        ?int $stockMin = null,
+        ?int $stockMax = null,
+        string $orden = 'nombre_asc'
     ): array {
-        $offset = ($pagina - 1) * $porPagina;
-        $sql    = "SELECT p.*, c.nombre AS categoria_nombre
-                   FROM productos p
-                   LEFT JOIN categorias c ON p.categoria_id = c.id
-                   WHERE p.deleted_at IS NULL";
-        $params = [];
+        $offset  = ($pagina - 1) * $porPagina;
+        $orderBy = self::ORDEN_MAP[$orden] ?? 'p.nombre ASC';
+        $sql     = "SELECT p.*, c.nombre AS categoria_nombre
+                    FROM productos p
+                    LEFT JOIN categorias c ON p.categoria_id = c.id
+                    WHERE p.deleted_at IS NULL";
+        $params  = [];
 
         if ($termino !== null && $termino !== '') {
             $sql .= " AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino2)";
@@ -338,8 +392,24 @@ class Producto
             $sql .= " AND p.categoria_id = :categoria_id";
             $params[':categoria_id'] = $categoriaId;
         }
+        if ($precioMin !== null) {
+            $sql .= " AND p.precio >= :precio_min";
+            $params[':precio_min'] = $precioMin;
+        }
+        if ($precioMax !== null) {
+            $sql .= " AND p.precio <= :precio_max";
+            $params[':precio_max'] = $precioMax;
+        }
+        if ($stockMin !== null) {
+            $sql .= " AND p.stock >= :stock_min";
+            $params[':stock_min'] = $stockMin;
+        }
+        if ($stockMax !== null) {
+            $sql .= " AND p.stock <= :stock_max";
+            $params[':stock_max'] = $stockMax;
+        }
 
-        $sql .= " ORDER BY p.nombre LIMIT :limite OFFSET :offset";
+        $sql .= " ORDER BY {$orderBy} LIMIT :limite OFFSET :offset";
 
         $stmt = $this->pdo->prepare($sql);
         foreach ($params as $k => $v) {

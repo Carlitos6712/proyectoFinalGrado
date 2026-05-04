@@ -7,8 +7,8 @@ require_once __DIR__ . '/Producto.php';
  * Modelo de gestión de movimientos de stock (entradas/salidas).
  *
  * @package  Es21Plus\Includes
- * @author   Carlos Vico
  * @author   miguelrechefdez
+ * @author   Carlitos6712
  * @version  1.0.0
  */
 class Movimiento
@@ -132,7 +132,6 @@ class Movimiento
     /**
      * Retorna estadísticas de movimientos agrupadas por día (últimos N días).
      *
-     * @author Carlos Vico
  * @author   miguelrechefdez
      * @param int $dias Número de días a consultar (default 7).
      * @return array<int, array{fecha: string, entradas: int, salidas: int}>
@@ -157,7 +156,6 @@ class Movimiento
     /**
      * Cuenta el total de movimientos del mes actual.
      *
-     * @author Carlos Vico
  * @author   miguelrechefdez
      * @return int
      */

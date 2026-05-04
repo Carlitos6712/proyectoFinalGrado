@@ -6,8 +6,8 @@ require_once __DIR__ . '/Database.php';
  * Modelo de gestión de productos del inventario.
  *
  * @package  Es21Plus\Includes
- * @author   Carlos Vico
  * @author   miguelrechefdez
+ * @author   Carlitos6712
  * @version  1.0.0
  */
 class Producto
@@ -239,7 +239,6 @@ class Producto
     /**
      * Calcula el valor total del inventario (suma de precio × stock).
      *
-     * @author Carlos Vico
  * @author   miguelrechefdez
      * @return float Valor total en euros.
      */
@@ -256,7 +255,6 @@ class Producto
     /**
      * Cuenta el total de productos activos.
      *
-     * @author Carlos Vico
  * @author   miguelrechefdez
      * @return int
      */

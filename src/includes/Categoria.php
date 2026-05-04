@@ -6,8 +6,8 @@ require_once __DIR__ . '/Database.php';
  * Modelo de gestión de categorías del inventario.
  *
  * @package  Es21Plus\Includes
- * @author   Carlos Vico
  * @author   miguelrechefdez
+ * @author   Carlitos6712
  * @version  1.0.0
  */
 class Categoria

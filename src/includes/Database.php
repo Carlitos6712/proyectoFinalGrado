@@ -1,10 +1,12 @@
 <?php
+require_once __DIR__ . '/AppException.php';
+
 /**
  * Gestión de la conexión PDO a la base de datos.
  *
  * @package  Es21Plus\Includes
- * @author   Carlos Vico
  * @author   miguelrechefdez
+ * @author   Carlitos6712
  * @version  1.0.0
  */
 class Database
@@ -57,8 +59,12 @@ class Database
             PDO::ATTR_EMULATE_PREPARES   => false,
         ];
 
-        $pdo = new PDO($dsn, $user, $pass, $options);
-        $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
-        return $pdo;
+        try {
+            $pdo = new PDO($dsn, $user, $pass, $options);
+            $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+            return $pdo;
+        } catch (\PDOException $e) {
+            throw new AppException('No se pudo conectar a la base de datos: ' . $e->getMessage(), 500, $e);
+        }
     }
 }

@@ -53,8 +53,18 @@ try {
         exit;
     }
 } catch (AppException $e) {
+    if (!isset($producto)) {
+        $_SESSION['flash_error'] = $e->getMessage();
+        header('Location: productos.php');
+        exit;
+    }
     $error = $e->getMessage();
 } catch (\Throwable $e) {
+    if (!isset($producto)) {
+        $_SESSION['flash_error'] = 'Error inesperado al cargar el producto.';
+        header('Location: productos.php');
+        exit;
+    }
     $error = 'Error inesperado: ' . $e->getMessage();
 }
 ?>

@@ -2,9 +2,20 @@
 /**
  * API REST para gestión de productos del inventario.
  *
+ * Verbos:
+ *   GET    ?id=X               → obtener uno (404 si no existe)
+ *   GET    ?stock_bajo         → listado de stock bajo
+ *   GET    ?page=&limit=&...   → listado paginado con filtros combinables
+ *   POST                       → crear (422 si validación falla)
+ *   PUT                        → actualizar (422 validación, 404 si no existe)
+ *   DELETE ?id=X               → soft-delete (404 si no existe)
+ *
+ * Filtros del listado (anticipan contrato Fase 4):
+ *   q, categoria_id, precio_min, precio_max,
+ *   stock_min, stock_max, stock_bajo, orden
+ *
  * @package  Es21Plus\Api
  * @author   Carlitos6712
- * @author   miguelrechefdez
  * @version  1.0.0
  */
 header('Content-Type: application/json; charset=utf-8');
@@ -42,18 +53,10 @@ try {
     $method = $_SERVER['REQUEST_METHOD'];
 
     switch ($method) {
-        case 'GET':
-            handleGet($modelo);
-            break;
-        case 'POST':
-            handlePost($modelo);
-            break;
-        case 'PUT':
-            handlePut($modelo);
-            break;
-        case 'DELETE':
-            handleDelete($modelo);
-            break;
+        case 'GET':    handleGet($modelo);    break;
+        case 'POST':   handlePost($modelo);   break;
+        case 'PUT':    handlePut($modelo);    break;
+        case 'DELETE': handleDelete($modelo); break;
         default:
             jsonResponse(false, null, 'Método HTTP no permitido.', 405);
     }
@@ -66,6 +69,12 @@ try {
 /**
  * Gestiona las peticiones GET.
  *
+ * ?id=X       → obtener un producto por ID (404 si no existe)
+ * ?stock_bajo → listado de productos con stock bajo
+ * default     → listado paginado con filtros combinables:
+ *               page, limit, q, categoria_id, precio_min, precio_max,
+ *               stock_min, stock_max, orden
+ *
  * @param Producto $modelo Instancia del modelo.
  * @return void
  */
@@ -74,38 +83,69 @@ function handleGet(Producto $modelo): void
     if (isset($_GET['stock_bajo'])) {
         jsonResponse(true, $modelo->filtrarStockBajo(), 'Productos con stock bajo.');
     }
-    if (isset($_GET['buscar'])) {
-        $categoriaId = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
-        $data = $modelo->buscar($_GET['buscar'], $categoriaId);
-        jsonResponse(true, $data, 'Resultados de búsqueda.');
-    }
+
     if (isset($_GET['id'])) {
-        $id   = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-        $data = $modelo->obtener($id);
-        jsonResponse(true, $data, 'Producto encontrado.');
+        $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+        if (!$id) {
+            throw new AppException('El parámetro id debe ser un entero válido.', 400);
+        }
+        jsonResponse(true, $modelo->obtener($id), 'Producto encontrado.');
     }
-    jsonResponse(true, $modelo->listar(), 'Listado de productos.');
+
+    $page   = max(1, (int)(filter_input(INPUT_GET, 'page',  FILTER_VALIDATE_INT) ?: 1));
+    $limit  = max(1, min(100, (int)(filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT) ?: 20)));
+
+    $q           = trim($_GET['q'] ?? '');
+    $categoriaId = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
+    $precioMin   = filter_input(INPUT_GET, 'precio_min', FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
+    $precioMax   = filter_input(INPUT_GET, 'precio_max', FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
+    $stockMin    = filter_input(INPUT_GET, 'stock_min',  FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
+    $stockMax    = filter_input(INPUT_GET, 'stock_max',  FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
+    $orden       = $_GET['orden'] ?? 'nombre_asc';
+
+    $total = $modelo->contarFiltrados($q ?: null, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax);
+    $items = $modelo->listarPaginado($page, $limit, $q ?: null, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax, $orden);
+
+    jsonResponse(true, [
+        'items'       => $items,
+        'total'       => $total,
+        'page'        => $page,
+        'limit'       => $limit,
+        'total_pages' => (int) ceil($total / max(1, $limit)),
+    ], 'Listado de productos.');
 }
 
 /**
  * Gestiona las peticiones POST (crear producto).
+ * Devuelve 422 con detalle de campos si la validación falla.
  *
  * @param Producto $modelo Instancia del modelo.
  * @return void
  */
 function handlePost(Producto $modelo): void
 {
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $errors = [];
+
     $nombre      = trim($body['nombre']      ?? '');
     $descripcion = trim($body['descripcion'] ?? '');
-    $precio      = (float)  ($body['precio']      ?? 0);
-    $categoriaId = isset($body['categoria_id']) ? (int)$body['categoria_id'] : null;
-    $stock       = (int)    ($body['stock']        ?? 0);
-    $stockMinimo = (int)    ($body['stock_minimo'] ?? 5);
-    $codigoRef   = trim($body['codigo_ref'] ?? '') ?: null;
+    $precio      = isset($body['precio'])       ? (float)$body['precio']       : null;
+    $categoriaId = isset($body['categoria_id']) ? (int)$body['categoria_id']   : null;
+    $stock       = (int)($body['stock']        ?? 0);
+    $stockMinimo = (int)($body['stock_minimo'] ?? 5);
+    $codigoRef   = trim($body['codigo_ref']   ?? '') ?: null;
 
     if ($nombre === '') {
-        throw new AppException('El nombre del producto es obligatorio.', 400);
+        $errors['nombre'] = 'El nombre del producto es obligatorio.';
+    }
+    if ($precio === null || $precio <= 0) {
+        $errors['precio'] = 'El precio debe ser mayor que cero.';
+    }
+    if ($stock < 0) {
+        $errors['stock'] = 'El stock no puede ser negativo.';
+    }
+    if (!empty($errors)) {
+        jsonResponse(false, ['errors' => $errors], 'Errores de validación.', 422);
     }
 
     $id = $modelo->crear($nombre, $descripcion, $precio, $categoriaId, $stock, $stockMinimo, $codigoRef);
@@ -114,31 +154,46 @@ function handlePost(Producto $modelo): void
 
 /**
  * Gestiona las peticiones PUT (actualizar producto).
+ * Devuelve 422 si la validación falla, 404 si el producto no existe.
  *
  * @param Producto $modelo Instancia del modelo.
  * @return void
  */
 function handlePut(Producto $modelo): void
 {
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-    $id          = (int)    ($body['id']           ?? 0);
+    $body   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $errors = [];
+
+    $id          = (int)($body['id']           ?? 0);
     $nombre      = trim($body['nombre']      ?? '');
     $descripcion = trim($body['descripcion'] ?? '');
-    $precio      = (float)  ($body['precio']      ?? 0);
-    $categoriaId = isset($body['categoria_id']) ? (int)$body['categoria_id'] : null;
-    $stockMinimo = (int)    ($body['stock_minimo'] ?? 5);
-    $codigoRef   = trim($body['codigo_ref'] ?? '') ?: null;
+    $precio      = isset($body['precio'])       ? (float)$body['precio']       : null;
+    $categoriaId = isset($body['categoria_id']) ? (int)$body['categoria_id']   : null;
+    $stockMinimo = (int)($body['stock_minimo'] ?? 5);
+    $codigoRef   = trim($body['codigo_ref']   ?? '') ?: null;
 
-    if (!$id || $nombre === '') {
-        throw new AppException('id y nombre son obligatorios.', 400);
+    if (!$id) {
+        $errors['id'] = 'El campo id es obligatorio.';
+    }
+    if ($nombre === '') {
+        $errors['nombre'] = 'El nombre del producto es obligatorio.';
+    }
+    if ($precio === null || $precio <= 0) {
+        $errors['precio'] = 'El precio debe ser mayor que cero.';
+    }
+    if (!empty($errors)) {
+        jsonResponse(false, ['errors' => $errors], 'Errores de validación.', 422);
     }
 
+    $modelo->obtener($id);
     $ok = $modelo->actualizar($id, $nombre, $descripcion, $precio, $categoriaId, $stockMinimo, $codigoRef);
-    jsonResponse($ok, null, $ok ? 'Producto actualizado.' : 'No se pudo actualizar.');
+    $data = $ok ? $modelo->obtener($id) : null;
+    jsonResponse($ok, $data, $ok ? 'Producto actualizado.' : 'No se pudo actualizar.');
 }
 
 /**
  * Gestiona las peticiones DELETE (soft-delete).
+ * Devuelve 404 si el producto no existe o ya está eliminado.
  *
  * @param Producto $modelo Instancia del modelo.
  * @return void
@@ -149,6 +204,7 @@ function handleDelete(Producto $modelo): void
     if (!$id) {
         throw new AppException('Se requiere el parámetro id.', 400);
     }
+    $modelo->obtener($id);
     $ok = $modelo->eliminar($id);
-    jsonResponse($ok, null, $ok ? 'Producto eliminado.' : 'Producto no encontrado.', $ok ? 200 : 404);
+    jsonResponse($ok, null, $ok ? 'Producto eliminado.' : 'No se pudo eliminar.');
 }

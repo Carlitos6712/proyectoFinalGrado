@@ -2,9 +2,15 @@
 /**
  * API REST para gestión de categorías del inventario.
  *
+ * Verbos:
+ *   GET    ?id=X  → obtener una (404 si no existe)
+ *   GET           → listado con contador de productos activos por categoría
+ *   POST          → crear (422 si validación falla)
+ *   PUT           → actualizar (422 validación, 404 si no existe)
+ *   DELETE ?id=X  → eliminar (404 si no existe, 409 si tiene productos activos)
+ *
  * @package  Es21Plus\Api
  * @author   Carlitos6712
- * @author   miguelrechefdez
  * @version  1.0.0
  */
 header('Content-Type: application/json; charset=utf-8');
@@ -42,18 +48,10 @@ try {
     $method = $_SERVER['REQUEST_METHOD'];
 
     switch ($method) {
-        case 'GET':
-            handleGet($modelo);
-            break;
-        case 'POST':
-            handlePost($modelo);
-            break;
-        case 'PUT':
-            handlePut($modelo);
-            break;
-        case 'DELETE':
-            handleDelete($modelo);
-            break;
+        case 'GET':    handleGet($modelo);    break;
+        case 'POST':   handlePost($modelo);   break;
+        case 'PUT':    handlePut($modelo);    break;
+        case 'DELETE': handleDelete($modelo); break;
         default:
             jsonResponse(false, null, 'Método HTTP no permitido.', 405);
     }
@@ -66,21 +64,27 @@ try {
 /**
  * Gestiona las peticiones GET.
  *
+ * ?id=X → obtener categoría por ID (404 si no existe)
+ * default → listado con contador de productos activos
+ *
  * @param Categoria $modelo Instancia del modelo.
  * @return void
  */
 function handleGet(Categoria $modelo): void
 {
     if (isset($_GET['id'])) {
-        $id   = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-        $data = $modelo->obtenerPorId($id);
-        jsonResponse(true, $data, 'Categoría encontrada.');
+        $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+        if (!$id) {
+            throw new AppException('El parámetro id debe ser un entero válido.', 400);
+        }
+        jsonResponse(true, $modelo->obtenerPorId($id), 'Categoría encontrada.');
     }
     jsonResponse(true, $modelo->listar(), 'Listado de categorías.');
 }
 
 /**
  * Gestiona las peticiones POST (crear categoría).
+ * Devuelve 422 con detalle de campos si la validación falla.
  *
  * @param Categoria $modelo Instancia del modelo.
  * @return void
@@ -92,14 +96,16 @@ function handlePost(Categoria $modelo): void
     $descripcion = trim($body['descripcion'] ?? '');
 
     if ($nombre === '') {
-        throw new AppException('El nombre de la categoría es obligatorio.', 400);
+        jsonResponse(false, ['errors' => ['nombre' => 'El nombre de la categoría es obligatorio.']], 'Errores de validación.', 422);
     }
+
     $id = $modelo->crear($nombre, $descripcion);
     jsonResponse(true, ['id' => $id], 'Categoría creada correctamente.', 201);
 }
 
 /**
  * Gestiona las peticiones PUT (actualizar categoría).
+ * Devuelve 422 si la validación falla, 404 si la categoría no existe.
  *
  * @param Categoria $modelo Instancia del modelo.
  * @return void
@@ -107,19 +113,26 @@ function handlePost(Categoria $modelo): void
 function handlePut(Categoria $modelo): void
 {
     $body        = json_decode(file_get_contents('php://input'), true) ?? [];
-    $id          = (int) ($body['id']          ?? 0);
+    $id          = (int)($body['id']          ?? 0);
     $nombre      = trim($body['nombre']      ?? '');
     $descripcion = trim($body['descripcion'] ?? '');
 
     if (!$id || $nombre === '') {
-        throw new AppException('id y nombre son obligatorios.', 400);
+        $errors = [];
+        if (!$id)        $errors['id']     = 'El campo id es obligatorio.';
+        if ($nombre === '') $errors['nombre'] = 'El nombre de la categoría es obligatorio.';
+        jsonResponse(false, ['errors' => $errors], 'Errores de validación.', 422);
     }
+
+    $modelo->obtenerPorId($id);
     $ok = $modelo->actualizar($id, $nombre, $descripcion);
     jsonResponse($ok, null, $ok ? 'Categoría actualizada.' : 'No se pudo actualizar.');
 }
 
 /**
  * Gestiona las peticiones DELETE.
+ * Devuelve 404 si la categoría no existe.
+ * Devuelve 409 si tiene productos activos (lanzado por el modelo).
  *
  * @param Categoria $modelo Instancia del modelo.
  * @return void
@@ -130,6 +143,7 @@ function handleDelete(Categoria $modelo): void
     if (!$id) {
         throw new AppException('Se requiere el parámetro id.', 400);
     }
+    $modelo->obtenerPorId($id);
     $ok = $modelo->eliminar($id);
     jsonResponse($ok, null, $ok ? 'Categoría eliminada.' : 'No se pudo eliminar.');
 }

@@ -3,7 +3,7 @@
  * Modelo de gestión de usuarios y autenticación.
  *
  * @package  Es21Plus\Includes
- * @author   Carlos Vico
+ * @author   Carlitos6712
  * @author   miguelrechefdez
  * @version  1.0.0
  */

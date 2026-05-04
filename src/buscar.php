@@ -5,7 +5,7 @@
  * Endpoint AJAX: devuelve filas <tr> del tbody para el dashboard.
  *
  * @package  Es21Plus
- * @author   Carlos Vico
+ * @author   Carlitos6712
  * @author   miguelrechefdez
  * @version  1.0.0
  */

@@ -3,7 +3,7 @@
  * Formulario de creación de un nuevo producto.
  *
  * @package  Es21Plus
- * @author   Carlos Vico
+ * @author   Carlitos6712
  * @author   miguelrechefdez
  * @version  1.0.0
  */

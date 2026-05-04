@@ -13,7 +13,7 @@
  *  - Movimiento::contarPorProducto() returns correct count
  *
  * @package  Es21Plus\Tests
- * @author   Carlos Vico
+ * @author   Carlitos6712
  * @author   miguelrechefdez
  */
 

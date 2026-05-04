@@ -97,10 +97,10 @@ function handleGet(Producto $modelo): void
 
     $q           = trim($_GET['q'] ?? '');
     $categoriaId = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
-    $precioMin   = isset($_GET['precio_min']) && $_GET['precio_min'] !== '' ? (float)$_GET['precio_min'] : null;
-    $precioMax   = isset($_GET['precio_max']) && $_GET['precio_max'] !== '' ? (float)$_GET['precio_max'] : null;
-    $stockMin    = isset($_GET['stock_min'])  && $_GET['stock_min']  !== '' ? (int)$_GET['stock_min']    : null;
-    $stockMax    = isset($_GET['stock_max'])  && $_GET['stock_max']  !== '' ? (int)$_GET['stock_max']    : null;
+    $precioMin   = filter_input(INPUT_GET, 'precio_min', FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
+    $precioMax   = filter_input(INPUT_GET, 'precio_max', FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
+    $stockMin    = filter_input(INPUT_GET, 'stock_min',  FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
+    $stockMax    = filter_input(INPUT_GET, 'stock_max',  FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
     $orden       = $_GET['orden'] ?? 'nombre_asc';
 
     $total = $modelo->contarFiltrados($q ?: null, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax);

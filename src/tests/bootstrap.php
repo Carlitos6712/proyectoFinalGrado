@@ -9,12 +9,22 @@
  * @author   miguelrechefdez
  */
 
-// Env vars are already set by docker-compose; re-declare for CLI runs
-$_ENV['DB_HOST']  = getenv('DB_HOST')  ?: 'db';
-$_ENV['DB_PORT']  = getenv('DB_PORT')  ?: '3306';
-$_ENV['DB_NAME']  = getenv('DB_NAME')  ?: 'inventario_motos';
-$_ENV['DB_USER']  = getenv('DB_USER')  ?: 'admin';
-$_ENV['DB_PASS']  = getenv('DB_PASS')  ?: 'luigi21plus';
+// Env vars are already set by docker-compose; re-declare for CLI runs.
+// Use putenv() so Database::getInstance() can read via getenv().
+// Local fallbacks use localhost:3307 (Docker exposes DB on host port 3307).
+$defaults = [
+    'DB_HOST' => 'localhost',
+    'DB_PORT' => '3307',
+    'DB_NAME' => 'inventario_motos',
+    'DB_USER' => 'admin',
+    'DB_PASS' => 'luigi21plus',
+];
+foreach ($defaults as $key => $value) {
+    if (getenv($key) === false) {
+        putenv("{$key}={$value}");
+        $_ENV[$key] = $value;
+    }
+}
 
 require_once __DIR__ . '/../includes/AppException.php';
 require_once __DIR__ . '/../includes/Database.php';

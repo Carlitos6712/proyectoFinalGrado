@@ -171,6 +171,15 @@ class ProductoTest extends TestCase
         $this->assertEquals(20.00, (float) $row['precio']);
     }
 
+    #[Test]
+    public function actualizar_throws_for_zero_or_negative_price(): void
+    {
+        $id = $this->insertProduct(['nombre' => 'TEST_precio_zero', 'precio' => 10.00]);
+
+        $this->expectException(AppException::class);
+        $this->model->actualizar($id, 'TEST_precio_zero', 'desc', 0.00, null, 5, null);
+    }
+
     // ── buscar ────────────────────────────────────────────────
 
     #[Test]

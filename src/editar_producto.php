@@ -40,8 +40,11 @@ try {
         if ($nombre === '') {
             throw new AppException('El nombre del producto es obligatorio.', 400);
         }
-        if ($precio < 0) {
-            throw new AppException('El precio no puede ser negativo.', 400);
+        if ($precio <= 0) {
+            throw new AppException('El precio debe ser mayor que cero.', 400);
+        }
+        if ($stockMinimo < 0) {
+            throw new AppException('El stock mínimo no puede ser negativo.', 400);
         }
 
         $productoModel->actualizar($id, $nombre, $descripcion, $precio, $categoriaId, $stockMinimo, $codigoRef);
@@ -50,8 +53,18 @@ try {
         exit;
     }
 } catch (AppException $e) {
+    if (!isset($producto)) {
+        $_SESSION['flash_error'] = $e->getMessage();
+        header('Location: productos.php');
+        exit;
+    }
     $error = $e->getMessage();
 } catch (\Throwable $e) {
+    if (!isset($producto)) {
+        $_SESSION['flash_error'] = 'Error inesperado al cargar el producto.';
+        header('Location: productos.php');
+        exit;
+    }
     $error = 'Error inesperado: ' . $e->getMessage();
 }
 ?>

@@ -128,6 +128,19 @@ class ProductoEliminarTest extends TestCase
         $this->assertSame(2, $count);
     }
 
+    #[Test]
+    public function eliminar_throws_when_product_has_active_movements(): void
+    {
+        // Insert a movement directly so producto has history
+        $this->pdo->prepare(
+            "INSERT INTO movimientos (producto_id, tipo, cantidad, usuario)
+             VALUES (:id, 'entrada', 5, 'test')"
+        )->execute([':id' => $this->productoId]);
+
+        $this->expectException(AppException::class);
+        $this->model->eliminar($this->productoId);
+    }
+
     // ────────────────────────────────────────────────────────────────
     // CSRF helpers (will fail until functions are created)
     // ────────────────────────────────────────────────────────────────

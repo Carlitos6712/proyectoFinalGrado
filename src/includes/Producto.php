@@ -123,6 +123,12 @@ class Producto
         int $stockMinimo = 5,
         ?string $codigoRef = null
     ): bool {
+        if ($precio <= 0) {
+            throw new AppException('El precio debe ser mayor que cero.', 400);
+        }
+        if ($stockMinimo < 0) {
+            throw new AppException('El stock mínimo no puede ser negativo.', 400);
+        }
         $stmt = $this->pdo->prepare(
             "UPDATE productos
              SET nombre = :nombre, descripcion = :descripcion, precio = :precio,
@@ -149,6 +155,12 @@ class Producto
      */
     public function eliminar(int $id): bool
     {
+        if ($this->contarMovimientos($id) > 0) {
+            throw new AppException(
+                'No se puede eliminar un producto que tiene movimientos registrados.',
+                409
+            );
+        }
         $stmt = $this->pdo->prepare(
             "UPDATE productos SET deleted_at = NOW() WHERE id = :id AND deleted_at IS NULL"
         );

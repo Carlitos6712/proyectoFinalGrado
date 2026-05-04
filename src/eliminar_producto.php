@@ -251,5 +251,16 @@ try {
 </div>
 
 <script src="js/app.js"></script>
+<script>
+(function () {
+    var form = document.getElementById('form-eliminar');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+        if (!confirm('¿Confirmar eliminación del producto? Esta acción lo marcará como inactivo.')) {
+            e.preventDefault();
+        }
+    });
+}());
+</script>
 </body>
 </html>

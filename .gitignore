@@ -2,8 +2,15 @@
 .env
 .env.example
 
+# Ignorar prompts internos y documentación de Claude Code (uso local)
+PROMPTS_CLAUDE_CODE.md
+CLAUDE.md
+
 # Ignorar dependencias de Composer (si las usas)
 vendor/
+
+# Ignorar hooks locales de Git
+.githooks/
 
 # Ignorar archivos de sistema
 .DS_Store

@@ -14,3 +14,8 @@ Thumbs.db
 
 # Ignorar posibles datos locales de Docker (si usas montajes locales)
 /database/data/
+
+.CLAUDE.md
+.githooks/
+.claude/
+.PROMPTS_CLAUDE_CODE.md

@@ -3,7 +3,7 @@
  * API REST para gestión de categorías del inventario.
  *
  * @package  Es21Plus\Api
- * @author   Carlos Vico
+ * @author   Carlitos6712
  * @author   miguelrechefdez
  * @version  1.0.0
  */

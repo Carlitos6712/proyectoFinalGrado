@@ -14,7 +14,7 @@
  *  - actualizarStock() throws AppException when stock would go negative
  *
  * @package  Es21Plus\Tests
- * @author   Carlos Vico
+ * @author   Carlitos6712
  * @author   miguelrechefdez
  */
 

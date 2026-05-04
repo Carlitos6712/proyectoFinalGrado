@@ -12,7 +12,7 @@
  *  - eliminar() throws 409 when category has active products
  *
  * @package  Es21Plus\Tests
- * @author   Carlos Vico
+ * @author   Carlitos6712
  * @author   miguelrechefdez
  */
 

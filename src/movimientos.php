@@ -3,7 +3,7 @@
  * Historial y registro de movimientos de stock.
  *
  * @package  Es21Plus
- * @author   Carlos Vico
+ * @author   Carlitos6712
  * @author   miguelrechefdez
  * @version  1.0.0
  */

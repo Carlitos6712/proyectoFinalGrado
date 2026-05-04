@@ -15,11 +15,12 @@
     },
     "autoload-dev": {
         "classmap": [
-            "src/tests/"
+            "src/tests/",
+            "tests/"
         ]
     },
     "scripts": {
-        "test": "phpunit --bootstrap src/tests/bootstrap.php src/tests/"
+        "test": "phpunit --bootstrap src/tests/bootstrap.php src/tests/ tests/Integration/"
     },
     "config": {
         "optimize-autoloader": true

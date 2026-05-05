@@ -80,10 +80,6 @@ try {
  */
 function handleGet(Producto $modelo): void
 {
-    if (isset($_GET['stock_bajo'])) {
-        jsonResponse(true, $modelo->filtrarStockBajo(), 'Productos con stock bajo.');
-    }
-
     if (isset($_GET['id'])) {
         $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
         if (!$id) {
@@ -95,16 +91,17 @@ function handleGet(Producto $modelo): void
     $page   = max(1, (int)(filter_input(INPUT_GET, 'page',  FILTER_VALIDATE_INT) ?: 1));
     $limit  = max(1, min(100, (int)(filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT) ?: 20)));
 
-    $q           = trim($_GET['q'] ?? '');
-    $categoriaId = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
-    $precioMin   = filter_input(INPUT_GET, 'precio_min', FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
-    $precioMax   = filter_input(INPUT_GET, 'precio_max', FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
-    $stockMin    = filter_input(INPUT_GET, 'stock_min',  FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
-    $stockMax    = filter_input(INPUT_GET, 'stock_max',  FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
-    $orden       = $_GET['orden'] ?? 'nombre_asc';
+    $q             = trim($_GET['q'] ?? '');
+    $categoriaId   = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
+    $precioMin     = filter_input(INPUT_GET, 'precio_min',  FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
+    $precioMax     = filter_input(INPUT_GET, 'precio_max',  FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
+    $stockMin      = filter_input(INPUT_GET, 'stock_min',   FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
+    $stockMax      = filter_input(INPUT_GET, 'stock_max',   FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
+    $orden         = $_GET['orden'] ?? 'nombre_asc';
+    $soloStockBajo = isset($_GET['stock_bajo']) && $_GET['stock_bajo'] === '1' ? true : null;
 
-    $total = $modelo->contarFiltrados($q ?: null, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax);
-    $items = $modelo->listarPaginado($page, $limit, $q ?: null, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax, $orden);
+    $total = $modelo->contarFiltrados($q ?: null, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax, $soloStockBajo);
+    $items = $modelo->listarPaginado($page, $limit, $q ?: null, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax, $orden, $soloStockBajo);
 
     jsonResponse(true, [
         'items'       => $items,

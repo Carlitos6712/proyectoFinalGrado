@@ -295,12 +295,13 @@ class Producto
     /**
      * Cuenta productos activos aplicando los mismos filtros que listarPaginado.
      *
-     * @param string|null $termino     Término de búsqueda (nombre o código ref).
-     * @param int|null    $categoriaId Filtro por categoría.
-     * @param float|null  $precioMin   Precio mínimo (anticipado Fase 4).
-     * @param float|null  $precioMax   Precio máximo (anticipado Fase 4).
-     * @param int|null    $stockMin    Stock mínimo (anticipado Fase 4).
-     * @param int|null    $stockMax    Stock máximo (anticipado Fase 4).
+     * @param string|null $termino       Término de búsqueda (nombre o código ref).
+     * @param int|null    $categoriaId   Filtro por categoría.
+     * @param float|null  $precioMin     Precio mínimo.
+     * @param float|null  $precioMax     Precio máximo.
+     * @param int|null    $stockMin      Stock mínimo.
+     * @param int|null    $stockMax      Stock máximo.
+     * @param bool|null   $soloStockBajo Limitar a productos con stock <= stock_minimo.
      * @return int
      */
     public function contarFiltrados(
@@ -309,7 +310,8 @@ class Producto
         ?float $precioMin = null,
         ?float $precioMax = null,
         ?int $stockMin = null,
-        ?int $stockMax = null
+        ?int $stockMax = null,
+        ?bool $soloStockBajo = null
     ): int {
         $sql    = "SELECT COUNT(*) FROM productos p WHERE p.deleted_at IS NULL";
         $params = [];
@@ -340,6 +342,9 @@ class Producto
             $sql .= " AND p.stock <= :stock_max";
             $params[':stock_max'] = $stockMax;
         }
+        if ($soloStockBajo === true) {
+            $sql .= " AND p.stock <= p.stock_minimo";
+        }
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
@@ -347,20 +352,21 @@ class Producto
     }
 
     /**
-     * Lista productos activos con paginación y filtros combinables.
+     * Lista productos activos con paginación y todos los filtros combinables.
      *
-     * Soporta todos los filtros de Fase 4: q, categoria_id, precio_min,
-     * precio_max, stock_min, stock_max, orden.
+     * Soporta los 7 filtros de Fase 4: q, categoria_id, precio_min,
+     * precio_max, stock_min, stock_max, stock_bajo. Más 4 ordenaciones.
      *
-     * @param int         $pagina      Página actual (1-indexed).
-     * @param int         $porPagina   Registros por página.
-     * @param string|null $termino     Término de búsqueda.
-     * @param int|null    $categoriaId Filtro por categoría.
-     * @param float|null  $precioMin   Precio mínimo.
-     * @param float|null  $precioMax   Precio máximo.
-     * @param int|null    $stockMin    Stock mínimo.
-     * @param int|null    $stockMax    Stock máximo.
-     * @param string      $orden       Clave de ordenación (ver ORDEN_MAP).
+     * @param int         $pagina        Página actual (1-indexed).
+     * @param int         $porPagina     Registros por página.
+     * @param string|null $termino       Término de búsqueda.
+     * @param int|null    $categoriaId   Filtro por categoría.
+     * @param float|null  $precioMin     Precio mínimo.
+     * @param float|null  $precioMax     Precio máximo.
+     * @param int|null    $stockMin      Stock mínimo.
+     * @param int|null    $stockMax      Stock máximo.
+     * @param string      $orden         Clave de ordenación (ver ORDEN_MAP).
+     * @param bool|null   $soloStockBajo Limitar a productos con stock <= stock_minimo.
      * @return array<int, array<string, mixed>>
      */
     public function listarPaginado(
@@ -372,7 +378,8 @@ class Producto
         ?float $precioMax = null,
         ?int $stockMin = null,
         ?int $stockMax = null,
-        string $orden = 'nombre_asc'
+        string $orden = 'nombre_asc',
+        ?bool $soloStockBajo = null
     ): array {
         $offset  = ($pagina - 1) * $porPagina;
         $orderBy = self::ORDEN_MAP[$orden] ?? 'p.nombre ASC';
@@ -407,6 +414,9 @@ class Producto
         if ($stockMax !== null) {
             $sql .= " AND p.stock <= :stock_max";
             $params[':stock_max'] = $stockMax;
+        }
+        if ($soloStockBajo === true) {
+            $sql .= " AND p.stock <= p.stock_minimo";
         }
 
         $sql .= " ORDER BY {$orderBy} LIMIT :limite OFFSET :offset";

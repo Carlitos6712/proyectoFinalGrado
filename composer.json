@@ -20,7 +20,7 @@
         ]
     },
     "scripts": {
-        "test": "phpunit --bootstrap src/tests/bootstrap.php src/tests/ tests/Integration/"
+        "test": "phpunit --bootstrap src/tests/bootstrap.php src/tests/ tests/Integration/ tests/Unit/"
     },
     "config": {
         "optimize-autoloader": true

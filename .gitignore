@@ -26,3 +26,7 @@ Thumbs.db
 .githooks/
 .claude/
 .PROMPTS_CLAUDE_CODE.md
+
+# Imágenes subidas por usuarios (contenido, no código)
+/src/uploads/productos/*
+!/src/uploads/productos/.gitkeep

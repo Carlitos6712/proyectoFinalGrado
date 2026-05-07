@@ -278,6 +278,174 @@ class Producto
         return (int) $stmt->fetchColumn();
     }
 
+    // ── Constantes de imagen ──────────────────────────────────────────────────
+
+    /** Tamaño máximo de imagen permitido (2 MB). */
+    public const MAX_IMAGEN_BYTES = 2 * 1024 * 1024;
+
+    /** Tipos MIME permitidos para imágenes. */
+    public const TIPOS_IMAGEN_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp'];
+
+    /** Directorio de almacenamiento de imágenes (absoluto). */
+    public const UPLOAD_DIR = __DIR__ . '/../uploads/productos/';
+
+    /** Ruta web relativa a la raíz del documento. */
+    public const UPLOAD_URL = 'uploads/productos/';
+
+    // ── Métodos de imagen ─────────────────────────────────────────────────────
+
+    /**
+     * Valida un archivo de imagen subido por el usuario.
+     *
+     * @param array $file Entrada de $_FILES correspondiente al campo imagen.
+     * @throws AppException Si el archivo supera 2 MB o el tipo MIME no está permitido.
+     * @return void
+     */
+    public static function validarArchivoImagen(array $file): void
+    {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new AppException('Error al recibir el archivo de imagen.', 400);
+        }
+        if ((int)($file['size'] ?? 0) > self::MAX_IMAGEN_BYTES) {
+            throw new AppException('La imagen no puede superar los 2 MB.', 400);
+        }
+        $mime = mime_content_type($file['tmp_name'] ?? '');
+        if (!in_array($mime, self::TIPOS_IMAGEN_PERMITIDOS, true)) {
+            throw new AppException('Formato no permitido. Solo JPG, PNG o WebP.', 400);
+        }
+    }
+
+    /**
+     * Genera el nombre de fichero determinista para una imagen de producto.
+     *
+     * @param int $id        ID del producto.
+     * @param int $timestamp Unix timestamp de la subida.
+     * @return string Nombre del fichero (sin ruta).
+     */
+    public static function generarNombreImagen(int $id, int $timestamp): string
+    {
+        return "producto_{$id}_{$timestamp}.webp";
+    }
+
+    /**
+     * Devuelve la ruta web de la imagen o el placeholder SVG si no hay imagen.
+     *
+     * @param string|null $imagen Valor de la columna imagen en BD.
+     * @return string Ruta relativa lista para usar en src="...".
+     */
+    public static function rutaImagen(?string $imagen): string
+    {
+        if ($imagen !== null && $imagen !== '') {
+            return self::UPLOAD_URL . $imagen;
+        }
+        return 'img/placeholder-producto.svg';
+    }
+
+    /**
+     * Sube, convierte a WebP y guarda la imagen de un producto.
+     *
+     * Elimina la imagen anterior si existe. Requiere extensión GD.
+     *
+     * @param array $file Entrada de $_FILES correspondiente al campo imagen.
+     * @param int   $id   ID del producto al que pertenece la imagen.
+     * @throws AppException Si la validación falla, GD no está disponible,
+     *                      o el procesamiento de imagen falla.
+     * @return string Nombre del fichero guardado.
+     */
+    public function subirImagen(array $file, int $id): string
+    {
+        if (!extension_loaded('gd')) {
+            throw new AppException('La extensión GD de PHP no está disponible.', 500);
+        }
+
+        self::validarArchivoImagen($file);
+
+        if (!is_dir(self::UPLOAD_DIR)) {
+            mkdir(self::UPLOAD_DIR, 0755, true);
+        }
+
+        // Eliminar imagen anterior si existe
+        $this->eliminarImagenFichero($id);
+
+        $mime      = mime_content_type($file['tmp_name']);
+        $imagen    = $this->crearImagenDesdeArchivo($file['tmp_name'], $mime);
+        $nombre    = self::generarNombreImagen($id, time());
+        $destino   = self::UPLOAD_DIR . $nombre;
+
+        if (!imagewebp($imagen, $destino, 85)) {
+            imagedestroy($imagen);
+            throw new AppException('No se pudo guardar la imagen en el servidor.', 500);
+        }
+        imagedestroy($imagen);
+
+        $stmt = $this->pdo->prepare(
+            "UPDATE productos SET imagen = :imagen WHERE id = :id AND deleted_at IS NULL"
+        );
+        $stmt->execute([':imagen' => $nombre, ':id' => $id]);
+
+        return $nombre;
+    }
+
+    /**
+     * Elimina la imagen asociada a un producto (fichero + columna BD).
+     *
+     * @param int $id ID del producto.
+     * @return bool true si se eliminó algo, false si no había imagen.
+     */
+    public function eliminarImagen(int $id): bool
+    {
+        $eliminado = $this->eliminarImagenFichero($id);
+
+        $stmt = $this->pdo->prepare(
+            "UPDATE productos SET imagen = NULL WHERE id = :id AND deleted_at IS NULL"
+        );
+        $stmt->execute([':id' => $id]);
+
+        return $eliminado || $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Crea un recurso GD desde un fichero según su tipo MIME.
+     *
+     * @param string $ruta Ruta al fichero temporal.
+     * @param string $mime Tipo MIME del fichero.
+     * @throws AppException Si el tipo MIME no tiene soporte GD.
+     * @return \GdImage Recurso de imagen GD.
+     */
+    private function crearImagenDesdeArchivo(string $ruta, string $mime): \GdImage
+    {
+        $imagen = match ($mime) {
+            'image/jpeg' => imagecreatefromjpeg($ruta),
+            'image/png'  => imagecreatefrompng($ruta),
+            'image/webp' => imagecreatefromwebp($ruta),
+            default      => throw new AppException("MIME '{$mime}' sin soporte GD.", 400),
+        };
+        if ($imagen === false) {
+            throw new AppException('No se pudo procesar la imagen.', 500);
+        }
+        return $imagen;
+    }
+
+    /**
+     * Elimina el fichero físico de imagen de un producto si existe.
+     *
+     * @param int $id ID del producto.
+     * @return bool true si se eliminó el fichero.
+     */
+    private function eliminarImagenFichero(int $id): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT imagen FROM productos WHERE id = :id AND deleted_at IS NULL"
+        );
+        $stmt->execute([':id' => $id]);
+        $actual = $stmt->fetchColumn();
+
+        if ($actual && file_exists(self::UPLOAD_DIR . $actual)) {
+            return unlink(self::UPLOAD_DIR . $actual);
+        }
+        return false;
+    }
+
     /**
      * Mapa de valores de ?orden= a cláusulas ORDER BY seguras.
      */

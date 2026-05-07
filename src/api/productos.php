@@ -73,7 +73,7 @@ try {
  * ?stock_bajo → listado de productos con stock bajo
  * default     → listado paginado con filtros combinables:
  *               page, limit, q, categoria_id, precio_min, precio_max,
- *               stock_min, stock_max, orden
+ *               stock_min, stock_max, stock_bajo, orden
  *
  * @param Producto $modelo Instancia del modelo.
  * @return void
@@ -82,10 +82,10 @@ function handleGet(Producto $modelo): void
 {
     // ── Exportaciones (CSV / PDF) ─────────────────────────────────────────────
     if (isset($_GET['export'])) {
-        $filtros = extraerFiltros();
-        $total   = $modelo->contarFiltrados(...$filtros);
-        $items   = $total > 0
-            ? $modelo->listarPaginado(1, $total, ...$filtros)
+        [$q, $catId, $pMin, $pMax, $sMin, $sMax, $stockBajo, $orden] = extraerFiltros();
+        $total = $modelo->contarFiltrados($q, $catId, $pMin, $pMax, $sMin, $sMax, $stockBajo);
+        $items = $total > 0
+            ? $modelo->listarPaginado(1, $total, $q, $catId, $pMin, $pMax, $sMin, $sMax, $orden, $stockBajo)
             : [];
 
         match ($_GET['export']) {
@@ -105,12 +105,12 @@ function handleGet(Producto $modelo): void
     }
 
     // ── Listado paginado con filtros ──────────────────────────────────────────
-    $page   = max(1, (int)(filter_input(INPUT_GET, 'page',  FILTER_VALIDATE_INT) ?: 1));
-    $limit  = max(1, min(100, (int)(filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT) ?: 20)));
+    $page  = max(1, (int)(filter_input(INPUT_GET, 'page',  FILTER_VALIDATE_INT) ?: 1));
+    $limit = max(1, min(100, (int)(filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT) ?: 20)));
 
-    $filtros = extraerFiltros();
-    $total   = $modelo->contarFiltrados(...$filtros);
-    $items   = $modelo->listarPaginado($page, $limit, ...$filtros);
+    [$q, $catId, $pMin, $pMax, $sMin, $sMax, $stockBajo, $orden] = extraerFiltros();
+    $total = $modelo->contarFiltrados($q, $catId, $pMin, $pMax, $sMin, $sMax, $stockBajo);
+    $items = $modelo->listarPaginado($page, $limit, $q, $catId, $pMin, $pMax, $sMin, $sMax, $orden, $stockBajo);
 
     jsonResponse(true, [
         'items'       => $items,
@@ -122,9 +122,14 @@ function handleGet(Producto $modelo): void
 }
 
 /**
- * Extrae y valida los parámetros de filtrado comunes del GET.
+ * Extrae y valida los parámetros de filtrado y ordenación del GET.
  *
- * @return array{0:string|null,1:int|null,2:float|null,3:float|null,4:int|null,5:int|null,6:bool|null}
+ * Devuelve 8 elementos en orden: termino, categoriaId, precioMin, precioMax,
+ * stockMin, stockMax, soloStockBajo, orden.
+ * Los 7 primeros son los que acepta contarFiltrados(); el 8.º es exclusivo
+ * de listarPaginado() y se pasa siempre de forma explícita.
+ *
+ * @return array{0:string|null,1:int|null,2:float|null,3:float|null,4:int|null,5:int|null,6:bool|null,7:string}
  */
 function extraerFiltros(): array
 {
@@ -135,7 +140,9 @@ function extraerFiltros(): array
     $stockMin      = filter_input(INPUT_GET, 'stock_min',    FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
     $stockMax      = filter_input(INPUT_GET, 'stock_max',    FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
     $soloStockBajo = (isset($_GET['stock_bajo']) && $_GET['stock_bajo'] === '1') ? true : null;
-    return [$q, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax, $soloStockBajo];
+    $ordenValidos  = ['nombre_asc', 'nombre_desc', 'precio_asc', 'precio_desc', 'stock_asc', 'stock_desc'];
+    $orden         = in_array($_GET['orden'] ?? '', $ordenValidos, true) ? $_GET['orden'] : 'nombre_asc';
+    return [$q, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax, $soloStockBajo, $orden];
 }
 
 /**
@@ -243,7 +250,7 @@ function exportarPdf(array $items, int $stockBajoTotal): void
         $pdf->Ln(6);
         $pdf->SetFont('Arial', 'B', 10);
         $pdf->SetFillColor(254, 226, 226);
-        $pdf->Cell(0, 8, "⚠ Productos con stock bajo: {$stockBajoTotal}", 0, 1, 'L', true);
+        $pdf->Cell(0, 8, "AVISO - Productos con stock bajo: {$stockBajoTotal}", 0, 1, 'L', true);
     }
 
     $fecha = date('Ymd_His');

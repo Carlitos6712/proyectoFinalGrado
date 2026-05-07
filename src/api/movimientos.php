@@ -3,13 +3,12 @@
  * API REST para gestión de movimientos de stock.
  *
  * Verbos:
- *   GET ?grafico[&dias=N]           → estadísticas agrupadas por día
- *   GET ?producto_id=X&resumen      → resumen de stock del producto
- *   GET ?producto_id=X[&page=&limit=] → historial paginado del producto
- *   GET [?limite=N]                 → últimos N movimientos globales
- *   POST                            → registrar movimiento
- *                                     (422 si salida deja stock negativo,
- *                                      404 si producto no existe)
+ *   GET ?grafico[&dias=N]                           → estadísticas por día
+ *   GET ?producto_id=X&resumen                      → resumen stock producto
+ *   GET ?producto_id=X[&page=&limit=]               → historial paginado
+ *   GET ?export=csv[&fecha_desde=&fecha_hasta=]     → CSV de movimientos
+ *   GET [?limite=N]                                 → últimos N globales
+ *   POST                                            → registrar movimiento
  *
  * @package  Es21Plus\Api
  * @author   Carlitos6712
@@ -73,6 +72,13 @@ try {
  */
 function handleGet(Movimiento $modelo): void
 {
+    // ── Exportación CSV ───────────────────────────────────────────────────────
+    if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+        $fechaDesde = $_GET['fecha_desde'] ?? null;
+        $fechaHasta = $_GET['fecha_hasta'] ?? null;
+        exportarCsvMovimientos($fechaDesde, $fechaHasta);
+    }
+
     if (isset($_GET['grafico'])) {
         $dias = filter_input(INPUT_GET, 'dias', FILTER_VALIDATE_INT) ?: 7;
         jsonResponse(true, $modelo->estadisticasPorDia($dias), 'Estadísticas por día.');
@@ -100,6 +106,62 @@ function handleGet(Movimiento $modelo): void
 
     $limite = filter_input(INPUT_GET, 'limite', FILTER_VALIDATE_INT) ?: 10;
     jsonResponse(true, $modelo->ultimosMovimientos($limite), 'Últimos movimientos.');
+}
+
+/**
+ * Genera y envía el CSV de movimientos con rango de fechas opcional.
+ *
+ * @param string|null $fechaDesde Fecha inicio (YYYY-MM-DD) o null.
+ * @param string|null $fechaHasta Fecha fin   (YYYY-MM-DD) o null.
+ * @return void
+ */
+function exportarCsvMovimientos(?string $fechaDesde, ?string $fechaHasta): void
+{
+    $pdo    = Database::getInstance();
+    $sql    = "SELECT m.fecha, p.nombre AS producto, m.tipo,
+                      m.cantidad, m.observaciones,
+                      COALESCE(m.usuario, 'admin') AS usuario
+               FROM movimientos m
+               JOIN productos p ON p.id = m.producto_id
+               WHERE p.deleted_at IS NULL";
+    $params = [];
+
+    if ($fechaDesde !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaDesde)) {
+        $sql .= " AND DATE(m.fecha) >= :fecha_desde";
+        $params[':fecha_desde'] = $fechaDesde;
+    }
+    if ($fechaHasta !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaHasta)) {
+        $sql .= " AND DATE(m.fecha) <= :fecha_hasta";
+        $params[':fecha_hasta'] = $fechaHasta;
+    }
+    $sql .= " ORDER BY m.fecha DESC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $fecha = date('Ymd_His');
+    header('Content-Type: text/csv; charset=UTF-8');
+    header("Content-Disposition: attachment; filename=\"movimientos_{$fecha}.csv\"");
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, ['Fecha', 'Producto', 'Tipo', 'Cantidad', 'Observaciones', 'Usuario'], ';');
+
+    foreach ($rows as $row) {
+        fputcsv($out, [
+            $row['fecha']        ?? '',
+            $row['producto']     ?? '',
+            $row['tipo']         ?? '',
+            (int)$row['cantidad'],
+            $row['observaciones'] ?? '',
+            $row['usuario']      ?? 'admin',
+        ], ';');
+    }
+
+    fclose($out);
+    exit;
 }
 
 /**

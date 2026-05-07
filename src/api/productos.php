@@ -4,15 +4,15 @@
  *
  * Verbos:
  *   GET    ?id=X               → obtener uno (404 si no existe)
- *   GET    ?stock_bajo         → listado de stock bajo
  *   GET    ?page=&limit=&...   → listado paginado con filtros combinables
+ *   GET    ?export=csv         → exportar CSV (respeta filtros activos)
+ *   GET    ?export=pdf         → exportar PDF con encabezado y resumen stock bajo
  *   POST                       → crear (422 si validación falla)
  *   PUT                        → actualizar (422 validación, 404 si no existe)
  *   DELETE ?id=X               → soft-delete (404 si no existe)
  *
- * Filtros del listado (anticipan contrato Fase 4):
- *   q, categoria_id, precio_min, precio_max,
- *   stock_min, stock_max, stock_bajo, orden
+ * Filtros: q, categoria_id, precio_min, precio_max,
+ *          stock_min, stock_max, stock_bajo, orden
  *
  * @package  Es21Plus\Api
  * @author   Carlitos6712
@@ -73,13 +73,29 @@ try {
  * ?stock_bajo → listado de productos con stock bajo
  * default     → listado paginado con filtros combinables:
  *               page, limit, q, categoria_id, precio_min, precio_max,
- *               stock_min, stock_max, orden
+ *               stock_min, stock_max, stock_bajo, orden
  *
  * @param Producto $modelo Instancia del modelo.
  * @return void
  */
 function handleGet(Producto $modelo): void
 {
+    // ── Exportaciones (CSV / PDF) ─────────────────────────────────────────────
+    if (isset($_GET['export'])) {
+        [$q, $catId, $pMin, $pMax, $sMin, $sMax, $stockBajo, $orden] = extraerFiltros();
+        $total = $modelo->contarFiltrados($q, $catId, $pMin, $pMax, $sMin, $sMax, $stockBajo);
+        $items = $total > 0
+            ? $modelo->listarPaginado(1, $total, $q, $catId, $pMin, $pMax, $sMin, $sMax, $orden, $stockBajo)
+            : [];
+
+        match ($_GET['export']) {
+            'csv'   => exportarCsv($items),
+            'pdf'   => exportarPdf($items, $modelo->contarFiltrados(null, null, null, null, null, null, true)),
+            default => jsonResponse(false, null, 'Tipo de exportación no soportado.', 400),
+        };
+    }
+
+    // ── Obtener producto por ID ───────────────────────────────────────────────
     if (isset($_GET['id'])) {
         $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
         if (!$id) {
@@ -88,20 +104,13 @@ function handleGet(Producto $modelo): void
         jsonResponse(true, $modelo->obtener($id), 'Producto encontrado.');
     }
 
-    $page   = max(1, (int)(filter_input(INPUT_GET, 'page',  FILTER_VALIDATE_INT) ?: 1));
-    $limit  = max(1, min(100, (int)(filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT) ?: 20)));
+    // ── Listado paginado con filtros ──────────────────────────────────────────
+    $page  = max(1, (int)(filter_input(INPUT_GET, 'page',  FILTER_VALIDATE_INT) ?: 1));
+    $limit = max(1, min(100, (int)(filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT) ?: 20)));
 
-    $q             = trim($_GET['q'] ?? '');
-    $categoriaId   = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
-    $precioMin     = filter_input(INPUT_GET, 'precio_min',  FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
-    $precioMax     = filter_input(INPUT_GET, 'precio_max',  FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
-    $stockMin      = filter_input(INPUT_GET, 'stock_min',   FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
-    $stockMax      = filter_input(INPUT_GET, 'stock_max',   FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
-    $orden         = $_GET['orden'] ?? 'nombre_asc';
-    $soloStockBajo = isset($_GET['stock_bajo']) && $_GET['stock_bajo'] === '1' ? true : null;
-
-    $total = $modelo->contarFiltrados($q ?: null, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax, $soloStockBajo);
-    $items = $modelo->listarPaginado($page, $limit, $q ?: null, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax, $orden, $soloStockBajo);
+    [$q, $catId, $pMin, $pMax, $sMin, $sMax, $stockBajo, $orden] = extraerFiltros();
+    $total = $modelo->contarFiltrados($q, $catId, $pMin, $pMax, $sMin, $sMax, $stockBajo);
+    $items = $modelo->listarPaginado($page, $limit, $q, $catId, $pMin, $pMax, $sMin, $sMax, $orden, $stockBajo);
 
     jsonResponse(true, [
         'items'       => $items,
@@ -110,6 +119,146 @@ function handleGet(Producto $modelo): void
         'limit'       => $limit,
         'total_pages' => (int) ceil($total / max(1, $limit)),
     ], 'Listado de productos.');
+}
+
+/**
+ * Extrae y valida los parámetros de filtrado y ordenación del GET.
+ *
+ * Devuelve 8 elementos en orden: termino, categoriaId, precioMin, precioMax,
+ * stockMin, stockMax, soloStockBajo, orden.
+ * Los 7 primeros son los que acepta contarFiltrados(); el 8.º es exclusivo
+ * de listarPaginado() y se pasa siempre de forma explícita.
+ *
+ * @return array{0:string|null,1:int|null,2:float|null,3:float|null,4:int|null,5:int|null,6:bool|null,7:string}
+ */
+function extraerFiltros(): array
+{
+    $q             = trim($_GET['q'] ?? '') ?: null;
+    $categoriaId   = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT)   ?: null;
+    $precioMin     = filter_input(INPUT_GET, 'precio_min',   FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
+    $precioMax     = filter_input(INPUT_GET, 'precio_max',   FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
+    $stockMin      = filter_input(INPUT_GET, 'stock_min',    FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
+    $stockMax      = filter_input(INPUT_GET, 'stock_max',    FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
+    $soloStockBajo = (isset($_GET['stock_bajo']) && $_GET['stock_bajo'] === '1') ? true : null;
+    $ordenValidos  = ['nombre_asc', 'nombre_desc', 'precio_asc', 'precio_desc', 'stock_asc', 'stock_desc'];
+    $orden         = in_array($_GET['orden'] ?? '', $ordenValidos, true) ? $_GET['orden'] : 'nombre_asc';
+    return [$q, $categoriaId, $precioMin, $precioMax, $stockMin, $stockMax, $soloStockBajo, $orden];
+}
+
+/**
+ * Genera y envía el CSV de productos con BOM UTF-8.
+ *
+ * @param array<int, array<string, mixed>> $items Productos a exportar.
+ * @return void
+ */
+function exportarCsv(array $items): void
+{
+    $fecha = date('Ymd_His');
+    header('Content-Type: text/csv; charset=UTF-8');
+    header("Content-Disposition: attachment; filename=\"productos_{$fecha}.csv\"");
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+
+    $out = fopen('php://output', 'w');
+    // BOM UTF-8 para compatibilidad con Excel
+    fwrite($out, "\xEF\xBB\xBF");
+
+    fputcsv($out, ['Referencia', 'Nombre', 'Categoría', 'Precio (€)', 'Stock', 'Stock Mínimo', 'Estado'], ';');
+
+    foreach ($items as $p) {
+        $esBajo = (int)$p['stock'] <= (int)($p['stock_minimo'] ?? 5);
+        fputcsv($out, [
+            $p['codigo_ref']       ?? '',
+            $p['nombre']           ?? '',
+            $p['categoria_nombre'] ?? 'Sin categoría',
+            number_format((float)$p['precio'], 2, ',', '.'),
+            (int)$p['stock'],
+            (int)($p['stock_minimo'] ?? 5),
+            $esBajo ? 'Stock bajo' : 'Disponible',
+        ], ';');
+    }
+
+    fclose($out);
+    exit;
+}
+
+/**
+ * Genera y envía el PDF de productos mediante FPDF.
+ *
+ * @param array<int, array<string, mixed>> $items         Productos a exportar.
+ * @param int                              $stockBajoTotal Total de productos con stock bajo.
+ * @return void
+ */
+function exportarPdf(array $items, int $stockBajoTotal): void
+{
+    $autoload = __DIR__ . '/../../vendor/autoload.php';
+    if (!file_exists($autoload)) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(503);
+        echo json_encode(['success' => false, 'data' => null,
+            'message' => 'Librería PDF no instalada. Ejecuta: composer update'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    require_once $autoload;
+
+    $pdf = new FPDF('L', 'mm', 'A4');
+    $pdf->SetMargins(12, 12, 12);
+    $pdf->AddPage();
+    $pdf->SetAutoPageBreak(true, 15);
+
+    // ── Encabezado ────────────────────────────────────────────────────────────
+    $pdf->SetFont('Arial', 'B', 16);
+    $pdf->Cell(0, 10, 'es21plus - Inventario de Productos', 0, 1, 'C');
+    $pdf->SetFont('Arial', '', 10);
+    $pdf->Cell(0, 6, 'Generado el: ' . date('d/m/Y H:i'), 0, 1, 'C');
+    $pdf->Cell(0, 6, 'Total de productos: ' . count($items) . ' | Stock bajo: ' . $stockBajoTotal, 0, 1, 'C');
+    $pdf->Ln(4);
+
+    // ── Cabecera de tabla ─────────────────────────────────────────────────────
+    $pdf->SetFillColor(99, 102, 241);
+    $pdf->SetTextColor(255, 255, 255);
+    $pdf->SetFont('Arial', 'B', 9);
+    $cols = [['Ref.',       22], ['Nombre',    70], ['Categoría', 45],
+             ['Precio (€)', 28], ['Stock',     20], ['Mín.',      18], ['Estado',    40]];
+    foreach ($cols as [$label, $w]) {
+        $pdf->Cell($w, 8, $label, 0, 0, 'C', true);
+    }
+    $pdf->Ln();
+
+    // ── Filas ─────────────────────────────────────────────────────────────────
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetFont('Arial', '', 8);
+    $fill = false;
+    foreach ($items as $p) {
+        $esBajo = (int)$p['stock'] <= (int)($p['stock_minimo'] ?? 5);
+        if ($esBajo) {
+            $pdf->SetFillColor(254, 243, 199);
+        } else {
+            $pdf->SetFillColor($fill ? 248 : 255, $fill ? 250 : 255, $fill ? 252 : 255);
+        }
+        $pdf->Cell(22, 7, substr($p['codigo_ref'] ?? '-', 0, 12),         0, 0, 'C', true);
+        $pdf->Cell(70, 7, substr($p['nombre'] ?? '', 0, 35),              0, 0, 'L', true);
+        $pdf->Cell(45, 7, substr($p['categoria_nombre'] ?? 'Sin cat.', 0, 20), 0, 0, 'L', true);
+        $pdf->Cell(28, 7, number_format((float)$p['precio'], 2, ',', '.'), 0, 0, 'R', true);
+        $pdf->Cell(20, 7, (string)(int)$p['stock'],                        0, 0, 'C', true);
+        $pdf->Cell(18, 7, (string)(int)($p['stock_minimo'] ?? 5),          0, 0, 'C', true);
+        $pdf->Cell(40, 7, $esBajo ? 'Stock bajo' : 'Disponible',           0, 1, 'C', true);
+        $fill = !$fill;
+    }
+
+    // ── Resumen stock bajo ────────────────────────────────────────────────────
+    if ($stockBajoTotal > 0) {
+        $pdf->Ln(6);
+        $pdf->SetFont('Arial', 'B', 10);
+        $pdf->SetFillColor(254, 226, 226);
+        $pdf->Cell(0, 8, "AVISO - Productos con stock bajo: {$stockBajoTotal}", 0, 1, 'L', true);
+    }
+
+    $fecha = date('Ymd_His');
+    header('Content-Type: application/pdf');
+    header("Content-Disposition: attachment; filename=\"productos_{$fecha}.pdf\"");
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+    echo $pdf->Output('S');
+    exit;
 }
 
 /**

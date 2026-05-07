@@ -48,6 +48,14 @@ try {
         }
 
         $productoModel->actualizar($id, $nombre, $descripcion, $precio, $categoriaId, $stockMinimo, $codigoRef);
+
+        // Gestión de imagen
+        if (isset($_POST['eliminar_imagen']) && $_POST['eliminar_imagen'] === '1') {
+            $productoModel->eliminarImagen($id);
+        } elseif (isset($_FILES['imagen']) && $_FILES['imagen']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $productoModel->subirImagen($_FILES['imagen'], $id);
+        }
+
         $_SESSION['flash_success'] = 'Producto actualizado correctamente.';
         header('Location: productos.php');
         exit;
@@ -224,7 +232,7 @@ try {
                 <p class="card-subtitle">Los campos marcados con <span class="field-required">*</span> son obligatorios</p>
             </div>
             <div class="card-body">
-                <form method="POST" class="form-grid-wrapper">
+                <form method="POST" enctype="multipart/form-data" class="form-grid-wrapper">
                     <div class="form-grid">
 
                         <div class="form-field form-field-full">
@@ -262,6 +270,36 @@ try {
                                    placeholder="Ej. REF-001"
                                    value="<?= htmlspecialchars($producto['codigo_ref'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <span class="field-hint">Referencia interna o del fabricante</span>
+                        </div>
+
+                        <div class="form-field form-field-full">
+                            <label class="field-label">Imagen del Producto</label>
+                            <div class="image-upload-wrap">
+                                <div class="image-preview" id="imagePreview">
+                                    <?php $imgActual = $producto['imagen'] ?? null; ?>
+                                    <?php if ($imgActual): ?>
+                                        <img src="<?= htmlspecialchars(\Producto::rutaImagen($imgActual), ENT_QUOTES, 'UTF-8') ?>"
+                                             alt="Imagen actual"
+                                             style="width:80px;height:80px;object-fit:cover;border-radius:8px;">
+                                    <?php else: ?>
+                                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-muted)">
+                                            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                                        </svg>
+                                        <span style="font-size:.8rem;color:var(--text-muted);margin-top:.5rem;">Sin imagen</span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="image-upload-info">
+                                    <input class="field-input" type="file" id="imagen" name="imagen"
+                                           accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                                           style="cursor:pointer;">
+                                    <span class="field-hint">JPG, PNG o WebP · Máximo 2 MB. Reemplazará la imagen actual.</span>
+                                    <?php if ($imgActual): ?>
+                                    <label style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.875rem;cursor:pointer;">
+                                        <input type="checkbox" name="eliminar_imagen" value="1"> Eliminar imagen actual
+                                    </label>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="form-field form-field-full">

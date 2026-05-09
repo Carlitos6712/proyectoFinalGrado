@@ -6,6 +6,7 @@
  * Normal: página completa con panel de filtros colapsable.
  *
  * @package  Es21Plus
+ * @author   miguelrechefdez
  * @author   Carlitos6712
  * @version  1.0.0
  */
@@ -31,15 +32,17 @@ $porPagina = 20;
 $soloAjax  = isset($_GET['ajax']);
 
 // ── Consulta ──────────────────────────────────────────────────────────────────
-$productos    = [];
-$categorias   = [];
-$total        = 0;
-$totalPaginas = 0;
-$error        = '';
+$productos      = [];
+$categorias     = [];
+$total          = 0;
+$totalPaginas   = 0;
+$error          = '';
+$stockBajoCount = 0;
 
 try {
-    $modelo    = new Producto();
-    $catModelo = new Categoria();
+    $modelo         = new Producto();
+    $catModelo      = new Categoria();
+    $stockBajoCount = count($modelo->filtrarStockBajo());
 
     $total = $modelo->contarFiltrados(
         $termino ?: null,
@@ -497,6 +500,14 @@ $hayFiltros = $termino !== '' || $categoriaId !== null || $precioMin !== null
                 </svg>
                 <span>Inicio</span>
             </a>
+            <?php if ($stockBajoCount > 0): ?>
+            <a href="productos.php" class="topbar-alert" title="<?= $stockBajoCount ?> producto(s) con stock bajo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span class="notif-badge"><?= $stockBajoCount ?></span>
+            </a>
+            <?php endif; ?>
             <div class="topbar-user">
                 <div class="user-avatar">CV</div>
                 <div class="user-info">

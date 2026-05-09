@@ -6,6 +6,7 @@
  * Normal: página completa con panel de filtros colapsable.
  *
  * @package  Es21Plus
+ * @author   miguelrechefdez
  * @author   Carlitos6712
  * @version  1.0.0
  */

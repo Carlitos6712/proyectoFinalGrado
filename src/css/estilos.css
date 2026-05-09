@@ -532,6 +532,25 @@ img, svg {
   border: 2px solid var(--topbar-bg);
 }
 
+/* Badge numérico de stock bajo en la topbar */
+.notif-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background-color: var(--danger);
+  color: #ffffff;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  border: 2px solid var(--topbar-bg);
+  pointer-events: none;
+}
+
 .topbar-user {
   display: flex;
   align-items: center;
@@ -2401,7 +2420,29 @@ input[type="checkbox"] {
   color: #b91c1c;
 }
 
-/* ---------- Topbar alert (campana con notif-dot en topbar) ---------- */
+/* ---------- Fila con stock bajo en tablas de productos ---------- */
+
+.tr-stock-low {
+  background-color: rgba(239, 68, 68, 0.04);
+}
+
+.tr-stock-low:hover {
+  background-color: rgba(239, 68, 68, 0.08) !important;
+}
+
+.stock-low-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background-color: var(--danger-light);
+  color: #b91c1c;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ---------- Topbar alert (campana con notif-badge en topbar) ---------- */
 
 .topbar-alert {
   position: relative;

@@ -95,7 +95,9 @@ class Categoria
             "UPDATE categorias SET nombre = :nombre, descripcion = :descripcion WHERE id = :id"
         );
         $resultado = $stmt->execute([':nombre' => $nombre, ':descripcion' => $descripcion, ':id' => $id]);
-        $this->auditarOperacion('actualizar', $id, $anterior, compact('nombre', 'descripcion'));
+        if ($resultado && $stmt->rowCount() > 0) {
+            $this->auditarOperacion('actualizar', $id, $anterior, compact('nombre', 'descripcion'));
+        }
         return $resultado;
     }
 

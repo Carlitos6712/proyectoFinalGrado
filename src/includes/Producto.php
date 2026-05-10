@@ -156,10 +156,12 @@ class Producto
             ':stock_minimo' => $stockMinimo,
             ':codigo_ref'   => $codigoRef,
         ]);
-        $this->auditarOperacion(
-            'actualizar', $id, $anterior,
-            compact('nombre', 'descripcion', 'precio', 'categoriaId', 'stockMinimo', 'codigoRef')
-        );
+        if ($resultado && $stmt->rowCount() > 0) {
+            $this->auditarOperacion(
+                'actualizar', $id, $anterior,
+                compact('nombre', 'descripcion', 'precio', 'categoriaId', 'stockMinimo', 'codigoRef')
+            );
+        }
         return $resultado;
     }
 

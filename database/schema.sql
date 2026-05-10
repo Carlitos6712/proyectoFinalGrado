@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS productos (
     categoria_id INT,
     created_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at   TIMESTAMP      NULL DEFAULT NULL,
+    deleted_at     TIMESTAMP      NULL DEFAULT NULL,
+    alertas_email  TINYINT(1)     DEFAULT 1,
     FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -50,6 +51,17 @@ CREATE TABLE IF NOT EXISTS movimientos (
     observaciones TEXT,
     usuario       VARCHAR(100) DEFAULT 'admin',
     fecha         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------------------------------------------
+-- Tabla: alertas_stock (deduplicación de alertas de email)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS alertas_stock (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    producto_id     INT NOT NULL,
+    enviada_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    stock_al_enviar INT,
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

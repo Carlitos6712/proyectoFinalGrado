@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS productos (
     categoria_id INT,
     created_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at   TIMESTAMP      NULL DEFAULT NULL,
+    deleted_at     TIMESTAMP      NULL DEFAULT NULL,
+    alertas_email  TINYINT(1)     DEFAULT 1,
     FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -53,6 +54,20 @@ CREATE TABLE IF NOT EXISTS movimientos (
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Migración: añadir alertas_email a productos (para instalaciones existentes)
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS alertas_email TINYINT(1) DEFAULT 1;
+
+-- -------------------------------------------------------------
+-- Tabla: alertas_stock (deduplicación de alertas de email)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS alertas_stock (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    producto_id     INT NOT NULL,
+    enviada_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    stock_al_enviar INT,
+    FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- -------------------------------------------------------------
 -- Datos iniciales de categorías
 -- -------------------------------------------------------------
@@ -62,6 +77,21 @@ INSERT IGNORE INTO categorias (id, nombre, descripcion) VALUES
 (3, 'Transmisión', 'Cadenas, piñones, coronas y variadores'),
 (4, 'Electricidad','Bombillas, baterías, reguladores y cableado'),
 (5, 'Carrocería',  'Carenados, retrovisores, manillares y accesorios');
+
+-- -------------------------------------------------------------
+-- Tabla: auditoria (historial de cambios en entidades)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS auditoria (
+    id               BIGINT       AUTO_INCREMENT PRIMARY KEY,
+    tabla            VARCHAR(50)  NOT NULL,
+    registro_id      INT          NOT NULL,
+    accion           ENUM('crear','actualizar','eliminar') NOT NULL,
+    datos_anteriores JSON,
+    datos_nuevos     JSON,
+    usuario          VARCHAR(100) DEFAULT 'admin',
+    ip               VARCHAR(45),
+    fecha            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------------------------------------------
 -- Tabla: usuarios (autenticación)

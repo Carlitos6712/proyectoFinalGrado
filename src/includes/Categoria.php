@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/AppException.php';
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/Auditoria.php';
 
 /**
  * Modelo de gestión de categorías del inventario.
@@ -13,13 +14,17 @@ require_once __DIR__ . '/Database.php';
 class Categoria
 {
     private PDO $pdo;
+    private Auditoria $auditoria;
 
     /**
+     * @param Auditoria|null $auditoria Modelo de auditoría; si es null, se crea con la conexión singleton.
      * @throws AppException Si falla la conexión.
+     * @author Carlitos6712
      */
-    public function __construct()
+    public function __construct(?Auditoria $auditoria = null)
     {
-        $this->pdo = Database::getInstance();
+        $this->pdo       = Database::getInstance();
+        $this->auditoria = $auditoria ?? new Auditoria($this->pdo);
     }
 
     /**
@@ -70,7 +75,9 @@ class Categoria
             "INSERT INTO categorias (nombre, descripcion) VALUES (:nombre, :descripcion)"
         );
         $stmt->execute([':nombre' => $nombre, ':descripcion' => $descripcion]);
-        return (int) $this->pdo->lastInsertId();
+        $id = (int) $this->pdo->lastInsertId();
+        $this->auditarOperacion('crear', $id, null, compact('nombre', 'descripcion'));
+        return $id;
     }
 
     /**
@@ -83,10 +90,15 @@ class Categoria
      */
     public function actualizar(int $id, string $nombre, string $descripcion = ''): bool
     {
+        $anterior  = $this->obtenerPorId($id);
         $stmt = $this->pdo->prepare(
             "UPDATE categorias SET nombre = :nombre, descripcion = :descripcion WHERE id = :id"
         );
-        return $stmt->execute([':nombre' => $nombre, ':descripcion' => $descripcion, ':id' => $id]);
+        $resultado = $stmt->execute([':nombre' => $nombre, ':descripcion' => $descripcion, ':id' => $id]);
+        if ($resultado && $stmt->rowCount() > 0) {
+            $this->auditarOperacion('actualizar', $id, $anterior, compact('nombre', 'descripcion'));
+        }
+        return $resultado;
     }
 
     /**
@@ -105,7 +117,31 @@ class Categoria
         if ((int) $stmt->fetchColumn() > 0) {
             throw new AppException('No se puede eliminar: la categoría tiene productos activos.', 409);
         }
+        $anterior = $this->obtenerPorId($id);
         $del = $this->pdo->prepare("DELETE FROM categorias WHERE id = :id");
-        return $del->execute([':id' => $id]);
+        $resultado = $del->execute([':id' => $id]);
+        if ($resultado) {
+            $this->auditarOperacion('eliminar', $id, $anterior, null);
+        }
+        return $resultado;
+    }
+
+    /**
+     * Registra una operación en el log de auditoría sin propagar errores.
+     *
+     * @param string     $accion   'crear' | 'actualizar' | 'eliminar'.
+     * @param int        $id       PK de la categoría.
+     * @param array|null $anterior Datos antes de la operación.
+     * @param array|null $nuevo    Datos después de la operación.
+     * @return void
+     * @author Carlitos6712
+     */
+    private function auditarOperacion(string $accion, int $id, ?array $anterior, ?array $nuevo): void
+    {
+        try {
+            $this->auditoria->registrar('categorias', $id, $accion, $anterior, $nuevo);
+        } catch (\Throwable $e) {
+            error_log("Auditoria::categorias: {$e->getMessage()}");
+        }
     }
 }

@@ -28,6 +28,8 @@ foreach ($defaults as $key => $value) {
 
 require_once __DIR__ . '/../includes/AppException.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/Auditoria.php';
+require_once __DIR__ . '/../includes/AlertaStock.php';
 require_once __DIR__ . '/../includes/Producto.php';
 require_once __DIR__ . '/../includes/Movimiento.php';
 require_once __DIR__ . '/../includes/Categoria.php';

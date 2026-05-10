@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/AppException.php';
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/Auditoria.php';
 
 /**
  * Modelo de gestión de productos del inventario.
@@ -13,13 +14,17 @@ require_once __DIR__ . '/Database.php';
 class Producto
 {
     private PDO $pdo;
+    private Auditoria $auditoria;
 
     /**
+     * @param Auditoria|null $auditoria Modelo de auditoría; si es null, se crea con la conexión singleton.
      * @throws AppException Si falla la conexión.
+     * @author Carlitos6712
      */
-    public function __construct()
+    public function __construct(?Auditoria $auditoria = null)
     {
-        $this->pdo = Database::getInstance();
+        $this->pdo       = Database::getInstance();
+        $this->auditoria = $auditoria ?? new Auditoria($this->pdo);
     }
 
     /**
@@ -99,7 +104,12 @@ class Producto
             ':stock_minimo' => $stockMinimo,
             ':codigo_ref'   => $codigoRef,
         ]);
-        return (int) $this->pdo->lastInsertId();
+        $id = (int) $this->pdo->lastInsertId();
+        $this->auditarOperacion(
+            'crear', $id, null,
+            compact('nombre', 'descripcion', 'precio', 'categoriaId', 'stock', 'stockMinimo', 'codigoRef')
+        );
+        return $id;
     }
 
     /**
@@ -136,7 +146,8 @@ class Producto
                  codigo_ref = :codigo_ref
              WHERE id = :id AND deleted_at IS NULL"
         );
-        return $stmt->execute([
+        $anterior = $this->obtener($id);
+        $resultado = $stmt->execute([
             ':id'           => $id,
             ':nombre'       => $nombre,
             ':descripcion'  => $descripcion,
@@ -145,6 +156,11 @@ class Producto
             ':stock_minimo' => $stockMinimo,
             ':codigo_ref'   => $codigoRef,
         ]);
+        $this->auditarOperacion(
+            'actualizar', $id, $anterior,
+            compact('nombre', 'descripcion', 'precio', 'categoriaId', 'stockMinimo', 'codigoRef')
+        );
+        return $resultado;
     }
 
     /**
@@ -161,11 +177,16 @@ class Producto
                 409
             );
         }
+        $anterior = $this->obtener($id);
         $stmt = $this->pdo->prepare(
             "UPDATE productos SET deleted_at = NOW() WHERE id = :id AND deleted_at IS NULL"
         );
         $stmt->execute([':id' => $id]);
-        return $stmt->rowCount() > 0;
+        $afectado = $stmt->rowCount() > 0;
+        if ($afectado) {
+            $this->auditarOperacion('eliminar', $id, $anterior, null);
+        }
+        return $afectado;
     }
 
     /**
@@ -276,6 +297,25 @@ class Producto
             "SELECT COUNT(*) FROM productos WHERE deleted_at IS NULL"
         );
         return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Registra una operación en el log de auditoría sin propagar errores.
+     *
+     * @param string     $accion    'crear' | 'actualizar' | 'eliminar'.
+     * @param int        $id        PK del producto.
+     * @param array|null $anterior  Datos antes de la operación.
+     * @param array|null $nuevo     Datos después de la operación.
+     * @return void
+     * @author Carlitos6712
+     */
+    private function auditarOperacion(string $accion, int $id, ?array $anterior, ?array $nuevo): void
+    {
+        try {
+            $this->auditoria->registrar('productos', $id, $accion, $anterior, $nuevo);
+        } catch (\Throwable $e) {
+            error_log("Auditoria::productos: {$e->getMessage()}");
+        }
     }
 
     // ── Constantes de imagen ──────────────────────────────────────────────────

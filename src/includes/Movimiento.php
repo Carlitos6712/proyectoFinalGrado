@@ -2,6 +2,7 @@
 require_once __DIR__ . '/AppException.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Producto.php';
+require_once __DIR__ . '/AlertaStock.php';
 
 /**
  * Modelo de gestión de movimientos de stock (entradas/salidas).
@@ -15,14 +16,18 @@ class Movimiento
 {
     private PDO $pdo;
     private Producto $productoModel;
+    private AlertaStock $alertaStock;
 
     /**
+     * @param AlertaStock|null $alertaStock Servicio de alertas; si es null, se crea con PHPMailer.
      * @throws AppException Si falla la conexión.
+     * @author Carlitos6712
      */
-    public function __construct()
+    public function __construct(?AlertaStock $alertaStock = null)
     {
         $this->pdo           = Database::getInstance();
         $this->productoModel = new Producto();
+        $this->alertaStock   = $alertaStock ?? new AlertaStock($this->pdo);
     }
 
     /**
@@ -61,6 +66,12 @@ class Movimiento
             ]);
             $id = (int) $this->pdo->lastInsertId();
             $this->pdo->commit();
+
+            if ($tipo === 'salida') {
+                $productoActual = $this->productoModel->obtener($productoId);
+                $this->alertaStock->verificarYEnviar($productoId, (int) $productoActual['stock']);
+            }
+
             return $id;
         } catch (\Throwable $e) {
             $this->pdo->rollBack();

@@ -10,6 +10,8 @@
  *  - La imagen anterior se elimina al subir una nueva
  *  - Se devuelve la ruta del placeholder SVG cuando no hay imagen
  *
+ * Usa SQLite en memoria para el test que requiere base de datos.
+ *
  * @package  Es21Plus\Tests\Unit
  * @author   Carlitos6712
  */
@@ -19,14 +21,90 @@ use PHPUnit\Framework\TestCase;
 
 class ImagenTest extends TestCase
 {
+    private PDO      $pdo;
+    private Producto $model;
+
+    // ── Ciclo de vida ─────────────────────────────────────────────────────────
+
+    protected function setUp(): void
+    {
+        $this->pdo = new PDO('sqlite::memory:');
+        $this->pdo->setAttribute(PDO::ATTR_ERRMODE,            PDO::ERRMODE_EXCEPTION);
+        $this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        $this->crearSchema();
+
+        $auditoria   = new Auditoria($this->pdo);
+        $this->model = new Producto($this->pdo, $auditoria);
+    }
+
+    // ── Schema SQLite mínimo para test de imagen ──────────────────────────────
+
+    /**
+     * Crea las tablas mínimas necesarias para el test de eliminarImagen.
+     *
+     * @author Carlitos6712
+     */
+    private function crearSchema(): void
+    {
+        $this->pdo->exec("
+            CREATE TABLE auditoria (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                tabla            TEXT    NOT NULL,
+                registro_id      INTEGER NOT NULL,
+                accion           TEXT    NOT NULL,
+                datos_anteriores TEXT    NULL,
+                datos_nuevos     TEXT    NULL,
+                usuario          TEXT    DEFAULT 'admin',
+                ip               TEXT,
+                fecha            TEXT    DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+        $this->pdo->exec("
+            CREATE TABLE marcas (
+                id     INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT    NOT NULL
+            )
+        ");
+        $this->pdo->exec("
+            CREATE TABLE categorias (
+                id     INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT    NOT NULL
+            )
+        ");
+        $this->pdo->exec("
+            CREATE TABLE productos (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre       TEXT    NOT NULL,
+                descripcion  TEXT,
+                precio       REAL    DEFAULT 1.00,
+                stock        INTEGER DEFAULT 1,
+                stock_minimo INTEGER DEFAULT 1,
+                imagen       TEXT,
+                categoria_id INTEGER,
+                marca_id     INTEGER,
+                deleted_at   TEXT    DEFAULT NULL,
+                created_at   TEXT    DEFAULT CURRENT_TIMESTAMP,
+                updated_at   TEXT    DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+        $this->pdo->exec("
+            CREATE TABLE movimientos (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                producto_id INTEGER NOT NULL,
+                tipo        TEXT    NOT NULL,
+                cantidad    INTEGER NOT NULL
+            )
+        ");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
      * Crea un array que simula una entrada de $_FILES.
      *
-     * @param int    $size  Tamaño en bytes.
-     * @param string $mime  Tipo MIME.
-     * @param string $tmpName Ruta al fichero temporal (puede no existir para tests de validación).
+     * @param int    $size    Tamaño en bytes.
+     * @param string $mime    Tipo MIME.
+     * @param string $tmpName Ruta al fichero temporal.
      * @return array<string, mixed>
      */
     private function fakefile(int $size, string $mime, string $tmpName = '/tmp/fake_test'): array
@@ -133,26 +211,25 @@ class ImagenTest extends TestCase
         $rutaVieja   = $uploadDir . $nombreViejo;
         file_put_contents($rutaVieja, 'fake-image-content');
 
-        // Insertar un producto de prueba con esa imagen en la BD
-        $pdo = Database::getInstance();
-        $pdo->prepare(
+        // Insertar un producto de prueba con esa imagen en la BD (SQLite)
+        $this->pdo->prepare(
             "INSERT INTO productos (nombre, descripcion, precio, stock, stock_minimo, imagen)
              VALUES ('TEST_imagen_del', 'test', 1.00, 1, 1, :imagen)"
         )->execute([':imagen' => $nombreViejo]);
-        $testId = (int) $pdo->lastInsertId();
+        $testId = (int) $this->pdo->lastInsertId();
 
         try {
-            $modelo = new Producto();
-            $modelo->eliminarImagen($testId);
+            $this->model->eliminarImagen($testId);
 
             $this->assertFileDoesNotExist($rutaVieja, 'El fichero de imagen anterior debe eliminarse');
 
             // Verificar que la columna imagen queda a NULL
-            $row = $pdo->query("SELECT imagen FROM productos WHERE id = {$testId}")->fetch();
-            $this->assertNull($row['imagen'] ?? 'no-null', 'La columna imagen debe quedar a NULL tras eliminar');
+            $row = $this->pdo->query("SELECT imagen FROM productos WHERE id = {$testId}")->fetch();
+            $this->assertNotFalse($row, 'El producto de prueba debe existir en la BD');
+            $this->assertNull($row['imagen'], 'La columna imagen debe quedar a NULL tras eliminar');
         } finally {
             @unlink($rutaVieja);
-            $pdo->exec("DELETE FROM productos WHERE id = {$testId} AND nombre = 'TEST_imagen_del'");
+            $this->pdo->exec("DELETE FROM productos WHERE id = {$testId}");
         }
     }
 

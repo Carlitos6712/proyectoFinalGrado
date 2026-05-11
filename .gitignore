@@ -1,6 +1,7 @@
-# Ignorar archivos de entorno
+# Ignorar archivos de entorno (nunca commitear credenciales reales)
 .env
 .env.example
+.env.testing
 
 # Ignorar prompts internos y documentación de Claude Code (uso local)
 PROMPTS_CLAUDE_CODE.md
@@ -30,3 +31,7 @@ Thumbs.db
 # Imágenes subidas por usuarios (contenido, no código)
 /src/uploads/productos/*
 !/src/uploads/productos/.gitkeep
+
+# Informes de cobertura de tests (generados por phpunit)
+coverage.xml
+coverage-unit.xml

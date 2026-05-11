@@ -1,0 +1,116 @@
+name: Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 1: Tests unitarios (SQLite en memoria — sin Docker, sin MySQL)
+  # ─────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests (SQLite)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          extensions: pdo, pdo_sqlite, sqlite3, gd
+          coverage: xdebug
+
+      - name: Instalar dependencias Composer
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Ejecutar tests unitarios con cobertura
+        run: composer test:unit -- --coverage-text --coverage-clover=coverage-unit.xml
+
+      - name: Verificar cobertura mínima >= 70%
+        run: |
+          php -r "
+            \$xml = simplexml_load_file('coverage-unit.xml');
+            \$metrics = \$xml->project->metrics;
+            \$total   = (int) \$metrics['statements'];
+            \$covered = (int) \$metrics['coveredstatements'];
+            \$pct     = \$total > 0 ? round(\$covered / \$total * 100, 2) : 0;
+            echo 'Cobertura: ' . \$pct . '%' . PHP_EOL;
+            if (\$pct < 70) {
+                fwrite(STDERR, 'ERROR: cobertura ' . \$pct . '% < 70% minimo requerido' . PHP_EOL);
+                exit(1);
+            }
+          "
+
+      - name: Subir informe de cobertura
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-unit
+          path: coverage-unit.xml
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 2: Tests de integración (MySQL real)
+  # Requiere los siguientes secretos en la configuración del repositorio:
+  #   DB_PASS — contraseña para el usuario MySQL de test
+  # ─────────────────────────────────────────────────────────────────────────────
+  integration-tests:
+    name: Integration Tests (MySQL)
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: inventario_motos_test
+          MYSQL_USER: admin
+          MYSQL_PASSWORD: ${{ secrets.DB_PASS }}
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          extensions: pdo, pdo_mysql, gd
+          coverage: none
+
+      - name: Instalar dependencias Composer
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Esperar a MySQL
+        run: |
+          until mysqladmin ping -h 127.0.0.1 -P 3306 -uadmin "--password=${{ secrets.DB_PASS }}" --silent; do
+            echo "Esperando MySQL..."
+            sleep 2
+          done
+
+      - name: Importar schema de base de datos
+        env:
+          MYSQL_PWD: ${{ secrets.DB_PASS }}
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -uadmin inventario_motos_test < database/schema.sql
+
+      - name: Ejecutar tests de integración
+        run: composer test:integration
+        env:
+          DB_HOST: "127.0.0.1"
+          DB_PORT: "3306"
+          DB_NAME: "inventario_motos_test"
+          DB_USER: "admin"
+          DB_PASS: ${{ secrets.DB_PASS }}
+          ALERT_EMAIL: "ci@test.local"

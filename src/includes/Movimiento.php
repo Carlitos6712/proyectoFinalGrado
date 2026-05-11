@@ -19,14 +19,15 @@ class Movimiento
     private AlertaStock $alertaStock;
 
     /**
-     * @param AlertaStock|null $alertaStock Servicio de alertas; si es null, se crea con PHPMailer.
+     * @param PDO|null         $pdo         Conexión PDO inyectada (útil para tests con SQLite); si es null usa el singleton MySQL.
+     * @param AlertaStock|null $alertaStock Servicio de alertas; si es null, se crea con la conexión activa.
      * @throws AppException Si falla la conexión.
      * @author Carlitos6712
      */
-    public function __construct(?AlertaStock $alertaStock = null)
+    public function __construct(?PDO $pdo = null, ?AlertaStock $alertaStock = null)
     {
-        $this->pdo           = Database::getInstance();
-        $this->productoModel = new Producto();
+        $this->pdo           = $pdo ?? Database::getInstance();
+        $this->productoModel = new Producto($pdo);
         $this->alertaStock   = $alertaStock ?? new AlertaStock($this->pdo);
     }
 

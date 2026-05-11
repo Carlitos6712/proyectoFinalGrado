@@ -17,13 +17,14 @@ class Producto
     private Auditoria $auditoria;
 
     /**
-     * @param Auditoria|null $auditoria Modelo de auditoría; si es null, se crea con la conexión singleton.
+     * @param PDO|null       $pdo       Conexión PDO inyectada (útil para tests con SQLite); si es null usa el singleton MySQL.
+     * @param Auditoria|null $auditoria Modelo de auditoría; si es null, se crea con la conexión activa.
      * @throws AppException Si falla la conexión.
      * @author Carlitos6712
      */
-    public function __construct(?Auditoria $auditoria = null)
+    public function __construct(?PDO $pdo = null, ?Auditoria $auditoria = null)
     {
-        $this->pdo       = Database::getInstance();
+        $this->pdo       = $pdo ?? Database::getInstance();
         $this->auditoria = $auditoria ?? new Auditoria($this->pdo);
     }
 
@@ -260,7 +261,7 @@ class Producto
         }
         $anterior = $this->obtener($id);
         $stmt = $this->pdo->prepare(
-            "UPDATE productos SET deleted_at = NOW() WHERE id = :id AND deleted_at IS NULL"
+            "UPDATE productos SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL"
         );
         $stmt->execute([':id' => $id]);
         $afectado = $stmt->rowCount() > 0;

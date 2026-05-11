@@ -98,6 +98,14 @@ try {
                 </span>
                 <span class="nav-label">Categorías</span>
             </a>
+            <a href="marcas.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'marcas.php' ? 'active' : '' ?>">
+                <span class="nav-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+                    </svg>
+                </span>
+                <span class="nav-label">Marcas</span>
+            </a>
         </div>
         <div class="nav-section">
             <span class="nav-section-label">Operaciones</span>
@@ -250,6 +258,7 @@ try {
                         <th>Ref</th>
                         <th>Producto</th>
                         <th>Categoría</th>
+                        <th>Marca</th>
                         <th>Precio</th>
                         <th>Stock</th>
                         <th>Estado</th>
@@ -271,11 +280,18 @@ try {
                         <td>
                             <div class="product-cell">
                                 <div class="product-avatar"><?= $inicial ?></div>
-                                <span class="product-name"><?= htmlspecialchars($p['nombre'], ENT_QUOTES, 'UTF-8') ?></span>
+                                <a href="ver_producto.php?id=<?= (int)$p['id'] ?>" class="product-name product-name-link"><?= htmlspecialchars($p['nombre'], ENT_QUOTES, 'UTF-8') ?></a>
                             </div>
                         </td>
                         <td>
                             <span class="category-pill"><?= htmlspecialchars($p['categoria_nombre'] ?? 'Sin categoría', ENT_QUOTES, 'UTF-8') ?></span>
+                        </td>
+                        <td>
+                            <?php if (!empty($p['marca_nombre'])): ?>
+                                <span class="category-pill"><?= htmlspecialchars($p['marca_nombre'], ENT_QUOTES, 'UTF-8') ?></span>
+                            <?php else: ?>
+                                <span style="color:var(--text-muted);font-size:.8rem;">—</span>
+                            <?php endif; ?>
                         </td>
                         <td class="td-price"><?= number_format((float)$p['precio'], 2, ',', '.') ?> €</td>
                         <td>
@@ -294,6 +310,11 @@ try {
                             <?php endif; ?>
                         </td>
                         <td class="td-actions">
+                            <a href="ver_producto.php?id=<?= (int)$p['id'] ?>" class="action-btn action-btn-gray" title="Ver detalle">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </a>
                             <a href="movimientos.php?producto_id=<?= (int)$p['id'] ?>" class="action-btn action-btn-blue" title="Ver movimientos">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>

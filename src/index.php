@@ -99,6 +99,14 @@ try {
                 </span>
                 <span class="nav-label">Categorías</span>
             </a>
+            <a href="marcas.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'marcas.php' ? 'active' : '' ?>">
+                <span class="nav-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+                    </svg>
+                </span>
+                <span class="nav-label">Marcas</span>
+            </a>
         </div>
         <div class="nav-section">
             <span class="nav-section-label">Operaciones</span>

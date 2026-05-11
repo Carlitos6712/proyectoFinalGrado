@@ -28,18 +28,17 @@ class Producto
     }
 
     /**
-     * Lista todos los productos activos con su categoría.
+     * Lista todos los productos activos con su categoría y marca.
      *
-     * Usa LEFT JOIN para evitar N+1 y excluye soft-deleted.
-     *
-     * @return array<int, array<string, mixed>> Filas de productos.
+     * @return array<int, array<string, mixed>>
      */
     public function listar(): array
     {
         $stmt = $this->pdo->query(
-            "SELECT p.*, c.nombre AS categoria_nombre
+            "SELECT p.*, c.nombre AS categoria_nombre, m.nombre AS marca_nombre
              FROM productos p
              LEFT JOIN categorias c ON p.categoria_id = c.id
+             LEFT JOIN marcas m ON p.marca_id = m.id
              WHERE p.deleted_at IS NULL
              ORDER BY p.nombre"
         );
@@ -56,9 +55,10 @@ class Producto
     public function obtener(int $id): array
     {
         $stmt = $this->pdo->prepare(
-            "SELECT p.*, c.nombre AS categoria_nombre
+            "SELECT p.*, c.nombre AS categoria_nombre, m.nombre AS marca_nombre
              FROM productos p
              LEFT JOIN categorias c ON p.categoria_id = c.id
+             LEFT JOIN marcas m ON p.marca_id = m.id
              WHERE p.id = :id AND p.deleted_at IS NULL"
         );
         $stmt->execute([':id' => $id]);
@@ -72,14 +72,26 @@ class Producto
     /**
      * Crea un nuevo producto en el inventario.
      *
-     * @param string      $nombre      Nombre del producto.
-     * @param string      $descripcion Descripción opcional.
-     * @param float       $precio      Precio unitario.
-     * @param int|null    $categoriaId ID de categoría (puede ser null).
-     * @param int         $stock       Stock inicial.
-     * @param int         $stockMinimo Umbral de alerta de stock.
-     * @param string|null $codigoRef   Código de referencia.
+     * @param string      $nombre           Nombre del producto.
+     * @param string      $descripcion      Descripción corta opcional.
+     * @param float       $precio           Precio unitario.
+     * @param int|null    $categoriaId      ID de categoría.
+     * @param int         $stock            Stock inicial.
+     * @param int         $stockMinimo      Umbral de alerta de stock.
+     * @param string|null $codigoRef        Código de referencia interna.
+     * @param string|null $descripcionLarga Descripción detallada.
+     * @param int|null    $marcaId          ID de la marca (FK).
+     * @param string|null $codigoBarras     Código de barras / EAN.
+     * @param string|null $urlProveedor     URL del proveedor.
+     * @param string|null $proveedor        Nombre del proveedor.
+     * @param string|null $ubicacion        Ubicación física en el taller.
+     * @param int|null    $peso             Peso en gramos.
+     * @param int|null    $capacidad        Capacidad en mililitros.
+     * @param int|null    $longitud         Longitud en milímetros.
+     * @param int|null    $anchura          Anchura en milímetros.
+     * @param float|null  $diametro         Diámetro en milímetros.
      * @return int ID del producto creado.
+     * @author Carlitos6712
      */
     public function crear(
         string $nombre,
@@ -88,26 +100,54 @@ class Producto
         ?int $categoriaId,
         int $stock = 0,
         int $stockMinimo = 5,
-        ?string $codigoRef = null
+        ?string $codigoRef = null,
+        ?string $descripcionLarga = null,
+        ?int $marcaId = null,
+        ?string $codigoBarras = null,
+        ?string $urlProveedor = null,
+        ?string $proveedor = null,
+        ?string $ubicacion = null,
+        ?int $peso = null,
+        ?int $capacidad = null,
+        ?int $longitud = null,
+        ?int $anchura = null,
+        ?float $diametro = null
     ): int {
         $stmt = $this->pdo->prepare(
             "INSERT INTO productos
-             (nombre, descripcion, precio, categoria_id, stock, stock_minimo, codigo_ref)
-             VALUES (:nombre, :descripcion, :precio, :categoria_id, :stock, :stock_minimo, :codigo_ref)"
+             (nombre, descripcion, descripcion_larga, precio, categoria_id, stock, stock_minimo,
+              codigo_ref, marca_id, codigo_barras, url_proveedor, proveedor, ubicacion,
+              peso, capacidad, longitud, anchura, diametro)
+             VALUES (:nombre, :descripcion, :descripcion_larga, :precio, :categoria_id, :stock,
+                     :stock_minimo, :codigo_ref, :marca_id, :codigo_barras, :url_proveedor, :proveedor,
+                     :ubicacion, :peso, :capacidad, :longitud, :anchura, :diametro)"
         );
         $stmt->execute([
-            ':nombre'       => $nombre,
-            ':descripcion'  => $descripcion,
-            ':precio'       => $precio,
-            ':categoria_id' => $categoriaId,
-            ':stock'        => $stock,
-            ':stock_minimo' => $stockMinimo,
-            ':codigo_ref'   => $codigoRef,
+            ':nombre'            => $nombre,
+            ':descripcion'       => $descripcion,
+            ':descripcion_larga' => $descripcionLarga,
+            ':precio'            => $precio,
+            ':categoria_id'      => $categoriaId,
+            ':stock'             => $stock,
+            ':stock_minimo'      => $stockMinimo,
+            ':codigo_ref'        => $codigoRef,
+            ':marca_id'          => $marcaId,
+            ':codigo_barras'     => $codigoBarras,
+            ':url_proveedor'     => $urlProveedor,
+            ':proveedor'         => $proveedor,
+            ':ubicacion'         => $ubicacion,
+            ':peso'              => $peso,
+            ':capacidad'         => $capacidad,
+            ':longitud'          => $longitud,
+            ':anchura'           => $anchura,
+            ':diametro'          => $diametro,
         ]);
         $id = (int) $this->pdo->lastInsertId();
         $this->auditarOperacion(
             'crear', $id, null,
-            compact('nombre', 'descripcion', 'precio', 'categoriaId', 'stock', 'stockMinimo', 'codigoRef')
+            compact('nombre', 'descripcion', 'descripcionLarga', 'precio', 'categoriaId',
+                    'stock', 'stockMinimo', 'codigoRef', 'marcaId', 'codigoBarras',
+                    'urlProveedor', 'proveedor', 'ubicacion', 'peso', 'capacidad', 'longitud', 'anchura', 'diametro')
         );
         return $id;
     }
@@ -115,14 +155,26 @@ class Producto
     /**
      * Actualiza los datos de un producto existente.
      *
-     * @param int         $id          ID del producto a actualizar.
-     * @param string      $nombre      Nuevo nombre.
-     * @param string      $descripcion Nueva descripción.
-     * @param float       $precio      Nuevo precio.
-     * @param int|null    $categoriaId Nueva categoría.
-     * @param int         $stockMinimo Nuevo umbral de alerta.
-     * @param string|null $codigoRef   Nuevo código de referencia.
+     * @param int         $id               ID del producto a actualizar.
+     * @param string      $nombre           Nuevo nombre.
+     * @param string      $descripcion      Nueva descripción corta.
+     * @param float       $precio           Nuevo precio.
+     * @param int|null    $categoriaId      Nueva categoría.
+     * @param int         $stockMinimo      Nuevo umbral de alerta.
+     * @param string|null $codigoRef        Nuevo código de referencia.
+     * @param string|null $descripcionLarga Nueva descripción detallada.
+     * @param int|null    $marcaId          Nuevo ID de marca (FK).
+     * @param string|null $codigoBarras     Nuevo código de barras.
+     * @param string|null $urlProveedor     Nueva URL del proveedor.
+     * @param string|null $proveedor        Nuevo nombre del proveedor.
+     * @param string|null $ubicacion        Nueva ubicación física.
+     * @param int|null    $peso             Nuevo peso en gramos.
+     * @param int|null    $capacidad        Nueva capacidad en mililitros.
+     * @param int|null    $longitud         Nueva longitud en milímetros.
+     * @param int|null    $anchura          Nueva anchura en milímetros.
+     * @param float|null  $diametro         Nuevo diámetro en milímetros.
      * @return bool
+     * @author Carlitos6712
      */
     public function actualizar(
         int $id,
@@ -131,7 +183,18 @@ class Producto
         float $precio,
         ?int $categoriaId,
         int $stockMinimo = 5,
-        ?string $codigoRef = null
+        ?string $codigoRef = null,
+        ?string $descripcionLarga = null,
+        ?int $marcaId = null,
+        ?string $codigoBarras = null,
+        ?string $urlProveedor = null,
+        ?string $proveedor = null,
+        ?string $ubicacion = null,
+        ?int $peso = null,
+        ?int $capacidad = null,
+        ?int $longitud = null,
+        ?int $anchura = null,
+        ?float $diametro = null
     ): bool {
         if ($precio <= 0) {
             throw new AppException('El precio debe ser mayor que cero.', 400);
@@ -139,27 +202,43 @@ class Producto
         if ($stockMinimo < 0) {
             throw new AppException('El stock mínimo no puede ser negativo.', 400);
         }
+        $anterior = $this->obtener($id);
         $stmt = $this->pdo->prepare(
             "UPDATE productos
-             SET nombre = :nombre, descripcion = :descripcion, precio = :precio,
-                 categoria_id = :categoria_id, stock_minimo = :stock_minimo,
-                 codigo_ref = :codigo_ref
+             SET nombre = :nombre, descripcion = :descripcion, descripcion_larga = :descripcion_larga,
+                 precio = :precio, categoria_id = :categoria_id, stock_minimo = :stock_minimo,
+                 codigo_ref = :codigo_ref, marca_id = :marca_id, codigo_barras = :codigo_barras,
+                 url_proveedor = :url_proveedor, proveedor = :proveedor, ubicacion = :ubicacion,
+                 peso = :peso, capacidad = :capacidad, longitud = :longitud,
+                 anchura = :anchura, diametro = :diametro
              WHERE id = :id AND deleted_at IS NULL"
         );
-        $anterior = $this->obtener($id);
         $resultado = $stmt->execute([
-            ':id'           => $id,
-            ':nombre'       => $nombre,
-            ':descripcion'  => $descripcion,
-            ':precio'       => $precio,
-            ':categoria_id' => $categoriaId,
-            ':stock_minimo' => $stockMinimo,
-            ':codigo_ref'   => $codigoRef,
+            ':id'                => $id,
+            ':nombre'            => $nombre,
+            ':descripcion'       => $descripcion,
+            ':descripcion_larga' => $descripcionLarga,
+            ':precio'            => $precio,
+            ':categoria_id'      => $categoriaId,
+            ':stock_minimo'      => $stockMinimo,
+            ':codigo_ref'        => $codigoRef,
+            ':marca_id'          => $marcaId,
+            ':codigo_barras'     => $codigoBarras,
+            ':url_proveedor'     => $urlProveedor,
+            ':proveedor'         => $proveedor,
+            ':ubicacion'         => $ubicacion,
+            ':peso'              => $peso,
+            ':capacidad'         => $capacidad,
+            ':longitud'          => $longitud,
+            ':anchura'           => $anchura,
+            ':diametro'          => $diametro,
         ]);
         if ($resultado && $stmt->rowCount() > 0) {
             $this->auditarOperacion(
                 'actualizar', $id, $anterior,
-                compact('nombre', 'descripcion', 'precio', 'categoriaId', 'stockMinimo', 'codigoRef')
+                compact('nombre', 'descripcion', 'descripcionLarga', 'precio', 'categoriaId',
+                        'stockMinimo', 'codigoRef', 'marcaId', 'codigoBarras',
+                        'urlProveedor', 'proveedor', 'ubicacion', 'peso', 'capacidad', 'longitud', 'anchura', 'diametro')
             );
         }
         return $resultado;
@@ -200,9 +279,10 @@ class Producto
      */
     public function buscar(string $termino, ?int $categoriaId = null): array
     {
-        $sql = "SELECT p.*, c.nombre AS categoria_nombre
+        $sql = "SELECT p.*, c.nombre AS categoria_nombre, m.nombre AS marca_nombre
                 FROM productos p
                 LEFT JOIN categorias c ON p.categoria_id = c.id
+                LEFT JOIN marcas m ON p.marca_id = m.id
                 WHERE p.deleted_at IS NULL
                   AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino2)";
         $like   = "%{$termino}%";
@@ -226,9 +306,10 @@ class Producto
     public function filtrarStockBajo(): array
     {
         $stmt = $this->pdo->query(
-            "SELECT p.*, c.nombre AS categoria_nombre
+            "SELECT p.*, c.nombre AS categoria_nombre, m.nombre AS marca_nombre
              FROM productos p
              LEFT JOIN categorias c ON p.categoria_id = c.id
+             LEFT JOIN marcas m ON p.marca_id = m.id
              WHERE p.deleted_at IS NULL AND p.stock <= p.stock_minimo
              ORDER BY p.stock ASC"
         );
@@ -238,14 +319,14 @@ class Producto
     /**
      * Actualiza el stock de un producto (usado por Movimiento).
      *
-     * @param int    $id       ID del producto.
-     * @param int    $cantidad Cantidad a sumar (positiva) o restar (negativa).
+     * @param int $id       ID del producto.
+     * @param int $cantidad Cantidad a sumar (positiva) o restar (negativa).
      * @throws AppException Si el stock resultante sería negativo.
      * @return bool
      */
     public function actualizarStock(int $id, int $cantidad): bool
     {
-        $producto = $this->obtener($id);
+        $producto   = $this->obtener($id);
         $nuevoStock = $producto['stock'] + $cantidad;
         if ($nuevoStock < 0) {
             throw new AppException("Stock insuficiente. Stock actual: {$producto['stock']}.", 400);
@@ -257,7 +338,7 @@ class Producto
     }
 
     /**
-     * Cuenta el total de productos con movimientos activos.
+     * Cuenta el total de movimientos de un producto.
      *
      * @param int $id ID del producto.
      * @return int
@@ -274,7 +355,7 @@ class Producto
     /**
      * Calcula el valor total del inventario (suma de precio × stock).
      *
- * @author   miguelrechefdez
+     * @author miguelrechefdez
      * @return float Valor total en euros.
      */
     public function valorInventario(): float
@@ -290,7 +371,7 @@ class Producto
     /**
      * Cuenta el total de productos activos.
      *
- * @author   miguelrechefdez
+     * @author miguelrechefdez
      * @return int
      */
     public function contarActivos(): int
@@ -304,10 +385,10 @@ class Producto
     /**
      * Registra una operación en el log de auditoría sin propagar errores.
      *
-     * @param string     $accion    'crear' | 'actualizar' | 'eliminar'.
-     * @param int        $id        PK del producto.
-     * @param array|null $anterior  Datos antes de la operación.
-     * @param array|null $nuevo     Datos después de la operación.
+     * @param string     $accion   'crear' | 'actualizar' | 'eliminar'.
+     * @param int        $id       PK del producto.
+     * @param array|null $anterior Datos antes de la operación.
+     * @param array|null $nuevo    Datos después de la operación.
      * @return void
      * @author Carlitos6712
      */
@@ -386,8 +467,6 @@ class Producto
     /**
      * Sube, convierte a WebP y guarda la imagen de un producto.
      *
-     * Elimina la imagen anterior si existe. Requiere extensión GD.
-     *
      * @param array $file Entrada de $_FILES correspondiente al campo imagen.
      * @param int   $id   ID del producto al que pertenece la imagen.
      * @throws AppException Si la validación falla, GD no está disponible,
@@ -406,13 +485,12 @@ class Producto
             mkdir(self::UPLOAD_DIR, 0755, true);
         }
 
-        // Eliminar imagen anterior si existe
         $this->eliminarImagenFichero($id);
 
-        $mime      = mime_content_type($file['tmp_name']);
-        $imagen    = $this->crearImagenDesdeArchivo($file['tmp_name'], $mime);
-        $nombre    = self::generarNombreImagen($id, time());
-        $destino   = self::UPLOAD_DIR . $nombre;
+        $mime    = mime_content_type($file['tmp_name']);
+        $imagen  = $this->crearImagenDesdeArchivo($file['tmp_name'], $mime);
+        $nombre  = self::generarNombreImagen($id, time());
+        $destino = self::UPLOAD_DIR . $nombre;
 
         if (!imagewebp($imagen, $destino, 85)) {
             imagedestroy($imagen);
@@ -432,7 +510,7 @@ class Producto
      * Elimina la imagen asociada a un producto (fichero + columna BD).
      *
      * @param int $id ID del producto.
-     * @return bool true si se eliminó algo, false si no había imagen.
+     * @return bool
      */
     public function eliminarImagen(int $id): bool
     {
@@ -452,7 +530,7 @@ class Producto
      * @param string $ruta Ruta al fichero temporal.
      * @param string $mime Tipo MIME del fichero.
      * @throws AppException Si el tipo MIME no tiene soporte GD.
-     * @return \GdImage Recurso de imagen GD.
+     * @return \GdImage
      */
     private function crearImagenDesdeArchivo(string $ruta, string $mime): \GdImage
     {
@@ -472,7 +550,7 @@ class Producto
      * Elimina el fichero físico de imagen de un producto si existe.
      *
      * @param int $id ID del producto.
-     * @return bool true si se eliminó el fichero.
+     * @return bool
      */
     private function eliminarImagenFichero(int $id): bool
     {
@@ -488,9 +566,7 @@ class Producto
         return false;
     }
 
-    /**
-     * Mapa de valores de ?orden= a cláusulas ORDER BY seguras.
-     */
+    /** Mapa de valores de ?orden= a cláusulas ORDER BY seguras. */
     private const ORDEN_MAP = [
         'nombre_asc'  => 'p.nombre ASC',
         'nombre_desc' => 'p.nombre DESC',
@@ -505,7 +581,7 @@ class Producto
     /**
      * Cuenta productos activos aplicando los mismos filtros que listarPaginado.
      *
-     * @param string|null $termino       Término de búsqueda (nombre o código ref).
+     * @param string|null $termino       Término de búsqueda.
      * @param int|null    $categoriaId   Filtro por categoría.
      * @param float|null  $precioMin     Precio mínimo.
      * @param float|null  $precioMax     Precio máximo.
@@ -564,9 +640,6 @@ class Producto
     /**
      * Lista productos activos con paginación y todos los filtros combinables.
      *
-     * Soporta los 7 filtros de Fase 4: q, categoria_id, precio_min,
-     * precio_max, stock_min, stock_max, stock_bajo. Más 4 ordenaciones.
-     *
      * @param int         $pagina        Página actual (1-indexed).
      * @param int         $porPagina     Registros por página.
      * @param string|null $termino       Término de búsqueda.
@@ -593,9 +666,10 @@ class Producto
     ): array {
         $offset  = ($pagina - 1) * $porPagina;
         $orderBy = self::ORDEN_MAP[$orden] ?? 'p.nombre ASC';
-        $sql     = "SELECT p.*, c.nombre AS categoria_nombre
+        $sql     = "SELECT p.*, c.nombre AS categoria_nombre, m.nombre AS marca_nombre
                     FROM productos p
                     LEFT JOIN categorias c ON p.categoria_id = c.id
+                    LEFT JOIN marcas m ON p.marca_id = m.id
                     WHERE p.deleted_at IS NULL";
         $params  = [];
 

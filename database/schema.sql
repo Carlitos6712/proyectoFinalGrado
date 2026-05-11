@@ -21,23 +21,46 @@ CREATE TABLE IF NOT EXISTS categorias (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------------------------------------------
+-- Tabla: marcas
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS marcas (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    nombre      VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------------------------------------------
 -- Tabla: productos
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS productos (
-    id           INT            AUTO_INCREMENT PRIMARY KEY,
-    nombre       VARCHAR(200)   NOT NULL,
-    descripcion  TEXT,
-    precio       DECIMAL(10,2)  DEFAULT 0.00,
-    stock        INT            DEFAULT 0,
-    stock_minimo INT            DEFAULT 5,
-    codigo_ref   VARCHAR(50),
-    imagen       VARCHAR(255),
-    categoria_id INT,
-    created_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at     TIMESTAMP      NULL DEFAULT NULL,
-    alertas_email  TINYINT(1)     DEFAULT 1,
-    FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL
+    id                INT            AUTO_INCREMENT PRIMARY KEY,
+    nombre            VARCHAR(200)   NOT NULL,
+    descripcion       TEXT,
+    descripcion_larga TEXT,
+    precio            DECIMAL(10,2)  DEFAULT 0.00,
+    stock             INT            DEFAULT 0,
+    stock_minimo      INT            DEFAULT 5,
+    codigo_ref        VARCHAR(50),
+    marca             VARCHAR(100),
+    marca_id          INT            NULL,
+    codigo_barras     VARCHAR(100),
+    url_proveedor     VARCHAR(500),
+    proveedor         VARCHAR(150),
+    ubicacion         VARCHAR(100),
+    peso              INT            NULL,
+    capacidad         INT            NULL,
+    longitud          INT            NULL,
+    anchura           INT            NULL,
+    diametro          DECIMAL(6,2)   NULL,
+    alertas_email     TINYINT(1)     DEFAULT 1,
+    imagen            VARCHAR(255),
+    categoria_id      INT,
+    created_at        TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMP      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at        TIMESTAMP      NULL DEFAULT NULL,
+    FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL,
+    FOREIGN KEY (marca_id)     REFERENCES marcas(id)     ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------------------------------------------

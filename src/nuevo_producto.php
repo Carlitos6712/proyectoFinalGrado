@@ -12,6 +12,7 @@ require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Categoria.php';
+require_once __DIR__ . '/includes/Marca.php';
 
 $error          = '';
 $success        = '';
@@ -20,17 +21,30 @@ $stockBajoCount = 0;
 try {
     $productoModel  = new Producto();
     $categoriaModel = new Categoria();
+    $marcaModel     = new Marca();
     $stockBajoCount = count($productoModel->filtrarStockBajo());
     $categorias     = $categoriaModel->listar();
+    $marcas         = $marcaModel->listar();
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $nombre      = trim($_POST['nombre']      ?? '');
-        $descripcion = trim($_POST['descripcion'] ?? '');
-        $precio      = (float)  ($_POST['precio']      ?? 0);
-        $categoriaId = filter_input(INPUT_POST, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
-        $stock       = (int)    ($_POST['stock']        ?? 0);
-        $stockMinimo = (int)    ($_POST['stock_minimo'] ?? 5);
-        $codigoRef   = trim($_POST['codigo_ref'] ?? '') ?: null;
+        $nombre           = trim($_POST['nombre']            ?? '');
+        $descripcion      = trim($_POST['descripcion']      ?? '');
+        $descripcionLarga = trim($_POST['descripcion_larga'] ?? '') ?: null;
+        $precio           = (float) ($_POST['precio']       ?? 0);
+        $categoriaId      = filter_input(INPUT_POST, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
+        $stock            = (int)   ($_POST['stock']         ?? 0);
+        $stockMinimo      = (int)   ($_POST['stock_minimo']  ?? 5);
+        $codigoRef        = trim($_POST['codigo_ref']    ?? '') ?: null;
+        $marcaId          = filter_input(INPUT_POST, 'marca_id', FILTER_VALIDATE_INT) ?: null;
+        $codigoBarras     = trim($_POST['codigo_barras'] ?? '') ?: null;
+        $urlProveedor     = trim($_POST['url_proveedor'] ?? '') ?: null;
+        $proveedor        = trim($_POST['proveedor']     ?? '') ?: null;
+        $ubicacion        = trim($_POST['ubicacion']     ?? '') ?: null;
+        $peso             = ($_POST['peso']      ?? '') !== '' ? (int)$_POST['peso']      : null;
+        $capacidad        = ($_POST['capacidad'] ?? '') !== '' ? (int)$_POST['capacidad'] : null;
+        $longitud         = ($_POST['longitud']  ?? '') !== '' ? (int)$_POST['longitud']  : null;
+        $anchura          = ($_POST['anchura']   ?? '') !== '' ? (int)$_POST['anchura']   : null;
+        $diametro         = ($_POST['diametro']  ?? '') !== '' ? (float)$_POST['diametro'] : null;
 
         if ($nombre === '') {
             throw new AppException('El nombre del producto es obligatorio.', 400);
@@ -39,9 +53,12 @@ try {
             throw new AppException('El precio no puede ser negativo.', 400);
         }
 
-        $newId = $productoModel->crear($nombre, $descripcion, $precio, $categoriaId, $stock, $stockMinimo, $codigoRef);
+        $newId = $productoModel->crear(
+            $nombre, $descripcion, $precio, $categoriaId, $stock, $stockMinimo,
+            $codigoRef, $descripcionLarga, $marcaId, $codigoBarras, $urlProveedor, $proveedor, $ubicacion,
+            $peso, $capacidad, $longitud, $anchura, $diametro
+        );
 
-        // Subir imagen si se ha seleccionado una
         if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] !== UPLOAD_ERR_NO_FILE) {
             $productoModel->subirImagen($_FILES['imagen'], $newId);
         }
@@ -108,6 +125,14 @@ try {
                     </svg>
                 </span>
                 <span class="nav-label">Categorías</span>
+            </a>
+            <a href="marcas.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'marcas.php' ? 'active' : '' ?>">
+                <span class="nav-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+                    </svg>
+                </span>
+                <span class="nav-label">Marcas</span>
             </a>
         </div>
         <div class="nav-section">
@@ -235,9 +260,15 @@ try {
                         </div>
 
                         <div class="form-field form-field-full">
-                            <label class="field-label" for="descripcion">Descripción</label>
-                            <textarea class="field-input field-textarea" id="descripcion" name="descripcion" rows="3"
-                                      placeholder="Descripción opcional del producto…"><?= htmlspecialchars($_POST['descripcion'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                            <label class="field-label" for="descripcion">Descripción corta</label>
+                            <textarea class="field-input field-textarea" id="descripcion" name="descripcion" rows="2"
+                                      placeholder="Resumen breve del producto…"><?= htmlspecialchars($_POST['descripcion'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                        </div>
+
+                        <div class="form-field form-field-full">
+                            <label class="field-label" for="descripcion_larga">Descripción larga</label>
+                            <textarea class="field-input field-textarea" id="descripcion_larga" name="descripcion_larga" rows="5"
+                                      placeholder="Descripción técnica detallada, especificaciones, compatibilidades…"><?= htmlspecialchars($_POST['descripcion_larga'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
                         </div>
 
                         <div class="form-field">
@@ -272,6 +303,76 @@ try {
                             <span class="field-hint">Referencia interna o del fabricante</span>
                         </div>
 
+                        <div class="form-field">
+                            <label class="field-label" for="codigo_barras">Código de Barras / EAN</label>
+                            <input class="field-input" type="text" id="codigo_barras" name="codigo_barras"
+                                   placeholder="Ej. 8412345678901"
+                                   value="<?= htmlspecialchars($_POST['codigo_barras'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="field-label" for="proveedor">Proveedor</label>
+                            <input class="field-input" type="text" id="proveedor" name="proveedor"
+                                   placeholder="Nombre del proveedor"
+                                   value="<?= htmlspecialchars($_POST['proveedor'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="field-label" for="url_proveedor">URL del Proveedor</label>
+                            <input class="field-input" type="url" id="url_proveedor" name="url_proveedor"
+                                   placeholder="https://proveedor.com/producto"
+                                   value="<?= htmlspecialchars($_POST['url_proveedor'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="field-label" for="ubicacion">Ubicación en Taller</label>
+                            <input class="field-input" type="text" id="ubicacion" name="ubicacion"
+                                   placeholder="Ej. Estante A3, Cajón 2…"
+                                   value="<?= htmlspecialchars($_POST['ubicacion'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            <span class="field-hint">Dónde está físicamente en el taller</span>
+                        </div>
+
+                        <!-- Dimensiones técnicas -->
+                        <div class="form-field">
+                            <label class="field-label" for="peso">Peso (g)</label>
+                            <input class="field-input" type="number" id="peso" name="peso" min="0"
+                                   placeholder="Ej. 500"
+                                   value="<?= htmlspecialchars($_POST['peso'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            <span class="field-hint">Peso en gramos</span>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="field-label" for="capacidad">Capacidad (ml)</label>
+                            <input class="field-input" type="number" id="capacidad" name="capacidad" min="0"
+                                   placeholder="Ej. 1000"
+                                   value="<?= htmlspecialchars($_POST['capacidad'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            <span class="field-hint">Capacidad en mililitros</span>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="field-label" for="longitud">Longitud (mm)</label>
+                            <input class="field-input" type="number" id="longitud" name="longitud" min="0"
+                                   placeholder="Ej. 800"
+                                   value="<?= htmlspecialchars($_POST['longitud'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            <span class="field-hint">Longitud en milímetros</span>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="field-label" for="anchura">Anchura (mm)</label>
+                            <input class="field-input" type="number" id="anchura" name="anchura" min="0"
+                                   placeholder="Ej. 340"
+                                   value="<?= htmlspecialchars($_POST['anchura'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            <span class="field-hint">Anchura en milímetros</span>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="field-label" for="diametro">Diámetro (mm)</label>
+                            <input class="field-input" type="number" id="diametro" name="diametro" min="0" step="0.01"
+                                   placeholder="Ej. 310.00"
+                                   value="<?= htmlspecialchars($_POST['diametro'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            <span class="field-hint">Diámetro en milímetros</span>
+                        </div>
+
                         <div class="form-field form-field-full">
                             <label class="field-label" for="imagen">Imagen del Producto</label>
                             <div class="image-upload-wrap">
@@ -290,7 +391,7 @@ try {
                             </div>
                         </div>
 
-                        <div class="form-field form-field-full">
+                        <div class="form-field">
                             <label class="field-label" for="categoria_id">Categoría</label>
                             <select class="field-input field-select" id="categoria_id" name="categoria_id">
                                 <option value="">Sin categoría</option>
@@ -298,6 +399,19 @@ try {
                                     <option value="<?= (int)$cat['id'] ?>"
                                         <?= (string)($_POST['categoria_id'] ?? '') === (string)$cat['id'] ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8') ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="field-label" for="marca_id">Marca</label>
+                            <select class="field-input field-select" id="marca_id" name="marca_id">
+                                <option value="">Sin marca</option>
+                                <?php foreach ($marcas as $m): ?>
+                                    <option value="<?= (int)$m['id'] ?>"
+                                        <?= (string)($_POST['marca_id'] ?? '') === (string)$m['id'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($m['nombre'], ENT_QUOTES, 'UTF-8') ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>

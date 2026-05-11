@@ -1,27 +1,25 @@
 <?php
 /**
- * Gestión CRUD de categorías del inventario.
+ * Gestión CRUD de marcas del inventario.
  *
  * @package  Es21Plus
  * @author   Carlitos6712
- * @author   miguelrechefdez
  * @version  1.0.0
  */
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
-require_once __DIR__ . '/includes/Categoria.php';
+require_once __DIR__ . '/includes/Marca.php';
 
 $accion         = $_GET['accion'] ?? 'listar';
 $error          = '';
-$editCat        = null;
+$editMarca      = null;
 $stockBajoCount = 0;
 
-$categoriaModel = new Categoria();
+$marcaModel = new Marca();
 try { $stockBajoCount = count((new Producto())->filtrarStockBajo()); } catch (\Throwable $e) {}
 
-// Leer mensajes flash
 $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
@@ -34,21 +32,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $nombre      = trim($_POST['nombre']      ?? '');
             $descripcion = trim($_POST['descripcion'] ?? '');
             if ($nombre === '') throw new AppException('El nombre es obligatorio.', 400);
-            $categoriaModel->crear($nombre, $descripcion);
-            $_SESSION['flash_success'] = 'Categoría creada correctamente.';
+            $marcaModel->crear($nombre, $descripcion);
+            $_SESSION['flash_success'] = 'Marca creada correctamente.';
         } elseif ($postAccion === 'actualizar') {
             $id          = (int) ($_POST['id'] ?? 0);
             $nombre      = trim($_POST['nombre']      ?? '');
             $descripcion = trim($_POST['descripcion'] ?? '');
             if (!$id || $nombre === '') throw new AppException('Datos inválidos.', 400);
-            $categoriaModel->actualizar($id, $nombre, $descripcion);
-            $_SESSION['flash_success'] = 'Categoría actualizada correctamente.';
+            $marcaModel->actualizar($id, $nombre, $descripcion);
+            $_SESSION['flash_success'] = 'Marca actualizada correctamente.';
         } elseif ($postAccion === 'eliminar') {
             $id = (int) ($_POST['id'] ?? 0);
-            $categoriaModel->eliminar($id);
-            $_SESSION['flash_success'] = 'Categoría eliminada correctamente.';
+            $marcaModel->eliminar($id);
+            $_SESSION['flash_success'] = 'Marca eliminada correctamente.';
         }
-        header('Location: categorias.php');
+        header('Location: marcas.php');
         exit;
     } catch (AppException $e) {
         $error = $e->getMessage();
@@ -59,18 +57,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($accion === 'editar') {
     try {
-        $id      = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-        $editCat = $categoriaModel->obtenerPorId($id);
+        $id        = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+        $editMarca = $marcaModel->obtenerPorId($id);
     } catch (AppException $e) {
         $error = $e->getMessage();
     }
 }
 
 try {
-    $categorias = $categoriaModel->listar();
+    $marcas = $marcaModel->listar();
 } catch (\Throwable $e) {
-    $categorias = [];
-    $error = 'Error al cargar categorías: ' . $e->getMessage();
+    $marcas = [];
+    $error  = 'Error al cargar marcas: ' . $e->getMessage();
 }
 ?>
 <!DOCTYPE html>
@@ -78,7 +76,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Categorías – es21plus</title>
+    <title>Marcas – es21plus</title>
     <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body class="layout">
@@ -186,7 +184,7 @@ try {
             <nav class="breadcrumb-nav">
                 <a href="index.php" class="breadcrumb-item">Inicio</a>
                 <span class="breadcrumb-sep">›</span>
-                <span class="breadcrumb-item active">Categorías</span>
+                <span class="breadcrumb-item active">Marcas</span>
             </nav>
         </div>
         <div class="topbar-right">
@@ -251,8 +249,8 @@ try {
         <!-- Page header -->
         <div class="page-header">
             <div class="page-header-info">
-                <h1 class="page-title">Categorías</h1>
-                <p class="page-subtitle">Organiza tus productos en categorías</p>
+                <h1 class="page-title">Marcas</h1>
+                <p class="page-subtitle">Gestiona las marcas y fabricantes del inventario</p>
             </div>
         </div>
 
@@ -263,38 +261,38 @@ try {
             <div class="two-col-left">
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title"><?= $editCat ? 'Editar Categoría' : 'Nueva Categoría' ?></h2>
-                        <p class="card-subtitle"><?= $editCat ? 'Modifica los datos de la categoría' : 'Añade una nueva categoría al sistema' ?></p>
+                        <h2 class="card-title"><?= $editMarca ? 'Editar Marca' : 'Nueva Marca' ?></h2>
+                        <p class="card-subtitle"><?= $editMarca ? 'Modifica los datos de la marca' : 'Añade una nueva marca al sistema' ?></p>
                     </div>
                     <div class="card-body">
                         <form method="POST">
-                            <input type="hidden" name="accion" value="<?= $editCat ? 'actualizar' : 'crear' ?>">
-                            <?php if ($editCat): ?>
-                                <input type="hidden" name="id" value="<?= (int)$editCat['id'] ?>">
+                            <input type="hidden" name="accion" value="<?= $editMarca ? 'actualizar' : 'crear' ?>">
+                            <?php if ($editMarca): ?>
+                                <input type="hidden" name="id" value="<?= (int)$editMarca['id'] ?>">
                             <?php endif; ?>
 
                             <div class="form-field" style="margin-bottom:1rem;">
                                 <label class="field-label" for="nombre">Nombre <span class="field-required">*</span></label>
                                 <input class="field-input" type="text" id="nombre" name="nombre" required
-                                       placeholder="Nombre de la categoría"
-                                       value="<?= htmlspecialchars($editCat['nombre'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                       placeholder="Nombre de la marca"
+                                       value="<?= htmlspecialchars($editMarca['nombre'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             </div>
 
                             <div class="form-field" style="margin-bottom:1.5rem;">
                                 <label class="field-label" for="descripcion">Descripción</label>
                                 <textarea class="field-input field-textarea" id="descripcion" name="descripcion" rows="3"
-                                          placeholder="Descripción opcional…"><?= htmlspecialchars($editCat['descripcion'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                                          placeholder="Descripción opcional…"><?= htmlspecialchars($editMarca['descripcion'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
                             </div>
 
                             <div class="card-footer" style="padding:0;border:0;margin-top:0;">
-                                <?php if ($editCat): ?>
-                                    <a href="categorias.php" class="btn-ghost">Cancelar</a>
+                                <?php if ($editMarca): ?>
+                                    <a href="marcas.php" class="btn-ghost">Cancelar</a>
                                 <?php endif; ?>
                                 <button type="submit" class="btn-primary">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                         <polyline points="20 6 9 17 4 12"/>
                                     </svg>
-                                    <?= $editCat ? 'Actualizar' : 'Crear Categoría' ?>
+                                    <?= $editMarca ? 'Actualizar' : 'Crear Marca' ?>
                                 </button>
                             </div>
                         </form>
@@ -302,17 +300,17 @@ try {
                 </div>
             </div>
 
-            <!-- Right column: Categories table -->
+            <!-- Right column: Brands table -->
             <div class="two-col-right">
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title">Categorías Existentes</h2>
-                        <p class="card-subtitle"><?= count($categorias) ?> categoría(s) registrada(s)</p>
+                        <h2 class="card-title">Marcas Existentes</h2>
+                        <p class="card-subtitle"><?= count($marcas) ?> marca(s) registrada(s)</p>
                     </div>
                     <div class="card-body" style="padding:0;">
-                        <?php if (empty($categorias)): ?>
+                        <?php if (empty($marcas)): ?>
                         <div class="td-empty" style="padding:2rem;text-align:center;">
-                            No hay categorías registradas. Crea la primera.
+                            No hay marcas registradas. Crea la primera.
                         </div>
                         <?php else: ?>
                         <table class="data-table data-table-mini">
@@ -324,27 +322,27 @@ try {
                                 </tr>
                             </thead>
                             <tbody>
-                            <?php foreach ($categorias as $cat): ?>
+                            <?php foreach ($marcas as $marca): ?>
                                 <tr>
                                     <td>
-                                        <span class="cat-name"><?= htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8') ?></span>
+                                        <span class="cat-name"><?= htmlspecialchars($marca['nombre'], ENT_QUOTES, 'UTF-8') ?></span>
                                     </td>
                                     <td>
-                                        <span class="badge-count"><?= (int)$cat['total_productos'] ?></span>
+                                        <span class="badge-count"><?= (int)$marca['total_productos'] ?></span>
                                     </td>
                                     <td class="td-actions">
-                                        <a href="categorias.php?accion=editar&id=<?= (int)$cat['id'] ?>"
-                                           class="action-btn action-btn-green" title="Editar categoría">
+                                        <a href="marcas.php?accion=editar&id=<?= (int)$marca['id'] ?>"
+                                           class="action-btn action-btn-green" title="Editar marca">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                                             </svg>
                                         </a>
-                                        <?php if ((int)$cat['total_productos'] === 0): ?>
+                                        <?php if ((int)$marca['total_productos'] === 0): ?>
                                         <form method="POST" style="display:inline;">
                                             <input type="hidden" name="accion" value="eliminar">
-                                            <input type="hidden" name="id" value="<?= (int)$cat['id'] ?>">
-                                            <button type="submit" class="action-btn action-btn-red" title="Eliminar categoría"
-                                                    data-confirm-cat="<?= htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8') ?>">
+                                            <input type="hidden" name="id" value="<?= (int)$marca['id'] ?>">
+                                            <button type="submit" class="action-btn action-btn-red" title="Eliminar marca"
+                                                    data-confirm-cat="<?= htmlspecialchars($marca['nombre'], ENT_QUOTES, 'UTF-8') ?>">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                     <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
                                                 </svg>

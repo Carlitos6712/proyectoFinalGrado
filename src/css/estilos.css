@@ -2403,6 +2403,22 @@ input[type="checkbox"] {
   color: var(--danger);
 }
 
+.action-btn-gray:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.product-name-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.product-name-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 /* ---------- Status pill semantic variants (usados en PHP como status-pill-*) ---------- */
 
 .status-pill-success {

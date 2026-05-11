@@ -30,3 +30,7 @@ Thumbs.db
 # Imágenes subidas por usuarios (contenido, no código)
 /src/uploads/productos/*
 !/src/uploads/productos/.gitkeep
+
+# Informes de cobertura de tests (generados por phpunit)
+coverage.xml
+coverage-unit.xml

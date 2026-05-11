@@ -22,7 +22,10 @@
         ]
     },
     "scripts": {
-        "test": "phpunit --bootstrap src/tests/bootstrap.php src/tests/ tests/Integration/ tests/Unit/"
+        "test":             "phpunit",
+        "test:unit":        "phpunit --testsuite Unit",
+        "test:integration": "phpunit --testsuite Integration",
+        "test:coverage":    "phpunit --coverage-text --coverage-clover=coverage.xml"
     },
     "config": {
         "optimize-autoloader": true

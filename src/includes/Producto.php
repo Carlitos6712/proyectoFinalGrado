@@ -569,14 +569,22 @@ class Producto
 
     /** Mapa de valores de ?orden= a cláusulas ORDER BY seguras. */
     private const ORDEN_MAP = [
-        'nombre_asc'  => 'p.nombre ASC',
-        'nombre_desc' => 'p.nombre DESC',
-        'precio_asc'  => 'p.precio ASC',
-        'precio_desc' => 'p.precio DESC',
-        'stock_asc'   => 'p.stock ASC',
-        'stock_desc'  => 'p.stock DESC',
-        'fecha_asc'   => 'p.created_at ASC',
-        'fecha_desc'  => 'p.created_at DESC',
+        'nombre_asc'     => 'p.nombre ASC',
+        'nombre_desc'    => 'p.nombre DESC',
+        'precio_asc'     => 'p.precio ASC',
+        'precio_desc'    => 'p.precio DESC',
+        'stock_asc'      => 'p.stock ASC',
+        'stock_desc'     => 'p.stock DESC',
+        'fecha_asc'      => 'p.created_at ASC',
+        'fecha_desc'     => 'p.created_at DESC',
+        'ref_asc'        => 'p.codigo_ref ASC',
+        'ref_desc'       => 'p.codigo_ref DESC',
+        'categoria_asc'  => 'c.nombre ASC',
+        'categoria_desc' => 'c.nombre DESC',
+        'marca_asc'      => 'm.nombre ASC',
+        'marca_desc'     => 'm.nombre DESC',
+        'estado_asc'     => '(p.stock <= p.stock_minimo) ASC',
+        'estado_desc'    => '(p.stock <= p.stock_minimo) DESC',
     ];
 
     /**
@@ -598,7 +606,8 @@ class Producto
         ?float $precioMax = null,
         ?int $stockMin = null,
         ?int $stockMax = null,
-        ?bool $soloStockBajo = null
+        ?bool $soloStockBajo = null,
+        ?int $marcaId = null
     ): int {
         $sql    = "SELECT COUNT(*) FROM productos p WHERE p.deleted_at IS NULL";
         $params = [];
@@ -612,6 +621,10 @@ class Producto
         if ($categoriaId !== null) {
             $sql .= " AND p.categoria_id = :categoria_id";
             $params[':categoria_id'] = $categoriaId;
+        }
+        if ($marcaId !== null) {
+            $sql .= " AND p.marca_id = :marca_id";
+            $params[':marca_id'] = $marcaId;
         }
         if ($precioMin !== null) {
             $sql .= " AND p.precio >= :precio_min";
@@ -663,7 +676,8 @@ class Producto
         ?int $stockMin = null,
         ?int $stockMax = null,
         string $orden = 'nombre_asc',
-        ?bool $soloStockBajo = null
+        ?bool $soloStockBajo = null,
+        ?int $marcaId = null
     ): array {
         $offset  = ($pagina - 1) * $porPagina;
         $orderBy = self::ORDEN_MAP[$orden] ?? 'p.nombre ASC';
@@ -683,6 +697,10 @@ class Producto
         if ($categoriaId !== null) {
             $sql .= " AND p.categoria_id = :categoria_id";
             $params[':categoria_id'] = $categoriaId;
+        }
+        if ($marcaId !== null) {
+            $sql .= " AND p.marca_id = :marca_id";
+            $params[':marca_id'] = $marcaId;
         }
         if ($precioMin !== null) {
             $sql .= " AND p.precio >= :precio_min";

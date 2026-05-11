@@ -101,6 +101,13 @@ if ($soloAjax) {
             </div>
         </td>
         <td><span class="category-pill"><?= htmlspecialchars($p['categoria_nombre'] ?? 'Sin categoría', ENT_QUOTES, 'UTF-8') ?></span></td>
+        <td>
+            <?php if (!empty($p['marca_nombre'])): ?>
+                <span class="category-pill"><?= htmlspecialchars($p['marca_nombre'], ENT_QUOTES, 'UTF-8') ?></span>
+            <?php else: ?>
+                <span style="color:var(--text-muted);font-size:.8rem;">—</span>
+            <?php endif; ?>
+        </td>
         <td class="td-price"><?= number_format((float)$p['precio'], 2, ',', '.') ?> €</td>
         <td>
             <div class="stock-cell">
@@ -450,6 +457,10 @@ $hayFiltros = $termino !== '' || $categoriaId !== null || $precioMin !== null
             <a href="categorias.php" class="nav-item">
                 <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
                 <span class="nav-label">Categorías</span>
+            </a>
+            <a href="marcas.php" class="nav-item">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg></span>
+                <span class="nav-label">Marcas</span>
             </a>
         </div>
         <div class="nav-section">

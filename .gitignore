@@ -1,6 +1,7 @@
-# Ignorar archivos de entorno
+# Ignorar archivos de entorno (nunca commitear credenciales reales)
 .env
 .env.example
+.env.testing
 
 # Ignorar prompts internos y documentación de Claude Code (uso local)
 PROMPTS_CLAUDE_CODE.md

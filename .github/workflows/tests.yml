@@ -30,28 +30,21 @@ jobs:
 
       - name: Ejecutar tests unitarios con cobertura
         run: composer test:unit -- --coverage-text --coverage-clover=coverage-unit.xml
-        env:
-          DB_HOST: "localhost"
-          DB_PORT: "3306"
-          DB_NAME: "inventario_motos_test"
-          DB_USER: "admin"
-          DB_PASS: "luigi21plus"
-          ALERT_EMAIL: "ci@test.local"
 
-      - name: Verificar cobertura mínima ≥ 70 %
+      - name: Verificar cobertura mínima >= 70%
         run: |
-          COVERAGE=$(php -r "
+          php -r "
             \$xml = simplexml_load_file('coverage-unit.xml');
             \$metrics = \$xml->project->metrics;
-            \$total = (int) \$metrics['statements'];
+            \$total   = (int) \$metrics['statements'];
             \$covered = (int) \$metrics['coveredstatements'];
-            echo \$total > 0 ? round(\$covered / \$total * 100, 2) : 0;
-          ")
-          echo "Cobertura de statements: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
-            echo "ERROR: cobertura ${COVERAGE}% < 70% mínimo requerido"
-            exit 1
-          fi
+            \$pct     = \$total > 0 ? round(\$covered / \$total * 100, 2) : 0;
+            echo 'Cobertura: ' . \$pct . '%' . PHP_EOL;
+            if (\$pct < 70) {
+                fwrite(STDERR, 'ERROR: cobertura ' . \$pct . '% < 70% minimo requerido' . PHP_EOL);
+                exit(1);
+            }
+          "
 
       - name: Subir informe de cobertura
         uses: actions/upload-artifact@v4
@@ -62,6 +55,8 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # JOB 2: Tests de integración (MySQL real)
+  # Requiere los siguientes secretos en la configuración del repositorio:
+  #   DB_PASS — contraseña para el usuario MySQL de test
   # ─────────────────────────────────────────────────────────────────────────────
   integration-tests:
     name: Integration Tests (MySQL)
@@ -74,7 +69,7 @@ jobs:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: inventario_motos_test
           MYSQL_USER: admin
-          MYSQL_PASSWORD: luigi21plus
+          MYSQL_PASSWORD: ${{ secrets.DB_PASS }}
         ports:
           - 3306:3306
         options: >-
@@ -99,14 +94,16 @@ jobs:
 
       - name: Esperar a MySQL
         run: |
-          until mysqladmin ping -h 127.0.0.1 -P 3306 -uadmin -pluigi21plus --silent; do
+          until mysqladmin ping -h 127.0.0.1 -P 3306 -uadmin "--password=${{ secrets.DB_PASS }}" --silent; do
             echo "Esperando MySQL..."
             sleep 2
           done
 
       - name: Importar schema de base de datos
+        env:
+          MYSQL_PWD: ${{ secrets.DB_PASS }}
         run: |
-          mysql -h 127.0.0.1 -P 3306 -uadmin -pluigi21plus inventario_motos_test < database/schema.sql
+          mysql -h 127.0.0.1 -P 3306 -uadmin inventario_motos_test < database/schema.sql
 
       - name: Ejecutar tests de integración
         run: composer test:integration
@@ -115,5 +112,5 @@ jobs:
           DB_PORT: "3306"
           DB_NAME: "inventario_motos_test"
           DB_USER: "admin"
-          DB_PASS: "luigi21plus"
+          DB_PASS: ${{ secrets.DB_PASS }}
           ALERT_EMAIL: "ci@test.local"

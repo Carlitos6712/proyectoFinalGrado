@@ -21,10 +21,6 @@
         <include>
             <directory suffix=".php">src/includes</directory>
         </include>
-        <report>
-            <clover outputFile="coverage.xml"/>
-            <text outputFile="php://stdout" showUncoveredFiles="false"/>
-        </report>
     </coverage>
 
     <php>

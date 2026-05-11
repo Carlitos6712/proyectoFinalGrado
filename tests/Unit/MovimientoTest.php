@@ -140,11 +140,17 @@ class MovimientoTest extends TestCase
             'stock_minimo' => 5,
             'alertas_email'=> 1,
         ];
-        $d = array_merge($defaults, $overrides);
-        $this->pdo->exec(
+        $d    = array_merge($defaults, $overrides);
+        $stmt = $this->pdo->prepare(
             "INSERT INTO productos (nombre, stock, stock_minimo, alertas_email)
-             VALUES ('{$d['nombre']}', {$d['stock']}, {$d['stock_minimo']}, {$d['alertas_email']})"
+             VALUES (:nombre, :stock, :stock_minimo, :alertas_email)"
         );
+        $stmt->execute([
+            ':nombre'        => $d['nombre'],
+            ':stock'         => (int) $d['stock'],
+            ':stock_minimo'  => (int) $d['stock_minimo'],
+            ':alertas_email' => (int) $d['alertas_email'],
+        ]);
         return (int) $this->pdo->lastInsertId();
     }
 
@@ -277,13 +283,23 @@ class MovimientoTest extends TestCase
     {
         $id = $this->insertarProducto(['stock' => 50]);
 
-        $this->model->registrar($id, 'entrada', 10, 'Primera');
-        $this->model->registrar($id, 'salida',  3,  'Segunda');
+        // Insertar la entrada con una fecha pasada explícita para garantizar
+        // orden determinista incluso cuando ambas operaciones ocurren en el mismo segundo.
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO movimientos (producto_id, tipo, cantidad, fecha)
+             VALUES (:pid, 'entrada', 10, datetime('now', '-1 minute'))"
+        );
+        $stmt->execute([':pid' => $id]);
+        // Actualizar el stock manualmente (bypasseamos el modelo para la entrada antigua)
+        $this->pdo->exec("UPDATE productos SET stock = stock + 10 WHERE id = {$id}");
+
+        // La salida se registra con CURRENT_TIMESTAMP (más reciente)
+        $this->model->registrar($id, 'salida', 3, 'Segunda');
 
         $movimientos = $this->model->listarPorProducto($id);
 
         $this->assertCount(2, $movimientos);
-        // Más reciente primero → salida fue la segunda acción
+        // Más reciente primero → salida (CURRENT_TIMESTAMP) > entrada (ahora - 1 min)
         $this->assertSame('salida',  $movimientos[0]['tipo']);
         $this->assertSame('entrada', $movimientos[1]['tipo']);
     }
@@ -312,9 +328,9 @@ class MovimientoTest extends TestCase
 
         $resumen = $this->model->resumenStock($id);
 
-        $this->assertSame(30, $resumen['entradas']);
-        $this->assertSame(15, $resumen['salidas']);
-        $this->assertSame(15, $resumen['balance']);
+        $this->assertSame(30, (int) $resumen['entradas']);
+        $this->assertSame(15, (int) $resumen['salidas']);
+        $this->assertSame(15, (int) $resumen['balance']);
     }
 
     #[Test]

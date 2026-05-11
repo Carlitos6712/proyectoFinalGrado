@@ -225,7 +225,8 @@ class ImagenTest extends TestCase
 
             // Verificar que la columna imagen queda a NULL
             $row = $this->pdo->query("SELECT imagen FROM productos WHERE id = {$testId}")->fetch();
-            $this->assertNull($row['imagen'] ?? 'no-null', 'La columna imagen debe quedar a NULL tras eliminar');
+            $this->assertNotFalse($row, 'El producto de prueba debe existir en la BD');
+            $this->assertNull($row['imagen'], 'La columna imagen debe quedar a NULL tras eliminar');
         } finally {
             @unlink($rutaVieja);
             $this->pdo->exec("DELETE FROM productos WHERE id = {$testId}");

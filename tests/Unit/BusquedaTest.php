@@ -124,15 +124,20 @@ class BusquedaTest extends TestCase
             'codigo_ref'   => null,
             'categoria_id' => null,
         ];
-        $d = array_merge($defaults, $overrides);
-
-        $codigoRef   = $d['codigo_ref']   ? "'{$d['codigo_ref']}'"   : 'NULL';
-        $categoriaId = $d['categoria_id'] ? (int) $d['categoria_id'] : 'NULL';
-
-        $this->pdo->exec(
+        $d    = array_merge($defaults, $overrides);
+        $stmt = $this->pdo->prepare(
             "INSERT INTO productos (nombre, descripcion, precio, stock, stock_minimo, codigo_ref, categoria_id)
-             VALUES ('{$d['nombre']}', '{$d['descripcion']}', {$d['precio']}, {$d['stock']}, {$d['stock_minimo']}, {$codigoRef}, {$categoriaId})"
+             VALUES (:nombre, :descripcion, :precio, :stock, :stock_minimo, :codigo_ref, :categoria_id)"
         );
+        $stmt->execute([
+            ':nombre'       => $d['nombre'],
+            ':descripcion'  => $d['descripcion'],
+            ':precio'       => (float) $d['precio'],
+            ':stock'        => (int)   $d['stock'],
+            ':stock_minimo' => (int)   $d['stock_minimo'],
+            ':codigo_ref'   => $d['codigo_ref'],
+            ':categoria_id' => $d['categoria_id'],
+        ]);
         return (int) $this->pdo->lastInsertId();
     }
 

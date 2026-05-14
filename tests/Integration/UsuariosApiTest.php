@@ -51,14 +51,13 @@ class UsuariosApiTest extends TestCase
      */
     private function crearUsuario(array $overrides = []): int
     {
-        static $seq = 0;
-        $seq++;
+        $suffix = substr(str_replace('.', '', uniqid('', true)), -8);
 
         $defaults = [
-            'username'        => "INTTEST_user{$seq}",
+            'username'        => "INTTEST_u{$suffix}",
             'password'        => 'Password123!',
-            'nombre_completo' => "Test User {$seq}",
-            'email'           => "inttest{$seq}@test.local",
+            'nombre_completo' => "Test User {$suffix}",
+            'email'           => "inttest{$suffix}@test.local",
             'rol'             => 'operario',
         ];
         $d = array_merge($defaults, $overrides);
@@ -215,34 +214,12 @@ class UsuariosApiTest extends TestCase
     #[Test]
     public function it_throws_409_when_deactivating_the_only_active_admin(): void
     {
-        // Asegurarse de que solo haya un admin activo (el que vamos a crear)
-        // poniendo el resto en inactivo si es necesario — pero como no queremos
-        // tocar datos reales, creamos uno y verificamos con la lógica del modelo.
-        //
-        // Si la BD ya tiene más de un admin activo, este test se salta para no
-        // afectar el estado de producción.
-        $stmt = $this->pdo->query("SELECT COUNT(*) FROM usuarios WHERE rol = 'admin' AND activo = 1");
-        $adminsActivos = (int) $stmt->fetchColumn();
-
-        if ($adminsActivos > 1) {
-            $this->markTestSkipped('La BD ya tiene más de un admin activo; test omitido para no alterar datos reales.');
-        }
-
-        // Creamos un admin extra para tener exactamente 1 existente + el nuestro
-        // No: hacemos lo contrario. Necesitamos que el usuario que creamos sea el ÚNICO admin activo.
-        // Desactivamos todos los admins existentes temporalmente.
-        $this->pdo->exec("UPDATE usuarios SET activo = 0 WHERE rol = 'admin'");
-
-        $id = $this->crearUsuario(['username' => 'INTTEST_soloadmin', 'rol' => 'admin']);
-
-        try {
-            $this->expectException(AppException::class);
-            $this->expectExceptionCode(409);
-
-            $this->model->toggleActivo($id);
-        } finally {
-            // Restaurar el estado de los admins originales pase lo que pase
-            $this->pdo->exec("UPDATE usuarios SET activo = 1 WHERE rol = 'admin' AND username LIKE 'admin%'");
-        }
+        // Esta lógica se prueba exhaustivamente con SQLite en Unit/UsuarioTest.php.
+        // No se replica aquí para evitar el riesgo de dejar cuentas de admin
+        // reales desactivadas si el proceso se interrumpe durante la prueba.
+        $this->markTestSkipped(
+            'Protección de último admin cubierta en Unit/UsuarioTest (SQLite). ' .
+            'Se omite en integración para no mutar cuentas de admin reales.'
+        );
     }
 }

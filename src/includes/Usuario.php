@@ -216,10 +216,13 @@ class Usuario
     /**
      * Verifica credenciales y retorna el usuario si son correctas.
      *
+     * password_hash se usa internamente para la verificación y se elimina
+     * del array de retorno para evitar exponer el hash a los llamadores.
+     *
      * @param string $username Nombre de usuario.
      * @param string $password Contraseña en texto plano.
      * @throws AppException Si el usuario no existe o la contraseña es incorrecta.
-     * @return array<string, mixed> Datos del usuario autenticado.
+     * @return array<string, mixed> Datos del usuario autenticado (sin password_hash).
      * @author Carlitos6712
      */
     public function verificarCredenciales(string $username, string $password): array
@@ -228,6 +231,7 @@ class Usuario
         if (!$usuario || !password_verify($password, $usuario['password_hash'])) {
             throw new AppException('Usuario o contraseña incorrectos.', 401);
         }
+        unset($usuario['password_hash']);
         return $usuario;
     }
 

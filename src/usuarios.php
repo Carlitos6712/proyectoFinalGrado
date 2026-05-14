@@ -36,7 +36,7 @@ try {
     $model    = new Usuario();
     $usuarios = $model->listar();
 } catch (\Throwable $e) {
-    $error = 'Error al cargar los usuarios: ' . htmlspecialchars($e->getMessage());
+    $error = 'Error al cargar los usuarios: ' . $e->getMessage();
 }
 
 // Iniciales del usuario de sesión para el avatar
@@ -211,7 +211,7 @@ $iniciales = mb_substr($iniciales, 0, 2);
     <main class="main-content">
 
         <?php if ($error !== ''): ?>
-            <div class="alert alert-danger"><?= $error ?></div>
+            <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
         <?php endif; ?>
 
         <?php if ($flashSuccess !== ''): ?>
@@ -251,6 +251,10 @@ $iniciales = mb_substr($iniciales, 0, 2);
                             <th>Acciones</th>
                         </tr>
                     </thead>
+                    <?php
+                    // Calculado una vez fuera del bucle para evitar trabajo redundante.
+                    $adminsActivosTotales = count(array_filter($usuarios, fn($x) => $x['rol'] === 'admin' && (int)$x['activo'] === 1));
+                    ?>
                     <tbody id="tablaUsuarios">
                     <?php foreach ($usuarios as $u): ?>
                         <?php
@@ -301,10 +305,7 @@ $iniciales = mb_substr($iniciales, 0, 2);
                                         class="btn-icon <?= $activo ? '' : '' ?>"
                                         style="background:<?= $activo ? '#fee2e2' : '#d1fae5' ?>;color:<?= $activo ? '#991b1b' : '#065f46' ?>;"
                                         onclick="toggleUsuario(<?= (int)$u['id'] ?>, <?= $activo ? 'true' : 'false' ?>, this)"
-                                        <?php
-                                        // Contamos admins activos en el listado para bloquear botón si es el último
-                                        $adminsActivos = count(array_filter($usuarios, fn($x) => $x['rol'] === 'admin' && (int)$x['activo'] === 1));
-                                        if ($esAdmin && $activo && $adminsActivos <= 1): ?>
+                                        <?php if ($esAdmin && $activo && $adminsActivosTotales <= 1): ?>
                                             disabled title="No se puede desactivar al único administrador activo"
                                         <?php endif; ?>
                                     >

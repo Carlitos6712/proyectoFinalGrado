@@ -21,7 +21,7 @@ jobs:
       - name: Configurar PHP 8.1
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.1"
+          php-version: "8.2"
           extensions: pdo, pdo_sqlite, sqlite3, gd
           coverage: xdebug
 
@@ -85,7 +85,7 @@ jobs:
       - name: Configurar PHP 8.1
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.1"
+          php-version: "8.2"
           extensions: pdo, pdo_mysql, gd
           coverage: none
 

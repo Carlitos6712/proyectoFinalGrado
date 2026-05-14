@@ -7,7 +7,7 @@
  * @author   miguelrechefdez
  * @version  1.0.0
  */
-session_start();
+require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';

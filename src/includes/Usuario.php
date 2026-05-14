@@ -218,6 +218,9 @@ class Usuario
         string $email,
         ?object $auditoria = null
     ): bool {
+        if ($nombreCompleto === '') {
+            throw new AppException('El nombre completo no puede estar vacío.', 400);
+        }
         $anterior = $this->obtenerPorId($id); // lanza 404 si no existe
 
         $stmt = $this->pdo->prepare(
@@ -266,11 +269,7 @@ class Usuario
         string $passwordNueva,
         ?object $auditoria = null
     ): void {
-        if (mb_strlen($passwordNueva) < 8) {
-            throw new AppException('La nueva contraseña debe tener al menos 8 caracteres.', 400);
-        }
-
-        // Obtener el hash actual directamente (no usamos obtenerPorId que lo excluye)
+        // 1. Verificar identidad primero, luego validar la nueva contraseña.
         $stmt = $this->pdo->prepare("SELECT password_hash FROM usuarios WHERE id = :id AND activo = 1");
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch();
@@ -281,6 +280,11 @@ class Usuario
 
         if (!password_verify($passwordActual, $row['password_hash'])) {
             throw new AppException('La contraseña actual no es correcta.', 401);
+        }
+
+        // 2. Validar la nueva contraseña una vez confirmada la identidad.
+        if (mb_strlen($passwordNueva) < 8) {
+            throw new AppException('La nueva contraseña debe tener al menos 8 caracteres.', 400);
         }
 
         $nuevoHash = password_hash($passwordNueva, PASSWORD_BCRYPT, ['cost' => self::BCRYPT_COST]);

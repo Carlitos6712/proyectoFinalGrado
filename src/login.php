@@ -50,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['usuario_id']       = $usuario['id'];
         $_SESSION['usuario_nombre']   = $usuario['nombre_completo'];
         $_SESSION['usuario_username'] = $usuario['username'];
+        $_SESSION['rol']              = $usuario['rol'] ?? 'operario';
         $_SESSION['last_activity']    = time();
 
         $usuarioModel->limpiarIntentos($ip);

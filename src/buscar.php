@@ -10,7 +10,7 @@
  * @author   Carlitos6712
  * @version  1.0.0
  */
-session_start();
+require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
@@ -533,11 +533,18 @@ $hayFiltros = $termino !== '' || $categoriaId !== null || $precioMin !== null
             </a>
             <?php endif; ?>
             <div class="topbar-user">
-                <div class="user-avatar">CV</div>
-                <div class="user-info">
-                    <span class="user-fullname">Carlos Vico</span>
-                    <span class="user-role-label">Admin</span>
-                </div>
+                <a href="perfil.php" class="topbar-user-link" title="Mi perfil" style="display:flex;align-items:center;gap:.6rem;text-decoration:none;color:inherit;">
+                    <div class="user-avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr($_SESSION['usuario_nombre'] ?? 'U', 0, 2)), ENT_QUOTES, 'UTF-8') ?></div>
+                    <div class="user-info">
+                        <span class="user-fullname"><?= htmlspecialchars($_SESSION['usuario_nombre'] ?? 'Usuario', ENT_QUOTES, 'UTF-8') ?></span>
+                        <span class="user-role-label"><?= ($_SESSION['rol'] ?? '') === 'admin' ? 'Administrador' : 'Operario' ?></span>
+                    </div>
+                </a>
+                <a href="logout.php" class="logout-btn" title="Cerrar sesión">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                </a>
             </div>
         </div>
     </header>

@@ -195,6 +195,113 @@ class Usuario
         return (bool) $nuevoEstado;
     }
 
+    // ── Perfil propio ─────────────────────────────────────────────────────────
+
+    /**
+     * Actualiza el nombre completo y el email del usuario indicado.
+     *
+     * Registra la acción en la tabla de auditoría.
+     * No permite cambiar username, rol ni estado desde este método
+     * (esas operaciones requieren privilegio admin).
+     *
+     * @param int         $id             ID del usuario a actualizar.
+     * @param string      $nombreCompleto Nuevo nombre completo.
+     * @param string      $email          Nuevo email (puede ser vacío).
+     * @param object|null $auditoria      Instancia de Auditoria para registrar el cambio.
+     * @throws AppException Si el usuario no existe (404).
+     * @return bool
+     * @author Carlitos6712
+     */
+    public function actualizarPerfil(
+        int    $id,
+        string $nombreCompleto,
+        string $email,
+        ?object $auditoria = null
+    ): bool {
+        if ($nombreCompleto === '') {
+            throw new AppException('El nombre completo no puede estar vacío.', 400);
+        }
+        $anterior = $this->obtenerPorId($id); // lanza 404 si no existe
+
+        $stmt = $this->pdo->prepare(
+            "UPDATE usuarios
+             SET nombre_completo = :nombre_completo, email = :email
+             WHERE id = :id"
+        );
+        $ok = $stmt->execute([
+            ':nombre_completo' => $nombreCompleto,
+            ':email'           => $email,
+            ':id'              => $id,
+        ]);
+
+        if ($ok && $auditoria !== null) {
+            $auditoria->registrar(
+                'usuarios',
+                $id,
+                'actualizar',
+                ['nombre_completo' => $anterior['nombre_completo'], 'email' => $anterior['email']],
+                ['nombre_completo' => $nombreCompleto,              'email' => $email]
+            );
+        }
+
+        return $ok;
+    }
+
+    /**
+     * Cambia la contraseña de un usuario tras verificar la contraseña actual.
+     *
+     * Requisitos de la nueva contraseña: mínimo 8 caracteres.
+     * La nueva contraseña se hashea con bcrypt (cost ≥ 12).
+     * Registra la acción en la tabla de auditoría (sin incluir el hash).
+     *
+     * @param int         $id              ID del usuario.
+     * @param string      $passwordActual  Contraseña actual en texto plano.
+     * @param string      $passwordNueva   Nueva contraseña en texto plano.
+     * @param object|null $auditoria       Instancia de Auditoria para registrar el cambio.
+     * @throws AppException Si el usuario no existe (404), la contraseña actual es incorrecta (401)
+     *                      o la nueva contraseña es demasiado corta (400).
+     * @return void
+     * @author Carlitos6712
+     */
+    public function cambiarPassword(
+        int    $id,
+        string $passwordActual,
+        string $passwordNueva,
+        ?object $auditoria = null
+    ): void {
+        // 1. Verificar identidad primero, luego validar la nueva contraseña.
+        $stmt = $this->pdo->prepare("SELECT password_hash FROM usuarios WHERE id = :id AND activo = 1");
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            throw new AppException("Usuario #{$id} no encontrado o inactivo.", 404);
+        }
+
+        if (!password_verify($passwordActual, $row['password_hash'])) {
+            throw new AppException('La contraseña actual no es correcta.', 401);
+        }
+
+        // 2. Validar la nueva contraseña una vez confirmada la identidad.
+        if (mb_strlen($passwordNueva) < 8) {
+            throw new AppException('La nueva contraseña debe tener al menos 8 caracteres.', 400);
+        }
+
+        $nuevoHash = password_hash($passwordNueva, PASSWORD_BCRYPT, ['cost' => self::BCRYPT_COST]);
+        $stmt = $this->pdo->prepare("UPDATE usuarios SET password_hash = :hash WHERE id = :id");
+        $stmt->execute([':hash' => $nuevoHash, ':id' => $id]);
+
+        if ($auditoria !== null) {
+            $auditoria->registrar(
+                'usuarios',
+                $id,
+                'actualizar',
+                ['campo' => 'password_hash'],
+                ['campo' => 'password_hash', 'accion' => 'contraseña cambiada']
+            );
+        }
+    }
+
     // ── Autenticación y sesión ────────────────────────────────────────────────
 
     /**

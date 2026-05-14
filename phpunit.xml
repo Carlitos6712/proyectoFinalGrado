@@ -2,10 +2,7 @@
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="tests/bootstrap.php"
-         colors="true"
-         stopOnFailure="false"
-         displayDetailsOnTestsThatTriggerWarnings="true"
-         displayDetailsOnTestsThatTriggerDeprecations="true">
+         colors="true">
 
     <testsuites>
         <testsuite name="Unit">
@@ -17,11 +14,12 @@
         </testsuite>
     </testsuites>
 
-    <coverage>
+    <!-- PHPUnit 11: fuentes de cobertura van en <source>, no en <coverage> -->
+    <source>
         <include>
             <directory suffix=".php">src/includes</directory>
         </include>
-    </coverage>
+    </source>
 
     <php>
         <!-- Garantizar que los errores de PHP se conviertan en excepciones durante los tests -->

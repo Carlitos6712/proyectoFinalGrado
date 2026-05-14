@@ -18,10 +18,10 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Configurar PHP 8.1
+      - name: Configurar PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.1"
+          php-version: "8.2"
           extensions: pdo, pdo_sqlite, sqlite3, gd
           coverage: xdebug
 
@@ -82,10 +82,10 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Configurar PHP 8.1
+      - name: Configurar PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.1"
+          php-version: "8.2"
           extensions: pdo, pdo_mysql, gd
           coverage: none
 
@@ -103,7 +103,8 @@ jobs:
         env:
           MYSQL_PWD: ${{ secrets.DB_PASS }}
         run: |
-          mysql -h 127.0.0.1 -P 3306 -uadmin inventario_motos_test < database/schema.sql
+          sed '/^CREATE DATABASE/d; /^USE /d' database/schema.sql \
+            | mysql -h 127.0.0.1 -P 3306 -uadmin inventario_motos_test
 
       - name: Ejecutar tests de integración
         run: composer test:integration

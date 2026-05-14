@@ -46,6 +46,19 @@ class UsuarioTest extends TestCase
     private function crearSchema(): void
     {
         $this->pdo->exec("
+            CREATE TABLE auditoria (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                tabla            TEXT    NOT NULL,
+                registro_id      INTEGER NOT NULL,
+                accion           TEXT    NOT NULL,
+                datos_anteriores TEXT    NULL,
+                datos_nuevos     TEXT    NULL,
+                usuario          TEXT    DEFAULT 'admin',
+                ip               TEXT,
+                fecha            TEXT    DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+        $this->pdo->exec("
             CREATE TABLE usuarios (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 username        TEXT    NOT NULL UNIQUE,
@@ -301,5 +314,136 @@ class UsuarioTest extends TestCase
         $this->expectExceptionCode(409);
 
         $this->model->toggleActivo($id);
+    }
+
+    // ── Tests: actualizarPerfil ───────────────────────────────────────────────
+
+    #[Test]
+    public function it_updates_nombre_completo_and_email_correctly(): void
+    {
+        $id = $this->crearUsuario(['username' => 'perfil1', 'nombre_completo' => 'Nombre Antiguo']);
+
+        $result = $this->model->actualizarPerfil($id, 'Nombre Nuevo', 'nuevo@test.local');
+
+        $this->assertTrue($result);
+        $row = $this->model->obtenerPorId($id);
+        $this->assertSame('Nombre Nuevo',      $row['nombre_completo']);
+        $this->assertSame('nuevo@test.local',  $row['email']);
+    }
+
+    #[Test]
+    public function it_registers_profile_update_in_auditoria(): void
+    {
+        $auditoria = new Auditoria($this->pdo);
+        $id        = $this->crearUsuario(['username' => 'perfil2', 'nombre_completo' => 'Antes']);
+
+        $this->model->actualizarPerfil($id, 'Despues', 'despues@test.local', $auditoria);
+
+        $row = $this->pdo->query(
+            "SELECT * FROM auditoria WHERE tabla = 'usuarios' AND registro_id = {$id} AND accion = 'actualizar'"
+        )->fetch();
+
+        $this->assertNotFalse($row, 'Debe existir un registro de auditoría tras actualizarPerfil');
+        $this->assertStringContainsString('Antes',   $row['datos_anteriores']);
+        $this->assertStringContainsString('Despues', $row['datos_nuevos']);
+    }
+
+    #[Test]
+    public function it_throws_404_when_updating_nonexistent_user_profile(): void
+    {
+        $this->expectException(AppException::class);
+        $this->expectExceptionCode(404);
+
+        $this->model->actualizarPerfil(99999, 'Nombre', '');
+    }
+
+    #[Test]
+    public function it_does_not_change_username_or_rol_when_updating_profile(): void
+    {
+        $id = $this->crearUsuario(['username' => 'notouch', 'rol' => 'operario']);
+
+        $this->model->actualizarPerfil($id, 'Nombre Cambiado', 'x@y.com');
+
+        $row = $this->model->obtenerPorId($id);
+        $this->assertSame('notouch',  $row['username']);
+        $this->assertSame('operario', $row['rol']);
+    }
+
+    // ── Tests: cambiarPassword ────────────────────────────────────────────────
+
+    #[Test]
+    public function it_changes_password_when_current_is_correct(): void
+    {
+        $id = $this->crearUsuario(['username' => 'pwchange', 'password' => 'password123']);
+
+        $this->model->cambiarPassword($id, 'password123', 'nuevaPass456');
+
+        $row = $this->pdo->query("SELECT password_hash FROM usuarios WHERE id = {$id}")->fetch();
+        $this->assertNotFalse($row);
+        $this->assertTrue(password_verify('nuevaPass456', $row['password_hash']));
+    }
+
+    #[Test]
+    public function it_hashes_new_password_with_bcrypt(): void
+    {
+        $id = $this->crearUsuario(['username' => 'bcryptcheck', 'password' => 'password123']);
+
+        $this->model->cambiarPassword($id, 'password123', 'nuevaPass789');
+
+        $row = $this->pdo->query("SELECT password_hash FROM usuarios WHERE id = {$id}")->fetch();
+        $this->assertNotFalse($row);
+        $this->assertStringStartsWith('$2y$', $row['password_hash'], 'El hash debe ser bcrypt');
+
+        $info = password_get_info($row['password_hash']);
+        $this->assertSame('bcrypt',  $info['algoName']);
+        $this->assertGreaterThanOrEqual(12, $info['options']['cost']);
+    }
+
+    #[Test]
+    public function it_throws_401_when_current_password_is_wrong(): void
+    {
+        $id = $this->crearUsuario(['username' => 'wrongpw', 'password' => 'password123']);
+
+        $this->expectException(AppException::class);
+        $this->expectExceptionCode(401);
+
+        $this->model->cambiarPassword($id, 'incorrecta999', 'nuevaPass456');
+    }
+
+    #[Test]
+    public function it_throws_400_when_new_password_is_too_short(): void
+    {
+        $id = $this->crearUsuario(['username' => 'shortpw', 'password' => 'password123']);
+
+        $this->expectException(AppException::class);
+        $this->expectExceptionCode(400);
+
+        $this->model->cambiarPassword($id, 'password123', 'corta1');
+    }
+
+    #[Test]
+    public function it_registers_password_change_in_auditoria(): void
+    {
+        $auditoria = new Auditoria($this->pdo);
+        $id        = $this->crearUsuario(['username' => 'pwaudit', 'password' => 'password123']);
+
+        $this->model->cambiarPassword($id, 'password123', 'nuevaPass456', $auditoria);
+
+        $row = $this->pdo->query(
+            "SELECT * FROM auditoria WHERE tabla = 'usuarios' AND registro_id = {$id} AND accion = 'actualizar'"
+        )->fetch();
+
+        $this->assertNotFalse($row, 'Debe existir un registro de auditoría tras cambiarPassword');
+        $this->assertStringContainsString('password_hash', $row['datos_anteriores']);
+        $this->assertStringContainsString('password_hash', $row['datos_nuevos']);
+    }
+
+    #[Test]
+    public function it_throws_404_when_changing_password_of_nonexistent_user(): void
+    {
+        $this->expectException(AppException::class);
+        $this->expectExceptionCode(404);
+
+        $this->model->cambiarPassword(99999, 'cualquier', 'cualquier123');
     }
 }

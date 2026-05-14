@@ -50,12 +50,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['usuario_id']       = $usuario['id'];
         $_SESSION['usuario_nombre']   = $usuario['nombre_completo'];
         $_SESSION['usuario_username'] = $usuario['username'];
+        $_SESSION['rol']              = $usuario['rol'] ?? 'operario';
         $_SESSION['last_activity']    = time();
 
         $usuarioModel->limpiarIntentos($ip);
         $usuarioModel->registrarLogin($usuario['id']);
 
-        $safeRedirect = filter_var($redirect, FILTER_VALIDATE_URL) === false ? 'index.php' : $redirect;
+        // Solo se permiten rutas relativas para evitar redirecciones abiertas a dominios externos.
+        $safeRedirect = (preg_match('#^[a-zA-Z0-9_./-]+\.php#', $redirect) && !str_contains($redirect, '://'))
+            ? $redirect
+            : 'index.php';
         header('Location: ' . $safeRedirect);
         exit;
 

@@ -22,3 +22,4 @@ require_once __DIR__ . '/../src/includes/AlertaStock.php';
 require_once __DIR__ . '/../src/includes/Producto.php';
 require_once __DIR__ . '/../src/includes/Movimiento.php';
 require_once __DIR__ . '/../src/includes/Categoria.php';
+require_once __DIR__ . '/../src/includes/Usuario.php';

@@ -125,10 +125,14 @@ CREATE TABLE IF NOT EXISTS usuarios (
     password_hash   VARCHAR(255) NOT NULL,
     nombre_completo VARCHAR(100) NOT NULL,
     email           VARCHAR(150),
+    rol             ENUM('admin','operario') DEFAULT 'operario',
     activo          TINYINT(1)   DEFAULT 1,
     last_login      TIMESTAMP    NULL DEFAULT NULL,
     created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migración idempotente para instalaciones existentes sin columna rol
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol ENUM('admin','operario') DEFAULT 'operario';
 
 -- -------------------------------------------------------------
 -- Tabla: intentos_login (rate limiting)
@@ -142,10 +146,14 @@ CREATE TABLE IF NOT EXISTS intentos_login (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Usuario por defecto: admin / admin123 (cambiar en producción)
-INSERT IGNORE INTO usuarios (username, password_hash, nombre_completo, email)
+INSERT IGNORE INTO usuarios (username, password_hash, nombre_completo, email, rol)
 VALUES (
     'admin',
     '$2y$12$MDmgrjjK.zTikDB2VkDiy.ZWaiWJpGWb93cPY0k8UcI0lg25ZVpRG', -- password: admin123
     'Carlos Vico',
-    'admin@es21plus.local'
+    'admin@es21plus.local',
+    'admin'
 );
+
+-- Asegurar que el usuario admin existente tenga rol admin (instalaciones previas)
+UPDATE usuarios SET rol = 'admin' WHERE username = 'admin' AND (rol IS NULL OR rol = 'operario');

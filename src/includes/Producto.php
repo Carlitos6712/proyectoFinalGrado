@@ -2,6 +2,7 @@
 require_once __DIR__ . '/AppException.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Auditoria.php';
+require_once __DIR__ . '/../core/Session.php';
 
 /**
  * Modelo de gestión de productos del inventario.
@@ -15,17 +16,31 @@ class Producto
 {
     private PDO $pdo;
     private Auditoria $auditoria;
+    /** Filtra todas las queries por empresa cuando está en modo multi-tenant. */
+    private ?int $businessId;
 
     /**
-     * @param PDO|null       $pdo       Conexión PDO inyectada (útil para tests con SQLite); si es null usa el singleton MySQL.
-     * @param Auditoria|null $auditoria Modelo de auditoría; si es null, se crea con la conexión activa.
+     * @param PDO|null       $pdo        Conexión PDO inyectada (útil para tests con SQLite); si es null usa el singleton MySQL.
+     * @param Auditoria|null $auditoria  Modelo de auditoría; si es null, se crea con la conexión activa.
      * @throws AppException Si falla la conexión.
      * @author Carlitos6712
      */
     public function __construct(?PDO $pdo = null, ?Auditoria $auditoria = null)
     {
-        $this->pdo       = $pdo ?? Database::getInstance();
-        $this->auditoria = $auditoria ?? new Auditoria($this->pdo);
+        $this->pdo        = $pdo ?? Database::getInstance();
+        $this->auditoria  = $auditoria ?? new Auditoria($this->pdo);
+        $this->businessId = Session::getBusinessId();
+    }
+
+    /** Fragmento SQL y parámetro para filtrar por empresa (vacío si no aplica). */
+    private function bizWhere(string $alias = 'p'): string
+    {
+        return $this->businessId !== null ? " AND {$alias}.business_id = :biz_id" : "";
+    }
+
+    private function bizParam(): array
+    {
+        return $this->businessId !== null ? [':biz_id' => $this->businessId] : [];
     }
 
     /**
@@ -35,14 +50,14 @@ class Producto
      */
     public function listar(): array
     {
-        $stmt = $this->pdo->query(
-            "SELECT p.*, c.nombre AS categoria_nombre, m.nombre AS marca_nombre
-             FROM productos p
-             LEFT JOIN categorias c ON p.categoria_id = c.id
-             LEFT JOIN marcas m ON p.marca_id = m.id
-             WHERE p.deleted_at IS NULL
-             ORDER BY p.nombre"
-        );
+        $sql    = "SELECT p.*, c.nombre AS categoria_nombre, m.nombre AS marca_nombre
+                   FROM productos p
+                   LEFT JOIN categorias c ON p.categoria_id = c.id
+                   LEFT JOIN marcas m ON p.marca_id = m.id
+                   WHERE p.deleted_at IS NULL" . $this->bizWhere() . "
+                   ORDER BY p.nombre";
+        $stmt   = $this->pdo->prepare($sql);
+        $stmt->execute($this->bizParam());
         return $stmt->fetchAll();
     }
 
@@ -60,9 +75,9 @@ class Producto
              FROM productos p
              LEFT JOIN categorias c ON p.categoria_id = c.id
              LEFT JOIN marcas m ON p.marca_id = m.id
-             WHERE p.id = :id AND p.deleted_at IS NULL"
+             WHERE p.id = :id AND p.deleted_at IS NULL" . $this->bizWhere()
         );
-        $stmt->execute([':id' => $id]);
+        $stmt->execute(array_merge([':id' => $id], $this->bizParam()));
         $row = $stmt->fetch();
         if (!$row) {
             throw new AppException("Producto #{$id} no encontrado.", 404);
@@ -114,16 +129,18 @@ class Producto
         ?int $anchura = null,
         ?float $diametro = null
     ): int {
+        $bizCol = $this->businessId !== null ? ', business_id' : '';
+        $bizVal = $this->businessId !== null ? ', :biz_id'    : '';
         $stmt = $this->pdo->prepare(
             "INSERT INTO productos
              (nombre, descripcion, descripcion_larga, precio, categoria_id, stock, stock_minimo,
               codigo_ref, marca_id, codigo_barras, url_proveedor, proveedor, ubicacion,
-              peso, capacidad, longitud, anchura, diametro)
+              peso, capacidad, longitud, anchura, diametro{$bizCol})
              VALUES (:nombre, :descripcion, :descripcion_larga, :precio, :categoria_id, :stock,
                      :stock_minimo, :codigo_ref, :marca_id, :codigo_barras, :url_proveedor, :proveedor,
-                     :ubicacion, :peso, :capacidad, :longitud, :anchura, :diametro)"
+                     :ubicacion, :peso, :capacidad, :longitud, :anchura, :diametro{$bizVal})"
         );
-        $stmt->execute([
+        $stmt->execute(array_merge([
             ':nombre'            => $nombre,
             ':descripcion'       => $descripcion,
             ':descripcion_larga' => $descripcionLarga,
@@ -142,7 +159,7 @@ class Producto
             ':longitud'          => $longitud,
             ':anchura'           => $anchura,
             ':diametro'          => $diametro,
-        ]);
+        ], $this->bizParam()));
         $id = (int) $this->pdo->lastInsertId();
         $this->auditarOperacion(
             'crear', $id, null,
@@ -212,9 +229,9 @@ class Producto
                  url_proveedor = :url_proveedor, proveedor = :proveedor, ubicacion = :ubicacion,
                  peso = :peso, capacidad = :capacidad, longitud = :longitud,
                  anchura = :anchura, diametro = :diametro
-             WHERE id = :id AND deleted_at IS NULL"
+             WHERE id = :id AND deleted_at IS NULL" . $this->bizWhere('')
         );
-        $resultado = $stmt->execute([
+        $resultado = $stmt->execute(array_merge([
             ':id'                => $id,
             ':nombre'            => $nombre,
             ':descripcion'       => $descripcion,
@@ -233,7 +250,7 @@ class Producto
             ':longitud'          => $longitud,
             ':anchura'           => $anchura,
             ':diametro'          => $diametro,
-        ]);
+        ], $this->bizParam()));
         if ($resultado && $stmt->rowCount() > 0) {
             $this->auditarOperacion(
                 'actualizar', $id, $anterior,
@@ -262,8 +279,9 @@ class Producto
         $anterior = $this->obtener($id);
         $stmt = $this->pdo->prepare(
             "UPDATE productos SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL"
+            . $this->bizWhere('')
         );
-        $stmt->execute([':id' => $id]);
+        $stmt->execute(array_merge([':id' => $id], $this->bizParam()));
         $afectado = $stmt->rowCount() > 0;
         if ($afectado) {
             $this->auditarOperacion('eliminar', $id, $anterior, null);
@@ -285,9 +303,10 @@ class Producto
                 LEFT JOIN categorias c ON p.categoria_id = c.id
                 LEFT JOIN marcas m ON p.marca_id = m.id
                 WHERE p.deleted_at IS NULL
-                  AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino2)";
+                  AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino2)"
+               . $this->bizWhere();
         $like   = "%{$termino}%";
-        $params = [':termino' => $like, ':termino2' => $like];
+        $params = array_merge([':termino' => $like, ':termino2' => $like], $this->bizParam());
 
         if ($categoriaId !== null) {
             $sql .= " AND p.categoria_id = :categoria_id";
@@ -306,14 +325,14 @@ class Producto
      */
     public function filtrarStockBajo(): array
     {
-        $stmt = $this->pdo->query(
-            "SELECT p.*, c.nombre AS categoria_nombre, m.nombre AS marca_nombre
-             FROM productos p
-             LEFT JOIN categorias c ON p.categoria_id = c.id
-             LEFT JOIN marcas m ON p.marca_id = m.id
-             WHERE p.deleted_at IS NULL AND p.stock <= p.stock_minimo
-             ORDER BY p.stock ASC"
-        );
+        $sql  = "SELECT p.*, c.nombre AS categoria_nombre, m.nombre AS marca_nombre
+                 FROM productos p
+                 LEFT JOIN categorias c ON p.categoria_id = c.id
+                 LEFT JOIN marcas m ON p.marca_id = m.id
+                 WHERE p.deleted_at IS NULL AND p.stock <= p.stock_minimo"
+                . $this->bizWhere() . " ORDER BY p.stock ASC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->bizParam());
         return $stmt->fetchAll();
     }
 
@@ -361,11 +380,10 @@ class Producto
      */
     public function valorInventario(): float
     {
-        $stmt = $this->pdo->query(
-            "SELECT COALESCE(SUM(precio * stock), 0) AS total
-             FROM productos
-             WHERE deleted_at IS NULL"
-        );
+        $sql  = "SELECT COALESCE(SUM(precio * stock), 0) AS total
+                 FROM productos p WHERE p.deleted_at IS NULL" . $this->bizWhere();
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->bizParam());
         return (float) $stmt->fetchColumn();
     }
 
@@ -377,9 +395,9 @@ class Producto
      */
     public function contarActivos(): int
     {
-        $stmt = $this->pdo->query(
-            "SELECT COUNT(*) FROM productos WHERE deleted_at IS NULL"
-        );
+        $sql  = "SELECT COUNT(*) FROM productos p WHERE p.deleted_at IS NULL" . $this->bizWhere();
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->bizParam());
         return (int) $stmt->fetchColumn();
     }
 
@@ -609,8 +627,8 @@ class Producto
         ?bool $soloStockBajo = null,
         ?int $marcaId = null
     ): int {
-        $sql    = "SELECT COUNT(*) FROM productos p WHERE p.deleted_at IS NULL";
-        $params = [];
+        $sql    = "SELECT COUNT(*) FROM productos p WHERE p.deleted_at IS NULL" . $this->bizWhere();
+        $params = $this->bizParam();
 
         if ($termino !== null && $termino !== '') {
             $sql .= " AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino2)";
@@ -685,8 +703,8 @@ class Producto
                     FROM productos p
                     LEFT JOIN categorias c ON p.categoria_id = c.id
                     LEFT JOIN marcas m ON p.marca_id = m.id
-                    WHERE p.deleted_at IS NULL";
-        $params  = [];
+                    WHERE p.deleted_at IS NULL" . $this->bizWhere();
+        $params  = $this->bizParam();
 
         if ($termino !== null && $termino !== '') {
             $sql .= " AND (p.nombre LIKE :termino OR p.codigo_ref LIKE :termino2)";

@@ -26,31 +26,37 @@ define('SESSION_TIMEOUT', 7200);
  */
 function requireAuth(): void
 {
-    if (empty($_SESSION['usuario_id'])) {
+    // Business user takes priority — during impersonation both sets of keys coexist
+    $isBusinessUser = !empty($_SESSION['user_id']) && !empty($_SESSION['business_id']);
+    $isLocalUser    = !$isBusinessUser && !empty($_SESSION['usuario_id']);
+
+    if (!$isLocalUser && !$isBusinessUser) {
         header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
         exit;
     }
 
-    // Usuario desactivado → destruir sesión
-    if ((int)($_SESSION['usuario_activo'] ?? 1) === 0) {
-        session_unset();
-        session_destroy();
-        header('Location: login.php?deactivated=1');
-        exit;
-    }
+    if ($isLocalUser) {
+        // Usuario desactivado → destruir sesión
+        if ((int)($_SESSION['usuario_activo'] ?? 1) === 0) {
+            session_unset();
+            session_destroy();
+            header('Location: login.php?deactivated=1');
+            exit;
+        }
 
-    // Verificar expiración por inactividad
-    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > SESSION_TIMEOUT) {
-        session_unset();
-        session_destroy();
-        header('Location: login.php?expired=1');
-        exit;
-    }
+        // Verificar expiración por inactividad
+        if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > SESSION_TIMEOUT) {
+            session_unset();
+            session_destroy();
+            header('Location: login.php?expired=1');
+            exit;
+        }
 
-    // Superadmin no tiene acceso al panel normal
-    if (($_SESSION['rol'] ?? '') === 'superadmin') {
-        header('Location: superadmin/index.php');
-        exit;
+        // Superadmin no tiene acceso al panel normal
+        if (($_SESSION['rol'] ?? '') === 'superadmin') {
+            header('Location: superadmin/index.php');
+            exit;
+        }
     }
 
     $_SESSION['last_activity'] = time();

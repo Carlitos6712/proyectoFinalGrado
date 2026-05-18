@@ -200,3 +200,24 @@ VALUES (
     'employee',
     1
 );
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Fase 11: Compatibilidad por modelo de moto
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS modelos_moto (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    marca      VARCHAR(100) NOT NULL,
+    modelo     VARCHAR(100) NOT NULL,
+    anio_desde YEAR         NOT NULL,
+    anio_hasta YEAR         NULL,
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS compatibilidades (
+    producto_id INT          NOT NULL,
+    modelo_id   INT          NOT NULL,
+    notas       VARCHAR(255),
+    PRIMARY KEY (producto_id, modelo_id),
+    FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE,
+    FOREIGN KEY (modelo_id)   REFERENCES modelos_moto(id) ON DELETE CASCADE
+) ENGINE=InnoDB;

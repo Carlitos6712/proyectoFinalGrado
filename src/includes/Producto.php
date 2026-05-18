@@ -276,7 +276,20 @@ class Producto
                 409
             );
         }
-        $anterior = $this->obtener($id);
+        // Fetch anterior BEFORE the update (includes not-yet-deleted rows only).
+        // Use a raw query that bypasses bizWhere so soft-deleted rows are invisible
+        // to obtener() but we still capture data for auditing.
+        $stmtAntes = $this->pdo->prepare(
+            "SELECT * FROM productos WHERE id = :id AND deleted_at IS NULL" . $this->bizWhere('')
+        );
+        $stmtAntes->execute(array_merge([':id' => $id], $this->bizParam()));
+        $anterior = $stmtAntes->fetch() ?: null;
+
+        // If already soft-deleted (or not found) there is nothing to do → return false.
+        if ($anterior === null) {
+            return false;
+        }
+
         $stmt = $this->pdo->prepare(
             "UPDATE productos SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL"
             . $this->bizWhere('')

@@ -17,13 +17,10 @@ require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Usuario.php';
 require_once __DIR__ . '/includes/auth_check.php';
+require_once __DIR__ . '/middleware/RoleMiddleware.php';
 
-// Solo administradores pueden acceder
-if (($_SESSION['rol'] ?? '') !== 'admin') {
-    $_SESSION['flash_error'] = 'Acceso denegado: se requiere rol administrador.';
-    header('Location: index.php');
-    exit;
-}
+// Solo administradores pueden gestionar usuarios
+RoleMiddleware::requireAdmin();
 
 $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
@@ -34,7 +31,7 @@ $error    = '';
 
 try {
     $model    = new Usuario();
-    $usuarios = $model->listar();
+    $usuarios = $model->listarSinSuperadmin();
 } catch (\Throwable $e) {
     $error = 'Error al cargar los usuarios: ' . $e->getMessage();
 }
@@ -56,10 +53,12 @@ $iniciales = mb_substr($iniciales, 0, 2);
     <link rel="stylesheet" href="css/estilos.css">
     <style>
         /* ── Estilos específicos del panel de usuarios ── */
-        .badge-admin    { background:#ede9fe; color:#5b21b6; }
-        .badge-operario { background:#dbeafe; color:#1e40af; }
-        .badge-activo   { background:#d1fae5; color:#065f46; }
-        .badge-inactivo { background:#fee2e2; color:#991b1b; }
+        .badge-superadmin { background:#fef3c7; color:#92400e; }
+        .badge-admin      { background:#ede9fe; color:#5b21b6; }
+        .badge-employee   { background:#dbeafe; color:#1e40af; }
+        .badge-operario   { background:#dbeafe; color:#1e40af; }
+        .badge-activo     { background:#d1fae5; color:#065f46; }
+        .badge-inactivo   { background:#fee2e2; color:#991b1b; }
         .badge {
             display:inline-block; padding:.2em .6em;
             border-radius:9999px; font-size:.72rem; font-weight:700;
@@ -207,20 +206,7 @@ $iniciales = mb_substr($iniciales, 0, 2);
             </button>
         </div>
         <div class="topbar-right">
-            <div class="topbar-user">
-                <a href="perfil.php" class="topbar-user-link" title="Mi perfil" style="display:flex;align-items:center;gap:.6rem;text-decoration:none;color:inherit;">
-                    <div class="user-avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr($_SESSION['usuario_nombre'] ?? 'U', 0, 2)), ENT_QUOTES, 'UTF-8') ?></div>
-                    <div class="user-info">
-                        <span class="user-fullname"><?= htmlspecialchars($_SESSION['usuario_nombre'] ?? 'Usuario', ENT_QUOTES, 'UTF-8') ?></span>
-                        <span class="user-role-label"><?= ($_SESSION['rol'] ?? '') === 'admin' ? 'Administrador' : 'Operario' ?></span>
-                    </div>
-                </a>
-                <a href="logout.php" class="logout-btn" title="Cerrar sesión">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                    </svg>
-                </a>
-            </div>
+            <?php require_once __DIR__ . '/includes/topbar_user.php'; ?>
         </div>
     </header>
 
@@ -268,13 +254,13 @@ $iniciales = mb_substr($iniciales, 0, 2);
                         </tr>
                     </thead>
                     <?php
-                    // Calculado una vez fuera del bucle para evitar trabajo redundante.
                     $adminsActivosTotales = count(array_filter($usuarios, fn($x) => $x['rol'] === 'admin' && (int)$x['activo'] === 1));
+                    $sessionUserId        = (int)($_SESSION['usuario_id'] ?? 0);
                     ?>
                     <tbody id="tablaUsuarios">
                     <?php foreach ($usuarios as $u): ?>
                         <?php
-                            $esYo         = (int)$u['id'] === (int)($_SESSION['usuario_id'] ?? 0);
+                            $esYo         = (int)$u['id'] === $sessionUserId;
                             $esAdmin      = $u['rol'] === 'admin';
                             $activo       = (bool)(int)$u['activo'];
                             $ultimoAcceso = $u['last_login']
@@ -318,10 +304,12 @@ $iniciales = mb_substr($iniciales, 0, 2);
                                         Editar
                                     </button>
                                     <button
-                                        class="btn-icon <?= $activo ? '' : '' ?>"
+                                        class="btn-icon"
                                         style="background:<?= $activo ? '#fee2e2' : '#d1fae5' ?>;color:<?= $activo ? '#991b1b' : '#065f46' ?>;"
                                         onclick="toggleUsuario(<?= (int)$u['id'] ?>, <?= $activo ? 'true' : 'false' ?>, this)"
-                                        <?php if ($esAdmin && $activo && $adminsActivosTotales <= 1): ?>
+                                        <?php if ($esYo): ?>
+                                            disabled title="No puedes desactivarte a ti mismo"
+                                        <?php elseif ($esAdmin && $activo && $adminsActivosTotales <= 1): ?>
                                             disabled title="No se puede desactivar al único administrador activo"
                                         <?php endif; ?>
                                     >
@@ -333,6 +321,18 @@ $iniciales = mb_substr($iniciales, 0, 2);
                                             Activar
                                         <?php endif; ?>
                                     </button>
+                                    <?php if (!$esYo): ?>
+                                    <button
+                                        class="btn-icon"
+                                        style="background:#fef3c7;color:#92400e;"
+                                        onclick="resetPassword(<?= (int)$u['id'] ?>, '<?= htmlspecialchars($u['username'], ENT_QUOTES, 'UTF-8') ?>')"
+                                        title="Resetear contraseña">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                        </svg>
+                                        Reset pwd
+                                    </button>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
@@ -376,7 +376,7 @@ $iniciales = mb_substr($iniciales, 0, 2);
             <div class="form-field" style="margin-bottom:1rem;">
                 <label class="field-label" for="inputRol">Rol <span style="color:#ef4444;">*</span></label>
                 <select id="inputRol" name="rol" class="field-input">
-                    <option value="operario">Operario</option>
+                    <option value="employee">Empleado</option>
                     <option value="admin">Administrador</option>
                 </select>
             </div>
@@ -550,6 +550,31 @@ async function toggleUsuario(id, activo, btn) {
         mostrarAlerta('Error de red. Inténtalo de nuevo.', 'danger');
     } finally {
         btn.disabled = false;
+    }
+}
+
+/**
+ * Resetea la contraseña de un usuario y muestra la nueva contraseña.
+ *
+ * @param {number} id       ID del usuario.
+ * @param {string} username Nombre de usuario para el mensaje de confirmación.
+ */
+async function resetPassword(id, username) {
+    if (!confirm(`¿Resetear la contraseña de "${username}"? Se generará una contraseña aleatoria.`)) return;
+
+    try {
+        const res  = await fetch(`api/usuarios.php?id=${id}&accion=reset-password`, { method: 'PATCH' });
+        const json = await res.json();
+
+        if (!json.success) {
+            mostrarAlerta(json.message, 'danger');
+        } else {
+            const pwd = json.data?.password ?? '';
+            alert(`Nueva contraseña temporal para "${username}":\n\n${pwd}\n\nCópiala ahora — no se volverá a mostrar.`);
+            mostrarAlerta('Contraseña reseteada correctamente.', 'success');
+        }
+    } catch {
+        mostrarAlerta('Error de red. Inténtalo de nuevo.', 'danger');
     }
 }
 

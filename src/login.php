@@ -21,9 +21,11 @@ require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Usuario.php';
 
-$error    = '';
-$redirect = $_GET['redirect'] ?? 'index.php';
-$expired  = isset($_GET['expired']);
+$error       = '';
+$redirect    = $_GET['redirect'] ?? 'index.php';
+$expired     = isset($_GET['expired']);
+$switched    = isset($_GET['switch']);
+$deactivated = isset($_GET['deactivated']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -50,11 +52,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['usuario_id']       = $usuario['id'];
         $_SESSION['usuario_nombre']   = $usuario['nombre_completo'];
         $_SESSION['usuario_username'] = $usuario['username'];
-        $_SESSION['rol']              = $usuario['rol'] ?? 'operario';
+        $_SESSION['rol']              = $usuario['rol'] ?? 'employee';
+        $_SESSION['usuario_activo']   = (int)($usuario['activo'] ?? 1);
         $_SESSION['last_activity']    = time();
 
         $usuarioModel->limpiarIntentos($ip);
         $usuarioModel->registrarLogin($usuario['id']);
+
+        // Redirigir según rol
+        if ($usuario['rol'] === 'superadmin') {
+            header('Location: superadmin/index.php');
+            exit;
+        }
 
         // Solo se permiten rutas relativas para evitar redirecciones abiertas a dominios externos.
         $safeRedirect = (preg_match('#^[a-zA-Z0-9_./-]+\.php#', $redirect) && !str_contains($redirect, '://'))
@@ -162,6 +171,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <?php if ($expired): ?>
         <div class="expired-notice">Tu sesión ha expirado por inactividad. Por favor, inicia sesión de nuevo.</div>
+        <?php elseif ($switched): ?>
+        <div class="expired-notice" style="background:#e0f2fe;border-color:#0284c7;color:#075985;">
+            Inicia sesión con otra cuenta.
+        </div>
+        <?php elseif ($deactivated): ?>
+        <div class="expired-notice" style="background:#fee2e2;border-color:#ef4444;color:#991b1b;">
+            Tu cuenta ha sido desactivada. Contacta con el administrador.
+        </div>
         <?php endif; ?>
 
         <?php if ($error): ?>

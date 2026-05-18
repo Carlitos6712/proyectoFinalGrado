@@ -132,7 +132,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Migración idempotente para instalaciones existentes sin columna rol
-ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol ENUM('admin','operario') DEFAULT 'operario';
+-- (MySQL 8.0 no soporta IF NOT EXISTS en ADD COLUMN; usar stored procedure condicional)
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'usuarios' AND COLUMN_NAME = 'rol');
+SET @sql = IF(@col_exists = 0, "ALTER TABLE usuarios ADD COLUMN rol ENUM('admin','operario') DEFAULT 'operario'", 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- -------------------------------------------------------------
 -- Tabla: intentos_login (rate limiting)
@@ -149,7 +152,7 @@ CREATE TABLE IF NOT EXISTS intentos_login (
 INSERT IGNORE INTO usuarios (username, password_hash, nombre_completo, email, rol)
 VALUES (
     'admin',
-    '$2y$12$MDmgrjjK.zTikDB2VkDiy.ZWaiWJpGWb93cPY0k8UcI0lg25ZVpRG', -- password: admin123
+    '$2y$12$u511.V6/emTC2UtfekF25.u32bBNzxz8STOEunD6Er9biXLmOaUzm', -- password: admin123
     'Carlos Vico',
     'admin@es21plus.local',
     'admin'
@@ -157,3 +160,43 @@ VALUES (
 
 -- Asegurar que el usuario admin existente tenga rol admin (instalaciones previas)
 UPDATE usuarios SET rol = 'admin' WHERE username = 'admin' AND (rol IS NULL OR rol = 'operario');
+
+-- =============================================================
+-- FASE 11: Sistema de roles (superadmin / admin / employee)
+-- =============================================================
+
+-- Paso 1: ampliar el ENUM para incluir los nuevos valores antes de migrar datos
+ALTER TABLE usuarios MODIFY COLUMN rol
+    ENUM('superadmin','admin','operario','employee') NOT NULL DEFAULT 'employee';
+
+-- Paso 2: migrar operario → employee
+UPDATE usuarios SET rol = 'employee' WHERE rol = 'operario';
+
+-- Paso 3: reducir el ENUM eliminando el valor obsoleto 'operario'
+ALTER TABLE usuarios MODIFY COLUMN rol
+    ENUM('superadmin','admin','employee') NOT NULL DEFAULT 'employee';
+
+-- Migración idempotente: columna activo (renombrada de activo, ya existe)
+-- La columna ya existe como 'activo' en instalaciones previas. Sin acción.
+
+-- Usuario superadmin para pruebas (contraseña: superadmin123 — cambiar en producción)
+INSERT IGNORE INTO usuarios (username, password_hash, nombre_completo, email, rol, activo)
+VALUES (
+    'superadmin',
+    '$2y$12$aOI.LfKE1efqYhkjGUx8DeXf8GPyf.07jkuoVQ8iVs/yAxoW.cXWq',
+    'Super Administrador',
+    'superadmin@es21plus.local',
+    'superadmin',
+    1
+);
+
+-- Usuario employee para pruebas (contraseña: employee123 — cambiar en producción)
+INSERT IGNORE INTO usuarios (username, password_hash, nombre_completo, email, rol, activo)
+VALUES (
+    'empleado',
+    '$2y$12$ea0TAFIMAM4aswJvLYLipe7W7ALfBQDiuxovLk9d3t0csRLhbtZ8q',
+    'Empleado de Prueba',
+    'empleado@es21plus.local',
+    'employee',
+    1
+);

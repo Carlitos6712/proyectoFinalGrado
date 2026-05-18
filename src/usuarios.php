@@ -141,6 +141,13 @@ $iniciales = mb_substr($iniciales, 0, 2);
                 </span>
                 <span class="nav-label">Marcas</span>
             </a>
+            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+            <a href="modelos_moto.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
+                <span class="nav-label">Modelos de Moto</span>
+            </a>
+            <?php endif; ?>
         </div>
         <div class="nav-section">
             <span class="nav-section-label">Operaciones</span>

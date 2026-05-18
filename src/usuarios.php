@@ -186,7 +186,7 @@ $iniciales = mb_substr($iniciales, 0, 2);
             <div class="user-avatar-sm"><?= htmlspecialchars($iniciales, ENT_QUOTES, 'UTF-8') ?></div>
             <div class="sidebar-user-info">
                 <span class="user-name-sm"><?= htmlspecialchars($nombreSesion, ENT_QUOTES, 'UTF-8') ?></span>
-                <span class="user-role">Administrador</span>
+                <span class="user-role"><?= match($_SESSION['user_role'] ?? $_SESSION['rol'] ?? 'employee') { 'superadmin' => 'Super Admin', 'admin' => 'Administrador', default => 'Empleado' } ?></span>
             </div>
         </div>
     </div>

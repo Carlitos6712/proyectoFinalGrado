@@ -19,6 +19,15 @@
         <include>
             <directory suffix=".php">src/includes</directory>
         </include>
+        <exclude>
+            <!-- Middleware de sesión: no es testeable con SQLite en memoria -->
+            <file>src/includes/auth_check.php</file>
+            <file>src/includes/csrf.php</file>
+            <!-- Singleton MySQL: no es testeable sin conexión real a MySQL -->
+            <file>src/includes/Database.php</file>
+            <!-- Marca hardcodea Database::getInstance() — sin inyección de PDO -->
+            <file>src/includes/Marca.php</file>
+        </exclude>
     </source>
 
     <php>

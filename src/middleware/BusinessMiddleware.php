@@ -7,10 +7,11 @@
  *   2. Negocio activo en BD
  *   3. Plan no vencido
  *   4. Rol válido (admin | employee, nunca superadmin)
+ *   5. Modo mantenimiento (Settings::get) — bloquea a empleados, no al superadmin
  *
  * @package  Es21Plus\Middleware
  * @author   Carlos Vico
- * @version  2.0.0
+ * @version  2.1.0
  */
 
 require_once __DIR__ . '/../includes/Database.php';
@@ -21,9 +22,7 @@ class BusinessMiddleware
     /**
      * Aplica todas las verificaciones de acceso al panel de empresa.
      *
-     * Llama exit si el acceso no está permitido.
-     *
-     * @return array Datos del negocio verificado (para uso en la vista).
+     * @return array Datos del negocio verificado.
      */
     public static function require(): array
     {
@@ -81,6 +80,23 @@ class BusinessMiddleware
             http_response_code(402);
             include __DIR__ . '/../superadmin/views/plan_expired.php';
             exit;
+        }
+
+        // 6. Modo mantenimiento — bloquea a empleados; superadmin pasa siempre
+        if (!Session::isSuperadmin()) {
+            try {
+                if (!class_exists('Settings')) {
+                    require_once __DIR__ . '/../core/Settings.php';
+                }
+                if (Settings::get('maintenance_mode') === '1') {
+                    $maintenanceMessage = Settings::get('maintenance_message', '');
+                    http_response_code(503);
+                    include __DIR__ . '/../views/maintenance.php';
+                    exit;
+                }
+            } catch (\Throwable) {
+                // Si Settings no está disponible, no bloqueamos
+            }
         }
 
         return $business;

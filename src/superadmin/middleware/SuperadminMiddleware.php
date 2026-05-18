@@ -2,12 +2,12 @@
 /**
  * Middleware exclusivo para el panel de superadministración.
  *
- * Verifica que la sesión activa corresponde a un usuario con rol superadmin.
- * Destruye la sesión y redirige al login si el acceso no está autorizado.
+ * Verifica sesión de superadmin, aplica timeout de inactividad,
+ * y comprueba planes de empresa próximos a vencer para generar notificaciones.
  *
  * @package  Es21Plus\Superadmin\Middleware
  * @author   Carlos Vico
- * @version  1.0.0
+ * @version  1.1.0
  */
 class SuperadminMiddleware
 {
@@ -44,6 +44,20 @@ class SuperadminMiddleware
         }
 
         $_SESSION['last_activity'] = time();
+
+        // Verificar planes próximos a vencer (una vez por sesión, máx. cada 5 min)
+        $lastPlanCheck = $_SESSION['sa_last_plan_check'] ?? 0;
+        if ((time() - $lastPlanCheck) > 300) {
+            $_SESSION['sa_last_plan_check'] = time();
+            try {
+                if (!class_exists('NotificationService')) {
+                    require_once __DIR__ . '/../../core/NotificationService.php';
+                }
+                NotificationService::checkExpiringPlans();
+            } catch (\Throwable) {
+                // No interrumpir flujo si falla
+            }
+        }
     }
 
     /**

@@ -625,7 +625,8 @@ class Producto
         ?int $stockMin = null,
         ?int $stockMax = null,
         ?bool $soloStockBajo = null,
-        ?int $marcaId = null
+        ?int $marcaId = null,
+        ?int $modeloId = null
     ): int {
         $sql    = "SELECT COUNT(*) FROM productos p WHERE p.deleted_at IS NULL" . $this->bizWhere();
         $params = $this->bizParam();
@@ -663,9 +664,18 @@ class Producto
         if ($soloStockBajo === true) {
             $sql .= " AND p.stock <= p.stock_minimo";
         }
+        if ($modeloId !== null) {
+            $sql .= " AND p.id IN (SELECT producto_id FROM compatibilidades WHERE modelo_id = :modelo_id)";
+        }
 
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        if ($modeloId !== null) {
+            $stmt->bindValue(':modelo_id', $modeloId, PDO::PARAM_INT);
+        }
+        $stmt->execute();
         return (int) $stmt->fetchColumn();
     }
 
@@ -695,7 +705,8 @@ class Producto
         ?int $stockMax = null,
         string $orden = 'nombre_asc',
         ?bool $soloStockBajo = null,
-        ?int $marcaId = null
+        ?int $marcaId = null,
+        ?int $modeloId = null
     ): array {
         $offset  = ($pagina - 1) * $porPagina;
         $orderBy = self::ORDEN_MAP[$orden] ?? 'p.nombre ASC';
@@ -739,12 +750,18 @@ class Producto
         if ($soloStockBajo === true) {
             $sql .= " AND p.stock <= p.stock_minimo";
         }
+        if ($modeloId !== null) {
+            $sql .= " AND p.id IN (SELECT producto_id FROM compatibilidades WHERE modelo_id = :modelo_id)";
+        }
 
         $sql .= " ORDER BY {$orderBy} LIMIT :limite OFFSET :offset";
 
         $stmt = $this->pdo->prepare($sql);
         foreach ($params as $k => $v) {
             $stmt->bindValue($k, $v);
+        }
+        if ($modeloId !== null) {
+            $stmt->bindValue(':modelo_id', $modeloId, PDO::PARAM_INT);
         }
         $stmt->bindValue(':limite', $porPagina, PDO::PARAM_INT);
         $stmt->bindValue(':offset', $offset,    PDO::PARAM_INT);

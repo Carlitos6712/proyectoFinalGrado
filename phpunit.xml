@@ -27,6 +27,9 @@
             <file>src/includes/Database.php</file>
             <!-- Marca hardcodea Database::getInstance() — sin inyección de PDO -->
             <file>src/includes/Marca.php</file>
+            <!-- Parciales de vista HTML: no son clases, no tienen tests unitarios -->
+            <file>src/includes/announcement_banner.php</file>
+            <file>src/includes/topbar_user.php</file>
         </exclude>
     </source>
 

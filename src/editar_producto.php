@@ -13,6 +13,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Categoria.php';
 require_once __DIR__ . '/includes/Marca.php';
+require_once __DIR__ . '/includes/ModeloMoto.php';
 
 $error          = '';
 $success        = '';
@@ -22,6 +23,7 @@ try {
     $productoModel  = new Producto();
     $categoriaModel = new Categoria();
     $marcaModel     = new Marca();
+    $modeloMotoModel = new ModeloMoto();
     $stockBajoCount = count($productoModel->filtrarStockBajo());
 
     $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
@@ -32,7 +34,16 @@ try {
 
     $producto   = $productoModel->obtener($id);
     $categorias = $categoriaModel->listar();
-    $marcas     = $marcaModel->listar();
+    $marcas    = $marcaModel->listar();
+    $modelos   = $modeloMotoModel->listarParaSelect();
+
+    // Cargar compatibilidades actuales del producto
+    $pdo = Database::getInstance();
+    $stmtCompat = $pdo->prepare("SELECT modelo_id, notas FROM compatibilidades WHERE producto_id = :pid");
+    $stmtCompat->execute([':pid' => $id]);
+    $compatActuales  = $stmtCompat->fetchAll(PDO::FETCH_ASSOC);
+    $modelosActuales = array_column($compatActuales, 'modelo_id');
+    $notasActuales   = array_column($compatActuales, 'notas', 'modelo_id');
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nombre           = trim($_POST['nombre']            ?? '');
@@ -68,6 +79,19 @@ try {
             $codigoRef, $descripcionLarga, $marcaId, $codigoBarras, $urlProveedor, $proveedor, $ubicacion,
             $peso, $capacidad, $longitud, $anchura, $diametro
         );
+
+        // Sincronizar compatibilidades
+        $modelosSeleccionados = array_map('intval', $_POST['modelos_compatibles'] ?? []);
+        $pdo = Database::getInstance();
+        $stmt = $pdo->prepare("DELETE FROM compatibilidades WHERE producto_id = :pid");
+        $stmt->execute([':pid' => $id]);
+        foreach ($modelosSeleccionados as $modeloId) {
+            $notas = strip_tags($_POST['notas_compatibilidad'][$modeloId] ?? '');
+            $stmtIns = $pdo->prepare(
+                "INSERT INTO compatibilidades (producto_id, modelo_id, notas) VALUES (:pid, :mid, :notas)"
+            );
+            $stmtIns->execute([':pid' => $id, ':mid' => $modeloId, ':notas' => $notas]);
+        }
 
         if (isset($_POST['eliminar_imagen']) && $_POST['eliminar_imagen'] === '1') {
             $productoModel->eliminarImagen($id);
@@ -156,6 +180,13 @@ try {
                 </span>
                 <span class="nav-label">Marcas</span>
             </a>
+            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+            <a href="modelos_moto.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
+                <span class="nav-label">Modelos de Moto</span>
+            </a>
+            <?php endif; ?>
         </div>
         <div class="nav-section">
             <span class="nav-section-label">Operaciones</span>
@@ -445,6 +476,34 @@ try {
                             </select>
                         </div>
 
+                    </div>
+
+
+                    <div class="form-section" style="margin-top:1.5rem;">
+                        <h3 class="form-section-title" style="font-size:1rem;font-weight:600;margin-bottom:1rem;">Motos compatibles</h3>
+                        <?php if (empty($modelos)): ?>
+                            <p class="text-muted" style="color:#6b7280;">No hay modelos de moto registrados. <a href="modelos_moto.php">Añadir modelos</a></p>
+                        <?php else: ?>
+                        <div class="compat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0.75rem;">
+                            <?php foreach ($modelos as $m): ?>
+                            <div class="compat-item" style="padding:0.5rem;border:1px solid var(--border-color, #e5e7eb);border-radius:6px;">
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:500;">
+                                    <input type="checkbox"
+                                           name="modelos_compatibles[]"
+                                           value="<?= (int)$m['id'] ?>"
+                                           <?= in_array((int)$m['id'], $modelosActuales, true) ? 'checked' : '' ?>>
+                                    <?= htmlspecialchars("{$m['marca']} {$m['modelo']}", ENT_QUOTES, 'UTF-8') ?>
+                                    <span style="color:#6b7280;font-size:0.85em;">(<?= (int)$m['anio_desde'] ?>–<?= $m['anio_hasta'] ? (int)$m['anio_hasta'] : 'actual' ?>)</span>
+                                </label>
+                                <input type="text"
+                                       name="notas_compatibilidad[<?= (int)$m['id'] ?>]"
+                                       placeholder="Notas (opcional)"
+                                       style="width:100%;margin-top:0.25rem;padding:0.25rem 0.5rem;border:1px solid var(--border-color,#d1d5db);border-radius:4px;font-size:0.85em;"
+                                       value="<?= htmlspecialchars($notasActuales[$m['id']] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
                     </div>
 
                     <div class="card-footer">

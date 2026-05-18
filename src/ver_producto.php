@@ -11,6 +11,7 @@ require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Movimiento.php';
+require_once __DIR__ . '/includes/ModeloMoto.php';
 
 $stockBajoCount = 0;
 $movimientos    = [];
@@ -28,6 +29,17 @@ try {
 
     $producto    = $productoModel->obtener($id);
     $movimientos = $movimientoModel->listarPorProductoPaginado($id, 1, 10);
+
+    $pdo = Database::getInstance();
+    $stmtCompat = $pdo->prepare(
+        "SELECT mm.marca, mm.modelo, mm.anio_desde, mm.anio_hasta, c.notas
+         FROM compatibilidades c
+         JOIN modelos_moto mm ON mm.id = c.modelo_id
+         WHERE c.producto_id = :pid
+         ORDER BY mm.marca, mm.modelo"
+    );
+    $stmtCompat->execute([':pid' => $id]);
+    $compatibilidades = $stmtCompat->fetchAll(PDO::FETCH_ASSOC);
 } catch (AppException $e) {
     $_SESSION['flash_error'] = $e->getMessage();
     header('Location: productos.php');
@@ -227,6 +239,13 @@ $imgRuta  = Producto::rutaImagen($producto['imagen'] ?? null);
                 <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg></span>
                 <span class="nav-label">Marcas</span>
             </a>
+            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+            <a href="modelos_moto.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
+                <span class="nav-label">Modelos de Moto</span>
+            </a>
+            <?php endif; ?>
         </div>
         <div class="nav-section">
             <span class="nav-section-label">Operaciones</span>
@@ -569,6 +588,29 @@ $imgRuta  = Producto::rutaImagen($producto['imagen'] ?? null);
                                 <span class="detail-value"><?= !empty($producto['updated_at']) ? date('d/m/Y H:i', strtotime($producto['updated_at'])) : '—' ?></span>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+
+                <!-- Motos compatibles -->
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">Motos compatibles</h3></div>
+                    <div class="card-body">
+                    <?php if (empty($compatibilidades)): ?>
+                        <p class="text-muted" style="color:#6b7280;font-style:italic;">No hay modelos de moto registrados para este producto.</p>
+                    <?php else: ?>
+                        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.5rem;">
+                        <?php foreach ($compatibilidades as $c): ?>
+                            <li style="padding:0.4rem 0;border-bottom:1px solid var(--border-color,#f3f4f6);">
+                                <strong><?= htmlspecialchars($c['marca'] . ' ' . $c['modelo'], ENT_QUOTES, 'UTF-8') ?></strong>
+                                <span style="color:#6b7280;font-size:0.9em;">&nbsp;(<?= (int)$c['anio_desde'] ?>–<?= $c['anio_hasta'] ? (int)$c['anio_hasta'] : 'actual' ?>)</span>
+                                <?php if (!empty($c['notas'])): ?>
+                                    &nbsp;— <em style="color:#4b5563;"><?= htmlspecialchars($c['notas'], ENT_QUOTES, 'UTF-8') ?></em>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
                     </div>
                 </div>
 

@@ -16,6 +16,7 @@ $_ENV['DB_USER']  = getenv('DB_USER')  ?: 'admin';
 $_ENV['DB_PASS']  = getenv('DB_PASS')  ?: 'luigi21plus';
 
 require_once __DIR__ . '/../src/includes/AppException.php';
+require_once __DIR__ . '/../src/includes/csrf.php';
 require_once __DIR__ . '/../src/includes/Database.php';
 require_once __DIR__ . '/../src/includes/Auditoria.php';
 require_once __DIR__ . '/../src/includes/AlertaStock.php';
@@ -23,3 +24,5 @@ require_once __DIR__ . '/../src/includes/Producto.php';
 require_once __DIR__ . '/../src/includes/Movimiento.php';
 require_once __DIR__ . '/../src/includes/Categoria.php';
 require_once __DIR__ . '/../src/includes/Usuario.php';
+require_once __DIR__ . '/../src/core/Session.php';
+require_once __DIR__ . '/../src/includes/ModeloMoto.php';

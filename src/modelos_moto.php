@@ -1,6 +1,7 @@
 <?php
 /**
- * Gestión CRUD de marcas del inventario.
+ * Gestión CRUD de modelos de moto para compatibilidades de productos.
+ * Solo accesible para administradores.
  *
  * @package  Es21Plus
  * @author   Carlitos6712
@@ -10,14 +11,18 @@ require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
-require_once __DIR__ . '/includes/Marca.php';
+require_once __DIR__ . '/includes/ModeloMoto.php';
 
-$accion         = $_GET['accion'] ?? 'listar';
+// Solo admins pueden acceder a esta página
+if (($_SESSION['rol'] ?? '') !== 'admin') {
+    header('Location: index.php');
+    exit;
+}
+
 $error          = '';
-$editMarca      = null;
 $stockBajoCount = 0;
 
-$marcaModel = new Marca();
+$modeloMotoModel = new ModeloMoto();
 try { $stockBajoCount = count((new Producto())->filtrarStockBajo()); } catch (\Throwable $e) {}
 
 $flashSuccess = $_SESSION['flash_success'] ?? '';
@@ -29,24 +34,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $postAccion = $_POST['accion'] ?? '';
 
         if ($postAccion === 'crear') {
-            $nombre      = trim($_POST['nombre']      ?? '');
-            $descripcion = trim($_POST['descripcion'] ?? '');
-            if ($nombre === '') throw new AppException('El nombre es obligatorio.', 400);
-            $marcaModel->crear($nombre, $descripcion);
-            $_SESSION['flash_success'] = 'Marca creada correctamente.';
-        } elseif ($postAccion === 'actualizar') {
-            $id          = (int) ($_POST['id'] ?? 0);
-            $nombre      = trim($_POST['nombre']      ?? '');
-            $descripcion = trim($_POST['descripcion'] ?? '');
-            if (!$id || $nombre === '') throw new AppException('Datos inválidos.', 400);
-            $marcaModel->actualizar($id, $nombre, $descripcion);
-            $_SESSION['flash_success'] = 'Marca actualizada correctamente.';
+            $marca     = trim($_POST['marca']      ?? '');
+            $modelo    = trim($_POST['modelo']     ?? '');
+            $anioDes   = (int) ($_POST['anio_desde'] ?? 0);
+            $anioHasta = ($_POST['anio_hasta'] ?? '') !== '' ? (int)$_POST['anio_hasta'] : null;
+
+            if ($marca === '') throw new AppException('La marca es obligatoria.', 400);
+            if ($modelo === '') throw new AppException('El modelo es obligatorio.', 400);
+            if ($anioDes === 0) throw new AppException('El año de inicio es obligatorio.', 400);
+
+            $modeloMotoModel->crear($marca, $modelo, $anioDes, $anioHasta);
+            $_SESSION['flash_success'] = 'Modelo de moto creado correctamente.';
         } elseif ($postAccion === 'eliminar') {
             $id = (int) ($_POST['id'] ?? 0);
-            $marcaModel->eliminar($id);
-            $_SESSION['flash_success'] = 'Marca eliminada correctamente.';
+            $modeloMotoModel->eliminar($id);
+            $_SESSION['flash_success'] = 'Modelo de moto eliminado correctamente.';
         }
-        header('Location: marcas.php');
+        header('Location: modelos_moto.php');
         exit;
     } catch (AppException $e) {
         $error = $e->getMessage();
@@ -55,20 +59,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-if ($accion === 'editar') {
-    try {
-        $id        = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-        $editMarca = $marcaModel->obtenerPorId($id);
-    } catch (AppException $e) {
-        $error = $e->getMessage();
-    }
-}
-
 try {
-    $marcas = $marcaModel->listar();
+    $modelos = $modeloMotoModel->listar();
 } catch (\Throwable $e) {
-    $marcas = [];
-    $error  = 'Error al cargar marcas: ' . $e->getMessage();
+    $modelos = [];
+    $error   = 'Error al cargar modelos de moto: ' . $e->getMessage();
 }
 ?>
 <!DOCTYPE html>
@@ -76,7 +71,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marcas – es21plus</title>
+    <title>Modelos de Moto – es21plus</title>
     <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body class="layout">
@@ -197,7 +192,7 @@ try {
             <nav class="breadcrumb-nav">
                 <a href="index.php" class="breadcrumb-item">Inicio</a>
                 <span class="breadcrumb-sep">›</span>
-                <span class="breadcrumb-item active">Marcas</span>
+                <span class="breadcrumb-item active">Modelos de Moto</span>
             </nav>
         </div>
         <div class="topbar-right">
@@ -251,50 +246,56 @@ try {
         <!-- Page header -->
         <div class="page-header">
             <div class="page-header-info">
-                <h1 class="page-title">Marcas</h1>
-                <p class="page-subtitle">Gestiona las marcas y fabricantes del inventario</p>
+                <h1 class="page-title">Modelos de Moto</h1>
+                <p class="page-subtitle">Gestiona los modelos de moto para compatibilidades de productos</p>
             </div>
         </div>
 
         <!-- Two-column layout -->
         <div class="two-col-layout">
 
-            <!-- Left column: Create / Edit form -->
+            <!-- Left column: Create form -->
             <div class="two-col-left">
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title"><?= $editMarca ? 'Editar Marca' : 'Nueva Marca' ?></h2>
-                        <p class="card-subtitle"><?= $editMarca ? 'Modifica los datos de la marca' : 'Añade una nueva marca al sistema' ?></p>
+                        <h2 class="card-title">Nuevo Modelo de Moto</h2>
+                        <p class="card-subtitle">Añade un nuevo modelo de moto al sistema</p>
                     </div>
                     <div class="card-body">
                         <form method="POST">
-                            <input type="hidden" name="accion" value="<?= $editMarca ? 'actualizar' : 'crear' ?>">
-                            <?php if ($editMarca): ?>
-                                <input type="hidden" name="id" value="<?= (int)$editMarca['id'] ?>">
-                            <?php endif; ?>
+                            <input type="hidden" name="accion" value="crear">
 
                             <div class="form-field" style="margin-bottom:1rem;">
-                                <label class="field-label" for="nombre">Nombre <span class="field-required">*</span></label>
-                                <input class="field-input" type="text" id="nombre" name="nombre" required
-                                       placeholder="Nombre de la marca"
-                                       value="<?= htmlspecialchars($editMarca['nombre'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                <label class="field-label" for="marca">Marca <span class="field-required">*</span></label>
+                                <input class="field-input" type="text" id="marca" name="marca" required
+                                       placeholder="Ej. Honda, Yamaha, Kawasaki">
+                            </div>
+
+                            <div class="form-field" style="margin-bottom:1rem;">
+                                <label class="field-label" for="modelo">Modelo <span class="field-required">*</span></label>
+                                <input class="field-input" type="text" id="modelo" name="modelo" required
+                                       placeholder="Ej. CB500F, MT-07, Z650">
+                            </div>
+
+                            <div class="form-field" style="margin-bottom:1rem;">
+                                <label class="field-label" for="anio_desde">Año desde <span class="field-required">*</span></label>
+                                <input class="field-input" type="number" id="anio_desde" name="anio_desde" required
+                                       min="1900" max="2099" placeholder="Ej. 2018">
                             </div>
 
                             <div class="form-field" style="margin-bottom:1.5rem;">
-                                <label class="field-label" for="descripcion">Descripción</label>
-                                <textarea class="field-input field-textarea" id="descripcion" name="descripcion" rows="3"
-                                          placeholder="Descripción opcional…"><?= htmlspecialchars($editMarca['descripcion'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                                <label class="field-label" for="anio_hasta">Año hasta</label>
+                                <input class="field-input" type="number" id="anio_hasta" name="anio_hasta"
+                                       min="1900" max="2099" placeholder="Dejar vacío si sigue en producción">
+                                <span class="field-hint">Dejar en blanco si el modelo sigue en producción.</span>
                             </div>
 
                             <div class="card-footer" style="padding:0;border:0;margin-top:0;">
-                                <?php if ($editMarca): ?>
-                                    <a href="marcas.php" class="btn-ghost">Cancelar</a>
-                                <?php endif; ?>
                                 <button type="submit" class="btn-primary">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                         <polyline points="20 6 9 17 4 12"/>
                                     </svg>
-                                    <?= $editMarca ? 'Actualizar' : 'Crear Marca' ?>
+                                    Crear Modelo
                                 </button>
                             </div>
                         </form>
@@ -302,55 +303,45 @@ try {
                 </div>
             </div>
 
-            <!-- Right column: Brands table -->
+            <!-- Right column: Models table -->
             <div class="two-col-right">
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title">Marcas Existentes</h2>
-                        <p class="card-subtitle"><?= count($marcas) ?> marca(s) registrada(s)</p>
+                        <h2 class="card-title">Modelos Registrados</h2>
+                        <p class="card-subtitle"><?= count($modelos) ?> modelo(s) registrado(s)</p>
                     </div>
                     <div class="card-body" style="padding:0;">
-                        <?php if (empty($marcas)): ?>
+                        <?php if (empty($modelos)): ?>
                         <div class="td-empty" style="padding:2rem;text-align:center;">
-                            No hay marcas registradas. Crea la primera.
+                            No hay modelos de moto registrados. Crea el primero.
                         </div>
                         <?php else: ?>
                         <table class="data-table data-table-mini">
                             <thead>
                                 <tr>
-                                    <th>Nombre</th>
-                                    <th>Productos</th>
+                                    <th>Marca</th>
+                                    <th>Modelo</th>
+                                    <th>Año desde</th>
+                                    <th>Año hasta</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
-                            <?php foreach ($marcas as $marca): ?>
+                            <?php foreach ($modelos as $m): ?>
                                 <tr>
-                                    <td>
-                                        <span class="cat-name"><?= htmlspecialchars($marca['nombre'], ENT_QUOTES, 'UTF-8') ?></span>
-                                    </td>
-                                    <td>
-                                        <span class="badge-count"><?= (int)$marca['total_productos'] ?></span>
-                                    </td>
+                                    <td><?= htmlspecialchars($m['marca'], ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><?= htmlspecialchars($m['modelo'], ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><?= (int)$m['anio_desde'] ?></td>
+                                    <td><?= $m['anio_hasta'] ? (int)$m['anio_hasta'] : '<em style="color:#6b7280;">Actual</em>' ?></td>
                                     <td class="td-actions">
-                                        <a href="marcas.php?accion=editar&id=<?= (int)$marca['id'] ?>"
-                                           class="action-btn action-btn-green" title="Editar marca">
+                                        <button type="button"
+                                                class="action-btn action-btn-red"
+                                                title="Eliminar modelo"
+                                                onclick="confirmarEliminar(<?= (int)$m['id'] ?>)">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
                                             </svg>
-                                        </a>
-                                        <?php if ((int)$marca['total_productos'] === 0): ?>
-                                        <form method="POST" style="display:inline;">
-                                            <input type="hidden" name="accion" value="eliminar">
-                                            <input type="hidden" name="id" value="<?= (int)$marca['id'] ?>">
-                                            <button type="submit" class="action-btn action-btn-red" title="Eliminar marca"
-                                                    data-confirm-cat="<?= htmlspecialchars($marca['nombre'], ENT_QUOTES, 'UTF-8') ?>">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                                                </svg>
-                                            </button>
-                                        </form>
-                                        <?php endif; ?>
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -366,6 +357,38 @@ try {
     </main>
 </div>
 
+<!-- Hidden form para eliminar via POST -->
+<form id="formEliminar" method="POST" style="display:none;">
+    <input type="hidden" name="accion" value="eliminar">
+    <input type="hidden" name="id" id="eliminarId" value="">
+</form>
+
+<script>
+/**
+ * Confirma y ejecuta la eliminación de un modelo de moto.
+ * Muestra el error 409 si el modelo tiene compatibilidades.
+ *
+ * @param {number} id - ID del modelo a eliminar.
+ */
+function confirmarEliminar(id) {
+    if (!confirm('¿Seguro que quieres eliminar este modelo de moto?')) return;
+
+    fetch('api/modelos_moto.php?id=' + id, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(json) {
+            if (json.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + json.message);
+            }
+        })
+        .catch(function() {
+            // Fallback al formulario POST si la API no está disponible
+            document.getElementById('eliminarId').value = id;
+            document.getElementById('formEliminar').submit();
+        });
+}
+</script>
 <script src="js/app.js"></script>
 </body>
 </html>

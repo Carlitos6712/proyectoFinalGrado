@@ -16,11 +16,13 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Categoria.php';
 require_once __DIR__ . '/includes/Marca.php';
+require_once __DIR__ . '/includes/ModeloMoto.php';
 
 // ── Parámetros de filtrado ────────────────────────────────────────────────────
 $termino     = trim($_GET['q']           ?? '');
 $categoriaId = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
 $marcaId     = filter_input(INPUT_GET, 'marca_id',     FILTER_VALIDATE_INT) ?: null;
+$modeloId    = isset($_GET['modelo_id']) && ctype_digit($_GET['modelo_id']) ? (int) $_GET['modelo_id'] : null;
 $precioMin   = filter_input(INPUT_GET, 'precio_min', FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
 $precioMax   = filter_input(INPUT_GET, 'precio_max', FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
 $stockMin    = filter_input(INPUT_GET, 'stock_min',  FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
@@ -49,6 +51,7 @@ try {
     $modelo         = new Producto();
     $catModelo      = new Categoria();
     $marcaModelo    = new Marca();
+    $modeloMotoMod  = new ModeloMoto();
     $stockBajoCount = count($modelo->filtrarStockBajo());
 
     $total = $modelo->contarFiltrados(
@@ -59,7 +62,8 @@ try {
         $stockMin,
         $stockMax,
         $soloStockBajo ?: null,
-        $marcaId
+        $marcaId,
+        $modeloId
     );
     $productos = $modelo->listarPaginado(
         $pagina,
@@ -72,11 +76,13 @@ try {
         $stockMax,
         $orden,
         $soloStockBajo ?: null,
-        $marcaId
+        $marcaId,
+        $modeloId
     );
     $totalPaginas = (int) ceil($total / max(1, $porPagina));
     $categorias   = $catModelo->listar();
     $marcas       = $marcaModelo->listar();
+    $modelos      = $modeloMotoMod->listarParaSelect();
 } catch (\Throwable $e) {
     if ($soloAjax) {
         header('Content-Type: application/json; charset=utf-8');
@@ -163,7 +169,8 @@ if ($soloAjax) {
 // ── Hay filtros activos? ──────────────────────────────────────────────────────
 $hayFiltros = $termino !== '' || $categoriaId !== null || $marcaId !== null
            || $precioMin !== null || $precioMax !== null
-           || $stockMin !== null || $stockMax !== null || $soloStockBajo;
+           || $stockMin !== null || $stockMax !== null || $soloStockBajo
+           || $modeloId !== null;
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -487,6 +494,13 @@ $hayFiltros = $termino !== '' || $categoriaId !== null || $marcaId !== null
                 <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg></span>
                 <span class="nav-label">Marcas</span>
             </a>
+            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+            <a href="modelos_moto.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
+                <span class="nav-label">Modelos de Moto</span>
+            </a>
+            <?php endif; ?>
         </div>
         <div class="nav-section">
             <span class="nav-section-label">Operaciones</span>
@@ -635,6 +649,17 @@ $hayFiltros = $termino !== '' || $categoriaId !== null || $marcaId !== null
                             <?php foreach ($marcas as $m): ?>
                             <option value="<?= (int)$m['id'] ?>" <?= (int)($marcaId ?? 0) === (int)$m['id'] ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($m['nombre'], ENT_QUOTES, 'UTF-8') ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label for="filterModeloMoto">Moto compatible</label>
+                        <select id="filterModeloMoto">
+                            <option value="">Todas</option>
+                            <?php foreach ($modelos as $mm): ?>
+                            <option value="<?= (int)$mm['id'] ?>" <?= (int)($modeloId ?? 0) === (int)$mm['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($mm['marca'] . ' ' . $mm['modelo'] . ' (' . $mm['anio_desde'] . ($mm['anio_hasta'] ? '–' . $mm['anio_hasta'] : '–act.') . ')', ENT_QUOTES, 'UTF-8') ?>
                             </option>
                             <?php endforeach; ?>
                         </select>

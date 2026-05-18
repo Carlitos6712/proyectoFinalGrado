@@ -96,6 +96,9 @@ function collectFilters() {
     const marca = document.getElementById('filterMarca')?.value ?? '';
     if (marca)                               params.set('marca_id',    marca);
 
+    const modeloMoto = document.getElementById('filterModeloMoto')?.value ?? '';
+    if (modeloMoto)                          params.set('modelo_id',   modeloMoto);
+
     const pp = document.getElementById('filterPorPagina')?.value ?? '';
     if (pp)                                  params.set('por_pagina',  pp);
 
@@ -253,7 +256,7 @@ async function fetchResults(page = 1) {
  * @returns {void}
  */
 function clearFilters() {
-    const ids = ['searchQ', 'filterCategoria', 'filterMarca', 'filterPrecioMin', 'filterPrecioMax',
+    const ids = ['searchQ', 'filterCategoria', 'filterMarca', 'filterModeloMoto', 'filterPrecioMin', 'filterPrecioMax',
                  'filterStockMin', 'filterStockMax', 'filterOrden', 'filterPorPagina'];
 
     ids.forEach(id => {
@@ -338,7 +341,7 @@ function initSearch() {
     document.getElementById('btnClear')?.addEventListener('click', clearFilters);
 
     // Filtros: aplicar al cambiar select u orden
-    ['filterCategoria', 'filterMarca', 'filterOrden', 'filterPorPagina'].forEach(id => {
+    ['filterCategoria', 'filterMarca', 'filterModeloMoto', 'filterOrden', 'filterPorPagina'].forEach(id => {
         document.getElementById(id)?.addEventListener('change', () => fetchResults(1));
     });
 
@@ -355,11 +358,12 @@ function initSearch() {
     window.addEventListener('popstate', () => {
         const urlParams = new URLSearchParams(window.location.search);
 
-        ['q','categoria_id','marca_id','precio_min','precio_max','stock_min','stock_max','orden','por_pagina'].forEach(key => {
+        ['q','categoria_id','marca_id','modelo_id','precio_min','precio_max','stock_min','stock_max','orden','por_pagina'].forEach(key => {
             const map = {
                 q:            'searchQ',
                 categoria_id: 'filterCategoria',
                 marca_id:     'filterMarca',
+                modelo_id:    'filterModeloMoto',
                 precio_min:   'filterPrecioMin',
                 precio_max:   'filterPrecioMax',
                 stock_min:    'filterStockMin',

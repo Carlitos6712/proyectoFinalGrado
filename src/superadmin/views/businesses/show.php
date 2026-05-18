@@ -15,7 +15,20 @@
             <?= $business['phone'] ? ' · ' . htmlspecialchars($business['phone'], ENT_QUOTES, 'UTF-8') : '' ?>
         </p>
     </div>
-    <div style="display:flex;gap:.5rem;">
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+        <?php if ($business['is_active']): ?>
+        <form method="POST" action="businesses.php?action=impersonate&id=<?= $business['id'] ?>" style="display:inline;"
+              onsubmit="return confirm('Accederás al panel de esta empresa como su administrador. ¿Continuar?')">
+            <input type="hidden" name="_action" value="impersonate">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+            <button type="submit" class="btn btn-primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-.15em;margin-right:.3em;">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+                Acceder al panel
+            </button>
+        </form>
+        <?php endif; ?>
         <a href="businesses.php?action=edit&id=<?= $business['id'] ?>" class="btn btn-secondary">Editar</a>
         <form method="POST" action="businesses.php?action=toggle&id=<?= $business['id'] ?>" style="display:inline;" onsubmit="return confirm('¿Cambiar estado?')">
             <input type="hidden" name="_action" value="toggle">

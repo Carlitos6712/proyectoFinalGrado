@@ -10,6 +10,8 @@
 require_once __DIR__ . '/../../includes/Database.php';
 require_once __DIR__ . '/../../includes/AppException.php';
 require_once __DIR__ . '/../../core/Mailer.php';
+require_once __DIR__ . '/../../core/Session.php';
+require_once __DIR__ . '/../../core/BusinessSeeder.php';
 
 class BusinessController
 {
@@ -146,6 +148,9 @@ class BusinessController
         $plainPassword = $this->generarPassword();
         $this->crearEmpleadoAdmin($businessId, $name, $email, $plainPassword);
 
+        // Datos de demostración para que el panel no arranque vacío
+        BusinessSeeder::seed($businessId);
+
         if ($email) {
             $this->enviarBienvenida($email, $name, $email, $plainPassword);
         }
@@ -198,6 +203,66 @@ class BusinessController
 
         $this->pdo->prepare('UPDATE businesses SET is_active = ? WHERE id = ?')->execute([$nuevo, $id]);
         return (bool)$nuevo;
+    }
+
+    /**
+     * Inicia una sesión impersonada como administrador de la empresa.
+     *
+     * Guarda los datos del superadmin en sesión para poder volver.
+     * El superadmin accede al panel de empresa como si fuera su admin.
+     *
+     * @param int $id ID del negocio.
+     * @throws AppException Si el negocio no existe o no tiene empleado admin.
+     * @return void — redirige a /index.php
+     */
+    /**
+     * Inicia una sesión impersonada como administrador de la empresa.
+     *
+     * El superadmin accede al panel de empresa como si fuera su admin.
+     * Guarda las claves de retorno en sesión para poder volver.
+     *
+     * @param int $id ID del negocio.
+     * @throws AppException Si el negocio no existe o no tiene empleado admin.
+     * @return void — redirige a /index.php
+     */
+    public function impersonate(int $id): void
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM businesses WHERE id = ?');
+        $stmt->execute([$id]);
+        $business = $stmt->fetch();
+        if (!$business) {
+            throw new AppException('Negocio no encontrado.', 404);
+        }
+
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM employees WHERE business_id = ? AND role = 'admin' AND is_active = 1
+             ORDER BY id ASC LIMIT 1"
+        );
+        $stmt->execute([$id]);
+        $employee = $stmt->fetch();
+        if (!$employee) {
+            throw new AppException('Este negocio no tiene empleados admin activos.', 409);
+        }
+
+        // Capturar datos del superadmin antes de sobreescribir la sesión
+        $saReturn = [
+            'usuario_id'       => $_SESSION['usuario_id']       ?? null,
+            'usuario_nombre'   => $_SESSION['usuario_nombre']   ?? '',
+            'usuario_username' => $_SESSION['usuario_username'] ?? '',
+            'rol'              => $_SESSION['rol']              ?? 'superadmin',
+        ];
+
+        // Establecer sesión de empresa (setBusinessUser no hace session_unset)
+        Session::setBusinessUser($employee, $business);
+
+        // Añadir marcadores de impersonación + datos de retorno
+        $_SESSION['superadmin_impersonating']   = true;
+        $_SESSION['superadmin_return_uid']      = $saReturn['usuario_id'];
+        $_SESSION['superadmin_return_nombre']   = $saReturn['usuario_nombre'];
+        $_SESSION['superadmin_return_username'] = $saReturn['usuario_username'];
+
+        header('Location: /index.php');
+        exit;
     }
 
     private function generarSlug(string $name): string

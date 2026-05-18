@@ -20,57 +20,74 @@ if (!empty($_SESSION['usuario_id'])) {
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Usuario.php';
+require_once __DIR__ . '/core/Session.php';
+require_once __DIR__ . '/core/AuthController.php';
 
 $error       = '';
 $redirect    = $_GET['redirect'] ?? 'index.php';
 $expired     = isset($_GET['expired']);
 $switched    = isset($_GET['switch']);
 $deactivated = isset($_GET['deactivated']);
+$negocioInactivo = isset($_GET['error']) && $_GET['error'] === 'negocio_inactivo';
+
+// Modo login: 'business' cuando se rellena el campo empresa, 'local' en caso contrario
+$loginMode  = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $business = trim($_POST['business'] ?? '');
+    $loginMode = $business !== '' ? 'business' : 'local';
+
     try {
-        $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
         $ip       = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 
-        if ($username === '' || $password === '') {
-            throw new AppException('Usuario y contraseña son obligatorios.', 400);
-        }
+        if ($loginMode === 'business') {
+            // ── Login de empleado de empresa (multi-tenant) ──────────────────
+            $email = trim($_POST['email'] ?? '');
+            $auth  = new AuthController();
+            $auth->login($business, $email, $password);
+            header('Location: index.php');
+            exit;
 
-        $usuarioModel = new Usuario();
-        $usuarioModel->verificarRateLimit($ip);
+        } else {
+            // ── Login local (tabla usuarios — admin / employee) ───────────────
+            $username = trim($_POST['username'] ?? '');
+            if ($username === '' || $password === '') {
+                throw new AppException('Usuario y contraseña son obligatorios.', 400);
+            }
 
-        try {
-            $usuario = $usuarioModel->verificarCredenciales($username, $password);
-        } catch (AppException $e) {
-            $usuarioModel->registrarIntentoFallido($ip);
-            throw $e;
-        }
+            $usuarioModel = new Usuario();
+            $usuarioModel->verificarRateLimit($ip);
 
-        // Login exitoso
-        session_regenerate_id(true);
-        $_SESSION['usuario_id']       = $usuario['id'];
-        $_SESSION['usuario_nombre']   = $usuario['nombre_completo'];
-        $_SESSION['usuario_username'] = $usuario['username'];
-        $_SESSION['rol']              = $usuario['rol'] ?? 'employee';
-        $_SESSION['usuario_activo']   = (int)($usuario['activo'] ?? 1);
-        $_SESSION['last_activity']    = time();
+            try {
+                $usuario = $usuarioModel->verificarCredenciales($username, $password);
+            } catch (AppException $e) {
+                $usuarioModel->registrarIntentoFallido($ip);
+                throw $e;
+            }
 
-        $usuarioModel->limpiarIntentos($ip);
-        $usuarioModel->registrarLogin($usuario['id']);
+            session_regenerate_id(true);
+            $_SESSION['usuario_id']       = $usuario['id'];
+            $_SESSION['usuario_nombre']   = $usuario['nombre_completo'];
+            $_SESSION['usuario_username'] = $usuario['username'];
+            $_SESSION['rol']              = $usuario['rol'] ?? 'employee';
+            $_SESSION['usuario_activo']   = (int)($usuario['activo'] ?? 1);
+            $_SESSION['last_activity']    = time();
 
-        // Redirigir según rol
-        if ($usuario['rol'] === 'superadmin') {
-            header('Location: superadmin/index.php');
+            $usuarioModel->limpiarIntentos($ip);
+            $usuarioModel->registrarLogin($usuario['id']);
+
+            if ($usuario['rol'] === 'superadmin') {
+                header('Location: superadmin/index.php');
+                exit;
+            }
+
+            $safeRedirect = (preg_match('#^[a-zA-Z0-9_./-]+\.php#', $redirect) && !str_contains($redirect, '://'))
+                ? $redirect
+                : 'index.php';
+            header('Location: ' . $safeRedirect);
             exit;
         }
-
-        // Solo se permiten rutas relativas para evitar redirecciones abiertas a dominios externos.
-        $safeRedirect = (preg_match('#^[a-zA-Z0-9_./-]+\.php#', $redirect) && !str_contains($redirect, '://'))
-            ? $redirect
-            : 'index.php';
-        header('Location: ' . $safeRedirect);
-        exit;
 
     } catch (AppException $e) {
         $error = $e->getMessage();
@@ -179,6 +196,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="expired-notice" style="background:#fee2e2;border-color:#ef4444;color:#991b1b;">
             Tu cuenta ha sido desactivada. Contacta con el administrador.
         </div>
+        <?php elseif ($negocioInactivo): ?>
+        <div class="expired-notice" style="background:#fee2e2;border-color:#ef4444;color:#991b1b;">
+            Esta empresa ha sido desactivada. Contacta con soporte.
+        </div>
         <?php endif; ?>
 
         <?php if ($error): ?>
@@ -187,14 +208,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <?php endif; ?>
 
-        <form method="POST" autocomplete="off">
+        <!-- Formulario unificado: empresa (opcional) + email/usuario + contraseña -->
+        <form method="POST" autocomplete="off" id="loginForm">
             <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect, ENT_QUOTES, 'UTF-8') ?>">
+
+            <!-- Campo empresa: si se rellena, activa el modo multi-tenant -->
             <div class="form-field" style="margin-bottom:1.25rem;">
-                <label class="field-label">Usuario</label>
-                <input type="text" name="username" class="field-input" required autofocus
+                <label class="field-label">Empresa <span style="color:#94a3b8;font-weight:400;">(opcional — solo empleados de empresa)</span></label>
+                <input type="text" name="business" id="fieldBusiness" class="field-input"
+                       value="<?= htmlspecialchars($_POST['business'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                       placeholder="Nombre o código de tu empresa"
+                       oninput="toggleLoginMode()">
+            </div>
+
+            <!-- Email (modo empresa) o Username (modo local) -->
+            <div class="form-field" style="margin-bottom:1.25rem;" id="wrapEmail">
+                <label class="field-label" id="labelUser">Email</label>
+                <input type="text" name="email" id="fieldEmail" class="field-input"
+                       value="<?= htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                       placeholder="tu@email.com" autofocus>
+                <input type="text" name="username" id="fieldUsername" class="field-input" style="display:none;"
                        value="<?= htmlspecialchars($_POST['username'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                        placeholder="Introduce tu usuario">
             </div>
+
             <div class="form-field" style="margin-bottom:1.75rem;">
                 <label class="field-label">Contraseña</label>
                 <input type="password" name="password" class="field-input" required
@@ -204,6 +241,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 Entrar al sistema
             </button>
         </form>
+        <script>
+        function toggleLoginMode() {
+            const biz = document.getElementById('fieldBusiness').value.trim();
+            const emailField = document.getElementById('fieldEmail');
+            const userField  = document.getElementById('fieldUsername');
+            const label      = document.getElementById('labelUser');
+            if (biz !== '') {
+                emailField.style.display = '';
+                emailField.required = true;
+                userField.style.display  = 'none';
+                userField.required = false;
+                label.textContent = 'Email';
+            } else {
+                emailField.style.display = 'none';
+                emailField.required = false;
+                userField.style.display  = '';
+                userField.required = true;
+                label.textContent = 'Usuario';
+            }
+        }
+        toggleLoginMode();
+        </script>
     </div>
 
     <div class="login-footer">

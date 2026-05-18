@@ -3,6 +3,7 @@ require_once __DIR__ . '/AppException.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Producto.php';
 require_once __DIR__ . '/AlertaStock.php';
+require_once __DIR__ . '/../core/Session.php';
 
 /**
  * Modelo de gestión de movimientos de stock (entradas/salidas).
@@ -17,6 +18,8 @@ class Movimiento
     private PDO $pdo;
     private Producto $productoModel;
     private AlertaStock $alertaStock;
+    /** Filtra todas las queries por empresa cuando está en modo multi-tenant. */
+    private ?int $businessId;
 
     /**
      * @param PDO|null         $pdo         Conexión PDO inyectada (útil para tests con SQLite); si es null usa el singleton MySQL.
@@ -29,14 +32,25 @@ class Movimiento
         $this->pdo           = $pdo ?? Database::getInstance();
         $this->productoModel = new Producto($pdo);
         $this->alertaStock   = $alertaStock ?? new AlertaStock($this->pdo);
+        $this->businessId    = Session::getBusinessId();
+    }
+
+    private function bizWhere(string $alias = 'm'): string
+    {
+        return $this->businessId !== null ? " AND {$alias}.business_id = :biz_id" : "";
+    }
+
+    private function bizParam(): array
+    {
+        return $this->businessId !== null ? [':biz_id' => $this->businessId] : [];
     }
 
     /**
      * Registra un movimiento y actualiza el stock del producto.
      *
-     * @param int    $productoId   ID del producto.
-     * @param string $tipo         'entrada' o 'salida'.
-     * @param int    $cantidad     Unidades del movimiento (> 0).
+     * @param int    $productoId    ID del producto.
+     * @param string $tipo          'entrada' o 'salida'.
+     * @param int    $cantidad      Unidades del movimiento (> 0).
      * @param string $observaciones Texto libre con detalles.
      * @throws AppException Si el tipo es inválido, la cantidad inválida, o stock insuficiente.
      * @return int ID del movimiento creado.
@@ -55,16 +69,18 @@ class Movimiento
         $this->pdo->beginTransaction();
         try {
             $this->productoModel->actualizarStock($productoId, $delta);
+            $bizCol = $this->businessId !== null ? ', business_id' : '';
+            $bizVal = $this->businessId !== null ? ', :biz_id'    : '';
             $stmt = $this->pdo->prepare(
-                "INSERT INTO movimientos (producto_id, tipo, cantidad, observaciones)
-                 VALUES (:producto_id, :tipo, :cantidad, :observaciones)"
+                "INSERT INTO movimientos (producto_id, tipo, cantidad, observaciones{$bizCol})
+                 VALUES (:producto_id, :tipo, :cantidad, :observaciones{$bizVal})"
             );
-            $stmt->execute([
-                ':producto_id'  => $productoId,
-                ':tipo'         => $tipo,
-                ':cantidad'     => $cantidad,
-                ':observaciones'=> $observaciones,
-            ]);
+            $stmt->execute(array_merge([
+                ':producto_id'   => $productoId,
+                ':tipo'          => $tipo,
+                ':cantidad'      => $cantidad,
+                ':observaciones' => $observaciones,
+            ], $this->bizParam()));
             $id = (int) $this->pdo->lastInsertId();
             $this->pdo->commit();
 
@@ -92,10 +108,10 @@ class Movimiento
             "SELECT m.*, p.nombre AS producto_nombre
              FROM movimientos m
              JOIN productos p ON m.producto_id = p.id
-             WHERE m.producto_id = :producto_id
+             WHERE m.producto_id = :producto_id" . $this->bizWhere() . "
              ORDER BY m.fecha DESC"
         );
-        $stmt->execute([':producto_id' => $productoId]);
+        $stmt->execute(array_merge([':producto_id' => $productoId], $this->bizParam()));
         return $stmt->fetchAll();
     }
 
@@ -111,10 +127,10 @@ class Movimiento
             "SELECT
                 SUM(CASE WHEN tipo = 'entrada' THEN cantidad ELSE 0 END) AS entradas,
                 SUM(CASE WHEN tipo = 'salida'  THEN cantidad ELSE 0 END) AS salidas
-             FROM movimientos
-             WHERE producto_id = :producto_id"
+             FROM movimientos m
+             WHERE m.producto_id = :producto_id" . $this->bizWhere()
         );
-        $stmt->execute([':producto_id' => $productoId]);
+        $stmt->execute(array_merge([':producto_id' => $productoId], $this->bizParam()));
         $row = $stmt->fetch();
         $entradas = (int) ($row['entradas'] ?? 0);
         $salidas  = (int) ($row['salidas']  ?? 0);
@@ -129,13 +145,15 @@ class Movimiento
      */
     public function ultimosMovimientos(int $limite = 10): array
     {
-        $stmt = $this->pdo->prepare(
-            "SELECT m.*, p.nombre AS producto_nombre
-             FROM movimientos m
-             JOIN productos p ON m.producto_id = p.id
-             ORDER BY m.fecha DESC
-             LIMIT :limite"
-        );
+        $sql  = "SELECT m.*, p.nombre AS producto_nombre
+                 FROM movimientos m
+                 JOIN productos p ON m.producto_id = p.id
+                 WHERE 1=1" . $this->bizWhere() . "
+                 ORDER BY m.fecha DESC LIMIT :limite";
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($this->bizParam() as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
         $stmt->bindValue(':limite', $limite, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
@@ -144,22 +162,25 @@ class Movimiento
     /**
      * Retorna estadísticas de movimientos agrupadas por día (últimos N días).
      *
- * @author   miguelrechefdez
+     * @author   miguelrechefdez
      * @param int $dias Número de días a consultar (default 7).
      * @return array<int, array{fecha: string, entradas: int, salidas: int}>
      */
     public function estadisticasPorDia(int $dias = 7): array
     {
-        $stmt = $this->pdo->prepare(
-            "SELECT
-                DATE(fecha) AS fecha,
-                SUM(CASE WHEN tipo = 'entrada' THEN cantidad ELSE 0 END) AS entradas,
-                SUM(CASE WHEN tipo = 'salida'  THEN cantidad ELSE 0 END) AS salidas
-             FROM movimientos
-             WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL :dias DAY)
-             GROUP BY DATE(fecha)
-             ORDER BY DATE(fecha) ASC"
-        );
+        $sql  = "SELECT
+                    DATE(m.fecha) AS fecha,
+                    SUM(CASE WHEN m.tipo = 'entrada' THEN m.cantidad ELSE 0 END) AS entradas,
+                    SUM(CASE WHEN m.tipo = 'salida'  THEN m.cantidad ELSE 0 END) AS salidas
+                 FROM movimientos m
+                 WHERE m.fecha >= DATE_SUB(CURDATE(), INTERVAL :dias DAY)"
+                . $this->bizWhere() . "
+                 GROUP BY DATE(m.fecha)
+                 ORDER BY DATE(m.fecha) ASC";
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($this->bizParam() as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
         $stmt->bindValue(':dias', $dias, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
@@ -168,16 +189,16 @@ class Movimiento
     /**
      * Cuenta el total de movimientos del mes actual.
      *
- * @author   miguelrechefdez
+     * @author   miguelrechefdez
      * @return int
      */
     public function contarEsteMes(): int
     {
-        $stmt = $this->pdo->query(
-            "SELECT COUNT(*) FROM movimientos
-             WHERE YEAR(fecha) = YEAR(CURDATE())
-               AND MONTH(fecha) = MONTH(CURDATE())"
-        );
+        $sql  = "SELECT COUNT(*) FROM movimientos m
+                 WHERE YEAR(m.fecha) = YEAR(CURDATE())
+                   AND MONTH(m.fecha) = MONTH(CURDATE())" . $this->bizWhere();
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->bizParam());
         return (int) $stmt->fetchColumn();
     }
 
@@ -190,9 +211,10 @@ class Movimiento
     public function contarPorProducto(int $productoId): int
     {
         $stmt = $this->pdo->prepare(
-            "SELECT COUNT(*) FROM movimientos WHERE producto_id = :producto_id"
+            "SELECT COUNT(*) FROM movimientos m
+             WHERE m.producto_id = :producto_id" . $this->bizWhere()
         );
-        $stmt->execute([':producto_id' => $productoId]);
+        $stmt->execute(array_merge([':producto_id' => $productoId], $this->bizParam()));
         return (int) $stmt->fetchColumn();
     }
 
@@ -207,14 +229,16 @@ class Movimiento
     public function listarPorProductoPaginado(int $productoId, int $pagina, int $porPagina): array
     {
         $offset = ($pagina - 1) * $porPagina;
-        $stmt   = $this->pdo->prepare(
-            "SELECT m.*, p.nombre AS producto_nombre
-             FROM movimientos m
-             JOIN productos p ON m.producto_id = p.id
-             WHERE m.producto_id = :producto_id
-             ORDER BY m.fecha DESC
-             LIMIT :limite OFFSET :offset"
-        );
+        $sql    = "SELECT m.*, p.nombre AS producto_nombre
+                   FROM movimientos m
+                   JOIN productos p ON m.producto_id = p.id
+                   WHERE m.producto_id = :producto_id" . $this->bizWhere() . "
+                   ORDER BY m.fecha DESC
+                   LIMIT :limite OFFSET :offset";
+        $stmt   = $this->pdo->prepare($sql);
+        foreach ($this->bizParam() as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
         $stmt->bindValue(':producto_id', $productoId, PDO::PARAM_INT);
         $stmt->bindValue(':limite',      $porPagina,  PDO::PARAM_INT);
         $stmt->bindValue(':offset',      $offset,     PDO::PARAM_INT);

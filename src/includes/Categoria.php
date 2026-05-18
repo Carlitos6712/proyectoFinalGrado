@@ -2,6 +2,7 @@
 require_once __DIR__ . '/AppException.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Auditoria.php';
+require_once __DIR__ . '/../core/Session.php';
 
 /**
  * Modelo de gestión de categorías del inventario.
@@ -15,6 +16,8 @@ class Categoria
 {
     private PDO $pdo;
     private Auditoria $auditoria;
+    /** Filtra todas las queries por empresa cuando está en modo multi-tenant. */
+    private ?int $businessId;
 
     /**
      * @param PDO|null       $pdo       Conexión PDO inyectada (útil para tests con SQLite); si es null usa el singleton MySQL.
@@ -24,8 +27,19 @@ class Categoria
      */
     public function __construct(?PDO $pdo = null, ?Auditoria $auditoria = null)
     {
-        $this->pdo       = $pdo ?? Database::getInstance();
-        $this->auditoria = $auditoria ?? new Auditoria($this->pdo);
+        $this->pdo        = $pdo ?? Database::getInstance();
+        $this->auditoria  = $auditoria ?? new Auditoria($this->pdo);
+        $this->businessId = Session::getBusinessId();
+    }
+
+    private function bizWhere(string $alias = 'c'): string
+    {
+        return $this->businessId !== null ? " AND {$alias}.business_id = :biz_id" : "";
+    }
+
+    private function bizParam(): array
+    {
+        return $this->businessId !== null ? [':biz_id' => $this->businessId] : [];
     }
 
     /**
@@ -35,13 +49,19 @@ class Categoria
      */
     public function listar(): array
     {
-        $stmt = $this->pdo->query(
-            "SELECT c.*, COUNT(p.id) AS total_productos
-             FROM categorias c
-             LEFT JOIN productos p ON p.categoria_id = c.id AND p.deleted_at IS NULL
-             GROUP BY c.id
-             ORDER BY c.nombre"
-        );
+        $bizProd = $this->businessId !== null ? " AND p.business_id = :biz_id2" : "";
+        $sql  = "SELECT c.*, COUNT(p.id) AS total_productos
+                 FROM categorias c
+                 LEFT JOIN productos p ON p.categoria_id = c.id AND p.deleted_at IS NULL{$bizProd}
+                 WHERE 1=1" . $this->bizWhere() . "
+                 GROUP BY c.id
+                 ORDER BY c.nombre";
+        $params = $this->bizParam();
+        if ($this->businessId !== null) {
+            $params[':biz_id2'] = $this->businessId;
+        }
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll();
     }
 
@@ -54,8 +74,10 @@ class Categoria
      */
     public function obtenerPorId(int $id): array
     {
-        $stmt = $this->pdo->prepare("SELECT * FROM categorias WHERE id = :id");
-        $stmt->execute([':id' => $id]);
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM categorias c WHERE c.id = :id" . $this->bizWhere()
+        );
+        $stmt->execute(array_merge([':id' => $id], $this->bizParam()));
         $row = $stmt->fetch();
         if (!$row) {
             throw new AppException("Categoría #{$id} no encontrada.", 404);
@@ -72,10 +94,15 @@ class Categoria
      */
     public function crear(string $nombre, string $descripcion = ''): int
     {
+        $bizCol = $this->businessId !== null ? ', business_id' : '';
+        $bizVal = $this->businessId !== null ? ', :biz_id'    : '';
         $stmt = $this->pdo->prepare(
-            "INSERT INTO categorias (nombre, descripcion) VALUES (:nombre, :descripcion)"
+            "INSERT INTO categorias (nombre, descripcion{$bizCol}) VALUES (:nombre, :descripcion{$bizVal})"
         );
-        $stmt->execute([':nombre' => $nombre, ':descripcion' => $descripcion]);
+        $stmt->execute(array_merge(
+            [':nombre' => $nombre, ':descripcion' => $descripcion],
+            $this->bizParam()
+        ));
         $id = (int) $this->pdo->lastInsertId();
         $this->auditarOperacion('crear', $id, null, compact('nombre', 'descripcion'));
         return $id;
@@ -92,10 +119,15 @@ class Categoria
     public function actualizar(int $id, string $nombre, string $descripcion = ''): bool
     {
         $anterior  = $this->obtenerPorId($id);
+        $biz = $this->businessId !== null ? " AND business_id = :biz_id" : "";
         $stmt = $this->pdo->prepare(
-            "UPDATE categorias SET nombre = :nombre, descripcion = :descripcion WHERE id = :id"
+            "UPDATE categorias SET nombre = :nombre, descripcion = :descripcion
+             WHERE id = :id{$biz}"
         );
-        $resultado = $stmt->execute([':nombre' => $nombre, ':descripcion' => $descripcion, ':id' => $id]);
+        $resultado = $stmt->execute(array_merge(
+            [':nombre' => $nombre, ':descripcion' => $descripcion, ':id' => $id],
+            $this->bizParam()
+        ));
         if ($resultado && $stmt->rowCount() > 0) {
             $this->auditarOperacion('actualizar', $id, $anterior, compact('nombre', 'descripcion'));
         }
@@ -111,16 +143,23 @@ class Categoria
      */
     public function eliminar(int $id): bool
     {
-        $stmt = $this->pdo->prepare(
-            "SELECT COUNT(*) FROM productos WHERE categoria_id = :id AND deleted_at IS NULL"
-        );
-        $stmt->execute([':id' => $id]);
-        if ((int) $stmt->fetchColumn() > 0) {
+        $bizProd = $this->businessId !== null ? " AND p.business_id = :biz_id2" : "";
+        $chkSql  = "SELECT COUNT(*) FROM productos p
+                    WHERE p.categoria_id = :id AND p.deleted_at IS NULL{$bizProd}";
+        $chkStmt = $this->pdo->prepare($chkSql);
+        $chkParams = [':id' => $id];
+        if ($this->businessId !== null) {
+            $chkParams[':biz_id2'] = $this->businessId;
+        }
+        $chkStmt->execute($chkParams);
+        if ((int) $chkStmt->fetchColumn() > 0) {
             throw new AppException('No se puede eliminar: la categoría tiene productos activos.', 409);
         }
         $anterior = $this->obtenerPorId($id);
-        $del = $this->pdo->prepare("DELETE FROM categorias WHERE id = :id");
-        $resultado = $del->execute([':id' => $id]);
+        $del = $this->pdo->prepare(
+            "DELETE FROM categorias WHERE id = :id" . $this->bizWhere('')
+        );
+        $resultado = $del->execute(array_merge([':id' => $id], $this->bizParam()));
         if ($resultado) {
             $this->auditarOperacion('eliminar', $id, $anterior, null);
         }

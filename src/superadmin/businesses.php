@@ -66,6 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['flash_success'] = $nuevo ? 'Negocio activado.' : 'Negocio desactivado.';
                 header('Location: businesses.php');
                 exit;
+
+            case 'impersonate':
+                $ctrl->impersonate($id);
+                // impersonate() redirects internally — execution stops there
+                exit;
         }
     } catch (AppException $e) {
         $flashError = $e->getMessage();

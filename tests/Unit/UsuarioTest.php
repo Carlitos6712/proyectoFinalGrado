@@ -65,7 +65,7 @@ class UsuarioTest extends TestCase
                 password_hash   TEXT    NOT NULL,
                 nombre_completo TEXT    NOT NULL,
                 email           TEXT    DEFAULT '',
-                rol             TEXT    DEFAULT 'operario',
+                rol             TEXT    DEFAULT 'employee',
                 activo          INTEGER DEFAULT 1,
                 last_login      TEXT    NULL,
                 created_at      TEXT    DEFAULT CURRENT_TIMESTAMP
@@ -84,11 +84,11 @@ class UsuarioTest extends TestCase
     private function crearUsuario(array $overrides = []): int
     {
         $defaults = [
-            'username'        => 'operario1',
+            'username'        => 'employee1',
             'password'        => 'password123',
-            'nombre_completo' => 'Operario Uno',
-            'email'           => 'operario@test.local',
-            'rol'             => 'operario',
+            'nombre_completo' => 'Employee Uno',
+            'email'           => 'employee@test.local',
+            'rol'             => 'employee',
         ];
         $d = array_merge($defaults, $overrides);
 
@@ -130,7 +130,7 @@ class UsuarioTest extends TestCase
         $this->expectException(AppException::class);
         $this->expectExceptionCode(400);
 
-        $this->model->crear('shorty', '1234567', 'Shorty', '', 'operario');
+        $this->model->crear('shorty', '1234567', 'Shorty', '', 'employee');
     }
 
     #[Test]
@@ -150,7 +150,7 @@ class UsuarioTest extends TestCase
         $this->expectException(AppException::class);
         $this->expectExceptionCode(400);
 
-        $this->model->crear('roltest', 'password123', 'Test', '', 'superadmin');
+        $this->model->crear('roltest', 'password123', 'Test', '', 'operario');
     }
 
     // ── Tests: obtenerPorId ───────────────────────────────────────────────────
@@ -241,7 +241,7 @@ class UsuarioTest extends TestCase
         $this->expectException(AppException::class);
         $this->expectExceptionCode(409);
 
-        $this->model->actualizar($id, 'taken', 'Nombre', '', 'operario');
+        $this->model->actualizar($id, 'taken', 'Nombre', '', 'employee');
     }
 
     #[Test]
@@ -250,7 +250,7 @@ class UsuarioTest extends TestCase
         $id = $this->crearUsuario(['username' => 'myuser']);
 
         // Actualizar con el mismo username no debe lanzar excepción
-        $result = $this->model->actualizar($id, 'myuser', 'Mi Nombre Nuevo', '', 'operario');
+        $result = $this->model->actualizar($id, 'myuser', 'Mi Nombre Nuevo', '', 'employee');
 
         $this->assertTrue($result);
     }
@@ -271,7 +271,7 @@ class UsuarioTest extends TestCase
     #[Test]
     public function it_deactivates_an_active_operario(): void
     {
-        $id     = $this->crearUsuario(['username' => 'opuser', 'rol' => 'operario']);
+        $id     = $this->crearUsuario(['username' => 'opuser', 'rol' => 'employee']);
         $nuevo  = $this->model->toggleActivo($id);
 
         $this->assertFalse($nuevo);
@@ -282,7 +282,7 @@ class UsuarioTest extends TestCase
     #[Test]
     public function it_reactivates_an_inactive_user(): void
     {
-        $id = $this->crearUsuario(['username' => 'reactive', 'rol' => 'operario']);
+        $id = $this->crearUsuario(['username' => 'reactive', 'rol' => 'employee']);
         $this->pdo->exec("UPDATE usuarios SET activo = 0 WHERE id = {$id}");
 
         $nuevo = $this->model->toggleActivo($id);
@@ -360,13 +360,13 @@ class UsuarioTest extends TestCase
     #[Test]
     public function it_does_not_change_username_or_rol_when_updating_profile(): void
     {
-        $id = $this->crearUsuario(['username' => 'notouch', 'rol' => 'operario']);
+        $id = $this->crearUsuario(['username' => 'notouch', 'rol' => 'employee']);
 
         $this->model->actualizarPerfil($id, 'Nombre Cambiado', 'x@y.com');
 
         $row = $this->model->obtenerPorId($id);
         $this->assertSame('notouch',  $row['username']);
-        $this->assertSame('operario', $row['rol']);
+        $this->assertSame('employee', $row['rol']);
     }
 
     // ── Tests: cambiarPassword ────────────────────────────────────────────────

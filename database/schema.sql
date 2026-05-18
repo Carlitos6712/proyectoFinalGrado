@@ -220,6 +220,137 @@ CREATE TABLE IF NOT EXISTS compatibilidades (
 ) ENGINE=InnoDB;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Multi-tenant: negocios, empleados, contacto, actividad, anuncios
+-- (originadas en database/migrations/superadmin_panel.sql)
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS businesses (
+    id              INT           AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(150)  NOT NULL,
+    slug            VARCHAR(100)  NOT NULL UNIQUE,
+    logo_path       VARCHAR(255),
+    contact_email   VARCHAR(150),
+    phone           VARCHAR(30),
+    address         TEXT,
+    email           VARCHAR(150),
+    plan            ENUM('free','basic','pro') DEFAULT 'free',
+    plan_expires_at DATE,
+    is_active       TINYINT(1)    DEFAULT 1,
+    created_at      TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS employees (
+    id          INT           AUTO_INCREMENT PRIMARY KEY,
+    business_id INT           NOT NULL,
+    name        VARCHAR(100)  NOT NULL,
+    email       VARCHAR(150)  NOT NULL,
+    password    VARCHAR(255)  NOT NULL,
+    role        ENUM('admin','employee') DEFAULT 'employee',
+    is_active   TINYINT(1)    DEFAULT 1,
+    created_at  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS contact_messages (
+    id           INT           AUTO_INCREMENT PRIMARY KEY,
+    business_id  INT,
+    sender_name  VARCHAR(100)  NOT NULL,
+    sender_email VARCHAR(150)  NOT NULL,
+    subject      VARCHAR(200),
+    message      TEXT          NOT NULL,
+    is_read      TINYINT(1)    DEFAULT 0,
+    replied_at   TIMESTAMP     NULL,
+    created_at   TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id          INT           AUTO_INCREMENT PRIMARY KEY,
+    business_id INT,
+    employee_id INT,
+    action      VARCHAR(200)  NOT NULL,
+    entity      VARCHAR(100),
+    entity_id   INT,
+    ip_address  VARCHAR(45),
+    metadata    JSON          NULL,
+    is_critical TINYINT(1)    DEFAULT 0,
+    created_at  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS announcements (
+    id         INT           AUTO_INCREMENT PRIMARY KEY,
+    title      VARCHAR(200)  NOT NULL,
+    body       TEXT          NOT NULL,
+    is_active  TINYINT(1)    DEFAULT 1,
+    created_at TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Seguridad: intentos de login, sesiones
+-- (database/migrations/security.sql)
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id           INT          AUTO_INCREMENT PRIMARY KEY,
+    ip_address   VARCHAR(45)  NOT NULL,
+    email        VARCHAR(150),
+    attempted_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ip   (ip_address),
+    INDEX idx_time (attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS session_logs (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    user_type   ENUM('superadmin','employee') NOT NULL,
+    user_id     INT          NOT NULL,
+    business_id INT          NULL,
+    ip_address  VARCHAR(45)  NULL,
+    user_agent  VARCHAR(500) NULL,
+    action      ENUM('login','logout','expired') NOT NULL,
+    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Notificaciones y configuración global
+-- (database/migrations/notifications.sql + settings.sql)
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS superadmin_notifications (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    type       VARCHAR(100) NOT NULL,
+    title      VARCHAR(200) NOT NULL,
+    body       TEXT,
+    link       VARCHAR(255),
+    is_read    TINYINT(1)   DEFAULT 0,
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_read    (is_read),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    setting_key VARCHAR(100) NOT NULL UNIQUE,
+    value       TEXT,
+    type        ENUM('string','integer','boolean','json') DEFAULT 'string',
+    description VARCHAR(255),
+    updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO system_settings (setting_key, value, type, description) VALUES
+('app_name',            'es21plus', 'string',  'Nombre de la aplicación'),
+('registration_open',   '1',        'boolean', 'Permitir registro público'),
+('maintenance_mode',    '0',        'boolean', 'Modo mantenimiento'),
+('maintenance_message', '',         'string',  'Mensaje de mantenimiento'),
+('default_plan',        'free',     'string',  'Plan por defecto en registro'),
+('trial_days',          '14',       'integer', 'Días de prueba al registrarse'),
+('max_file_upload_mb',  '5',        'integer', 'Tamaño máximo de subida en MB'),
+('superadmin_email',    '',         'string',  'Email de notificaciones'),
+('smtp_host',           '',         'string',  'Servidor SMTP'),
+('smtp_port',           '587',      'integer', 'Puerto SMTP'),
+('smtp_user',           '',         'string',  'Usuario SMTP'),
+('smtp_password',       '',         'string',  'Contraseña SMTP cifrada'),
+('smtp_from_name',      'es21plus', 'string',  'Nombre remitente de correos')
+ON DUPLICATE KEY UPDATE setting_key = setting_key;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Tickets de soporte, Facturación y Planes
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS support_tickets (

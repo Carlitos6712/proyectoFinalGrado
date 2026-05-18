@@ -77,9 +77,6 @@ CREATE TABLE IF NOT EXISTS movimientos (
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Migración: añadir alertas_email a productos (para instalaciones existentes)
-ALTER TABLE productos ADD COLUMN IF NOT EXISTS alertas_email TINYINT(1) DEFAULT 1;
-
 -- -------------------------------------------------------------
 -- Tabla: alertas_stock (deduplicación de alertas de email)
 -- -------------------------------------------------------------

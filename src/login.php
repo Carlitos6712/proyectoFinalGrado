@@ -208,28 +208,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <?php endif; ?>
 
-        <!-- Formulario unificado: empresa (opcional) + email/usuario + contraseña -->
+        <!-- Formulario unificado: empresa (opcional) + selector empleado + contraseña -->
         <form method="POST" autocomplete="off" id="loginForm">
             <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect, ENT_QUOTES, 'UTF-8') ?>">
 
-            <!-- Campo empresa: si se rellena, activa el modo multi-tenant -->
+            <!-- Campo empresa -->
             <div class="form-field" style="margin-bottom:1.25rem;">
                 <label class="field-label">Empresa <span style="color:#94a3b8;font-weight:400;">(opcional — solo empleados de empresa)</span></label>
                 <input type="text" name="business" id="fieldBusiness" class="field-input"
                        value="<?= htmlspecialchars($_POST['business'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                        placeholder="Nombre o código de tu empresa"
-                       oninput="toggleLoginMode()">
+                       autocomplete="off">
             </div>
 
-            <!-- Email (modo empresa) o Username (modo local) -->
-            <div class="form-field" style="margin-bottom:1.25rem;" id="wrapEmail">
-                <label class="field-label" id="labelUser">Email</label>
-                <input type="text" name="email" id="fieldEmail" class="field-input"
-                       value="<?= htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                       placeholder="tu@email.com" autofocus>
-                <input type="text" name="username" id="fieldUsername" class="field-input" style="display:none;"
+            <!-- Selector de empleado (modo empresa) -->
+            <div class="form-field" style="margin-bottom:1.25rem;display:none;" id="wrapEmpleado">
+                <label class="field-label">¿Quién eres?</label>
+                <select id="fieldEmpleado" class="field-input" style="cursor:pointer;">
+                    <option value="">— Selecciona tu nombre —</option>
+                </select>
+                <!-- email oculto que se envía al servidor -->
+                <input type="hidden" name="email" id="fieldEmail"
+                       value="<?= htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                <div id="bizStatus" style="font-size:.78rem;margin-top:.4rem;color:#64748b;"></div>
+            </div>
+
+            <!-- Username (modo local, sin empresa) -->
+            <div class="form-field" style="margin-bottom:1.25rem;" id="wrapUsername">
+                <label class="field-label">Usuario</label>
+                <input type="text" name="username" id="fieldUsername" class="field-input"
                        value="<?= htmlspecialchars($_POST['username'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                       placeholder="Introduce tu usuario">
+                       placeholder="Introduce tu usuario" autofocus>
             </div>
 
             <div class="form-field" style="margin-bottom:1.75rem;">
@@ -242,26 +251,110 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </button>
         </form>
         <script>
-        function toggleLoginMode() {
-            const biz = document.getElementById('fieldBusiness').value.trim();
-            const emailField = document.getElementById('fieldEmail');
-            const userField  = document.getElementById('fieldUsername');
-            const label      = document.getElementById('labelUser');
-            if (biz !== '') {
-                emailField.style.display = '';
-                emailField.required = true;
-                userField.style.display  = 'none';
-                userField.required = false;
-                label.textContent = 'Email';
-            } else {
-                emailField.style.display = 'none';
-                emailField.required = false;
-                userField.style.display  = '';
-                userField.required = true;
-                label.textContent = 'Usuario';
+        /**
+         * Alterna entre modo empresa (selector empleado) y modo local (username).
+         * Carga empleados del negocio por AJAX cuando hay texto en el campo empresa.
+         */
+        let _bizDebounce = null;
+        let _empleadoMap = {}; // id → email
+
+        const fieldBusiness  = document.getElementById('fieldBusiness');
+        const wrapEmpleado   = document.getElementById('wrapEmpleado');
+        const wrapUsername   = document.getElementById('wrapUsername');
+        const fieldEmpleado  = document.getElementById('fieldEmpleado');
+        const fieldEmail     = document.getElementById('fieldEmail');
+        const fieldUsername  = document.getElementById('fieldUsername');
+        const bizStatus      = document.getElementById('bizStatus');
+
+        fieldBusiness.addEventListener('input', () => {
+            clearTimeout(_bizDebounce);
+            const biz = fieldBusiness.value.trim();
+
+            if (biz === '') {
+                mostrarModoLocal();
+                return;
+            }
+
+            // Debounce 400 ms antes de hacer fetch
+            _bizDebounce = setTimeout(() => cargarEmpleados(biz), 400);
+        });
+
+        /**
+         * Carga empleados activos de la empresa indicada.
+         * @param {string} biz
+         */
+        async function cargarEmpleados(biz) {
+            bizStatus.textContent = 'Buscando empresa…';
+            bizStatus.style.color = '#64748b';
+            wrapEmpleado.style.display = 'block';
+            wrapUsername.style.display = 'none';
+            fieldUsername.required = false;
+
+            try {
+                const res  = await fetch(`api/empleados_negocio.php?business=${encodeURIComponent(biz)}`);
+                const json = await res.json();
+
+                if (!json.success || !json.data.length) {
+                    bizStatus.textContent = json.success ? 'No hay empleados activos en esta empresa.' : 'Empresa no encontrada.';
+                    bizStatus.style.color = '#ef4444';
+                    fieldEmpleado.innerHTML = '<option value="">— Sin empleados —</option>';
+                    fieldEmail.value = '';
+                    fieldEmpleado.required = false;
+                    return;
+                }
+
+                bizStatus.textContent = `${json.data.length} empleado${json.data.length !== 1 ? 's' : ''} encontrado${json.data.length !== 1 ? 's' : ''}.`;
+                bizStatus.style.color = '#22c55e';
+
+                _empleadoMap = {};
+                fieldEmpleado.innerHTML = '<option value="">— Selecciona tu nombre —</option>';
+                json.data.forEach(emp => {
+                    _empleadoMap[emp.id] = emp.email;
+                    const opt  = document.createElement('option');
+                    opt.value  = emp.id;
+                    const role = emp.role === 'admin' ? ' (Admin)' : ' (Empleado)';
+                    opt.textContent = emp.name + role;
+                    fieldEmpleado.appendChild(opt);
+                });
+                fieldEmpleado.required = true;
+
+                // Si solo hay un empleado, preseleccionar
+                if (json.data.length === 1) {
+                    fieldEmpleado.value = json.data[0].id;
+                    fieldEmail.value    = json.data[0].email;
+                }
+
+            } catch {
+                bizStatus.textContent = 'Error al conectar. Inténtalo de nuevo.';
+                bizStatus.style.color = '#ef4444';
             }
         }
-        toggleLoginMode();
+
+        /** Sincroniza el email oculto cuando se selecciona un empleado. */
+        fieldEmpleado.addEventListener('change', () => {
+            const id = fieldEmpleado.value;
+            fieldEmail.value = id ? (_empleadoMap[id] ?? '') : '';
+        });
+
+        /** Activa el modo login local (sin empresa). */
+        function mostrarModoLocal() {
+            wrapEmpleado.style.display = 'none';
+            wrapUsername.style.display = 'block';
+            fieldUsername.required     = true;
+            fieldEmpleado.required     = false;
+            fieldEmail.value           = '';
+            bizStatus.textContent      = '';
+        }
+
+        // Estado inicial según si viene valor de empresa por POST (error previo)
+        (function init() {
+            const bizVal = fieldBusiness.value.trim();
+            if (bizVal !== '') {
+                cargarEmpleados(bizVal);
+            } else {
+                mostrarModoLocal();
+            }
+        })();
         </script>
     </div>
 

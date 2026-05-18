@@ -43,10 +43,17 @@ $_tbPlanMeta = match ($_tbBizPlan) {
 $_tbCsrfReturn = $_tbImperson ? generateCsrfToken('sa_return') : '';
 ?>
 <?php if ($_tbImperson): ?>
-<style>body { padding-top: 2.75rem !important; }</style>
+<style>
+    :root { --ib-h: 2.5rem; }
+    body                  { padding-top: var(--ib-h) !important; }
+    .sidebar              { top: var(--ib-h) !important; height: calc(100vh - var(--ib-h)) !important; }
+    .sidebar-overlay      { top: var(--ib-h) !important; }
+    .topbar               { top: var(--ib-h) !important; }
+</style>
 <div id="impersonationBar" style="position:fixed;top:0;left:0;right:0;z-index:9999;
+     height:2.5rem;box-sizing:border-box;
      background:#f97316;color:#fff;display:flex;align-items:center;
-     justify-content:space-between;padding:.45rem 1.25rem;font-size:.84rem;font-weight:600;
+     justify-content:space-between;padding:0 1.25rem;font-size:.84rem;font-weight:600;
      box-shadow:0 2px 8px rgba(249,115,22,.35);">
     <span>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"

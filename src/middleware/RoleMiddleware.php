@@ -32,32 +32,40 @@ class RoleMiddleware
             session_start();
         }
 
-        // Sin sesión → login
-        if (empty($_SESSION['usuario_id'])) {
+        $isBusinessUser = !empty($_SESSION['user_id']) && !empty($_SESSION['business_id']);
+        $isLocalUser    = !$isBusinessUser && !empty($_SESSION['usuario_id']);
+
+        if (!$isLocalUser && !$isBusinessUser) {
             header('Location: login.php');
             exit;
         }
 
-        // Usuario desactivado → destruir sesión y redirigir
-        if ((int)($_SESSION['usuario_activo'] ?? 1) === 0) {
-            session_unset();
-            session_destroy();
-            header('Location: login.php?deactivated=1');
-            exit;
-        }
-
-        $rol = $_SESSION['rol'] ?? '';
-
-        if (!in_array($rol, $allowedRoles, true)) {
-            $_SESSION['flash_error'] = 'No tienes permiso para acceder a esa sección.';
-
-            // Superadmin no accede al panel normal
-            if ($rol === 'superadmin') {
-                header('Location: superadmin/index.php');
+        if ($isLocalUser) {
+            if ((int)($_SESSION['usuario_activo'] ?? 1) === 0) {
+                session_unset();
+                session_destroy();
+                header('Location: login.php?deactivated=1');
                 exit;
             }
 
-            // Employee intenta acceder a ruta de admin
+            $rol = $_SESSION['rol'] ?? '';
+
+            if (!in_array($rol, $allowedRoles, true)) {
+                $_SESSION['flash_error'] = 'No tienes permiso para acceder a esa sección.';
+                if ($rol === 'superadmin') {
+                    header('Location: superadmin/index.php');
+                    exit;
+                }
+                header('Location: index.php');
+                exit;
+            }
+            return;
+        }
+
+        // Sesión de empresa: usar user_role
+        $rol = $_SESSION['user_role'] ?? '';
+        if (!in_array($rol, $allowedRoles, true)) {
+            $_SESSION['flash_error'] = 'No tienes permiso para acceder a esa sección.';
             header('Location: index.php');
             exit;
         }
@@ -101,6 +109,9 @@ class RoleMiddleware
      */
     public static function hasRole(array $roles): bool
     {
-        return in_array($_SESSION['rol'] ?? '', $roles, true);
+        $rol = (!empty($_SESSION['user_id']) && !empty($_SESSION['business_id']))
+            ? ($_SESSION['user_role'] ?? '')
+            : ($_SESSION['rol'] ?? '');
+        return in_array($rol, $roles, true);
     }
 }

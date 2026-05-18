@@ -25,7 +25,7 @@ class Usuario
     private const BCRYPT_COST = 12;
 
     /** Roles válidos del sistema. */
-    private const ROLES_VALIDOS = ['admin', 'operario'];
+    private const ROLES_VALIDOS = ['superadmin', 'admin', 'employee'];
 
     /**
      * @param PDO|null $pdo Conexión inyectada (útil para tests SQLite); null usa el singleton MySQL.
@@ -53,6 +53,53 @@ class Usuario
              ORDER BY nombre_completo ASC"
         );
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Lista usuarios excluyendo superadmins (para el panel de gestión de admin).
+     *
+     * @return array<int, array<string, mixed>>
+     * @author Carlos Vico
+     */
+    public function listarSinSuperadmin(): array
+    {
+        $stmt = $this->pdo->query(
+            "SELECT id, username, nombre_completo, email, rol, activo, last_login, created_at
+             FROM usuarios
+             WHERE rol != 'superadmin'
+             ORDER BY nombre_completo ASC"
+        );
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Genera una contraseña aleatoria, la hashea y la guarda.
+     * Devuelve la contraseña en texto plano (para mostrar una única vez).
+     *
+     * @param int $id ID del usuario.
+     * @throws AppException Si el usuario no existe (404) o es superadmin (403).
+     * @return string Contraseña generada en texto plano.
+     * @author Carlos Vico
+     */
+    public function resetPassword(int $id): string
+    {
+        $usuario = $this->obtenerPorId($id);
+
+        if ($usuario['rol'] === 'superadmin') {
+            throw new AppException('No se puede resetear la contraseña de un superadmin desde este panel.', 403);
+        }
+
+        $chars    = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#';
+        $password = '';
+        for ($i = 0; $i < 10; $i++) {
+            $password .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+
+        $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => self::BCRYPT_COST]);
+        $stmt = $this->pdo->prepare("UPDATE usuarios SET password_hash = :hash WHERE id = :id");
+        $stmt->execute([':hash' => $hash, ':id' => $id]);
+
+        return $password;
     }
 
     /**
@@ -84,7 +131,7 @@ class Usuario
      * @param string $password        Contraseña en texto plano (mínimo 8 caracteres).
      * @param string $nombreCompleto  Nombre completo.
      * @param string $email           Email (opcional).
-     * @param string $rol             'admin' o 'operario'.
+     * @param string $rol             'admin' o 'employee'. No permite crear superadmin.
      * @throws AppException Si el username ya existe, el rol no es válido o la contraseña es demasiado corta.
      * @return int ID del usuario creado.
      * @author Carlitos6712
@@ -94,8 +141,11 @@ class Usuario
         string $password,
         string $nombreCompleto,
         string $email = '',
-        string $rol   = 'operario'
+        string $rol   = 'employee'
     ): int {
+        if ($rol === 'superadmin') {
+            throw new AppException('No se puede crear un usuario con rol superadmin desde este panel.', 403);
+        }
         $this->validarRol($rol);
         if (mb_strlen($password) < 8) {
             throw new AppException('La contraseña debe tener al menos 8 caracteres.', 400);
@@ -126,7 +176,7 @@ class Usuario
      * @param string $username       Nuevo username (único, excluye al propio usuario).
      * @param string $nombreCompleto Nuevo nombre completo.
      * @param string $email          Nuevo email.
-     * @param string $rol            Nuevo rol ('admin' o 'operario').
+     * @param string $rol            Nuevo rol ('admin' o 'employee'). No permite asignar superadmin.
      * @throws AppException Si el rol es inválido, el username ya está en uso por otro usuario,
      *                      o el usuario no existe.
      * @return bool
@@ -139,6 +189,9 @@ class Usuario
         string $email,
         string $rol
     ): bool {
+        if ($rol === 'superadmin') {
+            throw new AppException('No se puede asignar el rol superadmin desde este panel.', 403);
+        }
         $this->validarRol($rol);
         $this->obtenerPorId($id); // lanza 404 si no existe
 
@@ -187,6 +240,11 @@ class Usuario
                     409
                 );
             }
+        }
+
+        // No permitir desactivar superadmins desde este panel
+        if ($usuario['rol'] === 'superadmin') {
+            throw new AppException('No se puede modificar el estado de un superadmin desde este panel.', 403);
         }
 
         $nuevoEstado = (int)$usuario['activo'] === 1 ? 0 : 1;
@@ -427,7 +485,7 @@ class Usuario
     private function validarRol(string $rol): void
     {
         if (!in_array($rol, self::ROLES_VALIDOS, true)) {
-            throw new AppException("Rol inválido: '{$rol}'. Valores permitidos: admin, operario.", 400);
+            throw new AppException("Rol inválido: '{$rol}'. Valores permitidos: superadmin, admin, employee.", 400);
         }
     }
 

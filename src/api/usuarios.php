@@ -52,7 +52,7 @@ function jsonResponse(bool $success, mixed $data, string $message, int $status =
 }
 
 /**
- * Verifica que el usuario esté autenticado y tenga rol admin.
+ * Verifica que el usuario esté autenticado y tenga rol admin o superadmin.
  *
  * @throws never — llama a jsonResponse() directamente.
  * @return void
@@ -63,7 +63,7 @@ function requireAdmin(): void
     if (empty($_SESSION['usuario_id'])) {
         jsonResponse(false, null, 'No autenticado.', 401);
     }
-    if (($_SESSION['rol'] ?? '') !== 'admin') {
+    if (!in_array($_SESSION['rol'] ?? '', ['admin', 'superadmin'], true)) {
         jsonResponse(false, null, 'Acceso denegado: se requiere rol admin.', 403);
     }
 }
@@ -98,7 +98,7 @@ try {
             $password        = $body['password']             ?? '';
             $nombreCompleto  = trim($body['nombre_completo'] ?? '');
             $email           = trim($body['email']           ?? '');
-            $rol             = $body['rol']                  ?? 'operario';
+            $rol             = $body['rol']                  ?? 'employee';
 
             if ($username === '' || $password === '' || $nombreCompleto === '') {
                 jsonResponse(false, null, 'username, password y nombre_completo son obligatorios.', 400);
@@ -119,7 +119,7 @@ try {
             $username       = trim($body['username']        ?? '');
             $nombreCompleto = trim($body['nombre_completo'] ?? '');
             $email          = trim($body['email']           ?? '');
-            $rol            = $body['rol']                  ?? 'operario';
+            $rol            = $body['rol']                  ?? 'employee';
 
             if ($username === '' || $nombreCompleto === '') {
                 jsonResponse(false, null, 'username y nombre_completo son obligatorios.', 400);
@@ -129,18 +129,28 @@ try {
             $actualizado = $model->obtenerPorId($id);
             jsonResponse(true, $actualizado, 'Usuario actualizado correctamente.');
 
-        // ── PATCH: toggle activo ──────────────────────────────────────────────
+        // ── PATCH: acciones sobre usuario ────────────────────────────────────
         case 'PATCH':
             if ($id === null) {
                 jsonResponse(false, null, 'Parámetro id requerido.', 400);
             }
-            if ($accion !== 'toggle') {
-                jsonResponse(false, null, "Acción desconocida: '{$accion}'.", 400);
+
+            if ($accion === 'toggle') {
+                // Bloquear auto-desactivación
+                if ($id === (int)($_SESSION['usuario_id'] ?? 0)) {
+                    jsonResponse(false, null, 'No puedes desactivarte a ti mismo.', 403);
+                }
+                $nuevoEstado = $model->toggleActivo($id);
+                $estadoTexto = $nuevoEstado ? 'activado' : 'desactivado';
+                jsonResponse(true, ['activo' => $nuevoEstado], "Usuario {$estadoTexto} correctamente.");
             }
 
-            $nuevoEstado = $model->toggleActivo($id);
-            $estadoTexto = $nuevoEstado ? 'activado' : 'desactivado';
-            jsonResponse(true, ['activo' => $nuevoEstado], "Usuario {$estadoTexto} correctamente.");
+            if ($accion === 'reset-password') {
+                $nuevaPassword = $model->resetPassword($id);
+                jsonResponse(true, ['password' => $nuevaPassword], 'Contraseña reseteada. Muéstrala al usuario y pídele que la cambie.');
+            }
+
+            jsonResponse(false, null, "Acción desconocida: '{$accion}'.", 400);
 
         // ── Método no permitido ───────────────────────────────────────────────
         default:

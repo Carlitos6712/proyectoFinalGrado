@@ -15,21 +15,27 @@ require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Categoria.php';
+require_once __DIR__ . '/includes/Marca.php';
 
 // ── Parámetros de filtrado ────────────────────────────────────────────────────
 $termino     = trim($_GET['q']           ?? '');
 $categoriaId = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
+$marcaId     = filter_input(INPUT_GET, 'marca_id',     FILTER_VALIDATE_INT) ?: null;
 $precioMin   = filter_input(INPUT_GET, 'precio_min', FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
 $precioMax   = filter_input(INPUT_GET, 'precio_max', FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
 $stockMin    = filter_input(INPUT_GET, 'stock_min',  FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
 $stockMax    = filter_input(INPUT_GET, 'stock_max',  FILTER_VALIDATE_INT,   FILTER_NULL_ON_FAILURE);
 $soloStockBajo = isset($_GET['stock_bajo']) && $_GET['stock_bajo'] === '1';
 $orden       = in_array($_GET['orden'] ?? '', [
-    'nombre_asc','nombre_desc','precio_asc','precio_desc','stock_asc','stock_desc','fecha_asc','fecha_desc'
+    'nombre_asc','nombre_desc','precio_asc','precio_desc','stock_asc','stock_desc',
+    'fecha_asc','fecha_desc','ref_asc','ref_desc','categoria_asc','categoria_desc',
+    'marca_asc','marca_desc','estado_asc','estado_desc',
 ], true) ? $_GET['orden'] : 'nombre_asc';
-$pagina    = max(1, (int)(filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT) ?: 1));
-$porPagina = 20;
-$soloAjax  = isset($_GET['ajax']);
+$pagina         = max(1, (int)(filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT) ?: 1));
+$porPaginaOpts  = [10, 20, 25, 50, 100];
+$porPaginaInput = filter_input(INPUT_GET, 'por_pagina', FILTER_VALIDATE_INT);
+$porPagina      = in_array((int)$porPaginaInput, $porPaginaOpts, true) ? (int)$porPaginaInput : 20;
+$soloAjax       = isset($_GET['ajax']);
 
 // ── Consulta ──────────────────────────────────────────────────────────────────
 $productos      = [];
@@ -42,6 +48,7 @@ $stockBajoCount = 0;
 try {
     $modelo         = new Producto();
     $catModelo      = new Categoria();
+    $marcaModelo    = new Marca();
     $stockBajoCount = count($modelo->filtrarStockBajo());
 
     $total = $modelo->contarFiltrados(
@@ -51,7 +58,8 @@ try {
         $precioMax,
         $stockMin,
         $stockMax,
-        $soloStockBajo ?: null
+        $soloStockBajo ?: null,
+        $marcaId
     );
     $productos = $modelo->listarPaginado(
         $pagina,
@@ -63,10 +71,12 @@ try {
         $stockMin,
         $stockMax,
         $orden,
-        $soloStockBajo ?: null
+        $soloStockBajo ?: null,
+        $marcaId
     );
     $totalPaginas = (int) ceil($total / max(1, $porPagina));
     $categorias   = $catModelo->listar();
+    $marcas       = $marcaModelo->listar();
 } catch (\Throwable $e) {
     if ($soloAjax) {
         header('Content-Type: application/json; charset=utf-8');
@@ -151,9 +161,9 @@ if ($soloAjax) {
 }
 
 // ── Hay filtros activos? ──────────────────────────────────────────────────────
-$hayFiltros = $termino !== '' || $categoriaId !== null || $precioMin !== null
-           || $precioMax !== null || $stockMin !== null || $stockMax !== null
-           || $soloStockBajo;
+$hayFiltros = $termino !== '' || $categoriaId !== null || $marcaId !== null
+           || $precioMin !== null || $precioMax !== null
+           || $stockMin !== null || $stockMax !== null || $soloStockBajo;
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -424,6 +434,21 @@ $hayFiltros = $termino !== '' || $categoriaId !== null || $precioMin !== null
         .page-btn:disabled { opacity: .4; cursor: not-allowed; }
         /* ── Skeleton / loading ── */
         .search-loading { opacity: .5; pointer-events: none; }
+        /* ── Sort headers ── */
+        .th-sortable {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .th-sortable:hover { color: var(--accent); }
+        .th-arrow {
+            display: inline-block;
+            margin-left: 4px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            opacity: .5;
+        }
+        .th-arrow-active { color: var(--accent); opacity: 1; }
     </style>
 </head>
 <body class="layout">
@@ -604,6 +629,17 @@ $hayFiltros = $termino !== '' || $categoriaId !== null || $precioMin !== null
                         </select>
                     </div>
                     <div class="filter-field">
+                        <label for="filterMarca">Marca</label>
+                        <select id="filterMarca">
+                            <option value="">Todas</option>
+                            <?php foreach ($marcas as $m): ?>
+                            <option value="<?= (int)$m['id'] ?>" <?= (int)($marcaId ?? 0) === (int)$m['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($m['nombre'], ENT_QUOTES, 'UTF-8') ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="filter-field">
                         <label for="filterPrecioMin">Precio mínimo (€)</label>
                         <input type="number" id="filterPrecioMin" min="0" step="0.01" placeholder="0.00"
                             value="<?= $precioMin !== null ? htmlspecialchars((string)$precioMin, ENT_QUOTES, 'UTF-8') : '' ?>">
@@ -626,14 +662,22 @@ $hayFiltros = $termino !== '' || $categoriaId !== null || $precioMin !== null
                     <div class="filter-field">
                         <label for="filterOrden">Ordenar por</label>
                         <select id="filterOrden">
-                            <option value="nombre_asc"  <?= $orden === 'nombre_asc'  ? 'selected' : '' ?>>Nombre A→Z</option>
-                            <option value="nombre_desc" <?= $orden === 'nombre_desc' ? 'selected' : '' ?>>Nombre Z→A</option>
-                            <option value="precio_asc"  <?= $orden === 'precio_asc'  ? 'selected' : '' ?>>Precio ↑</option>
-                            <option value="precio_desc" <?= $orden === 'precio_desc' ? 'selected' : '' ?>>Precio ↓</option>
-                            <option value="stock_asc"   <?= $orden === 'stock_asc'   ? 'selected' : '' ?>>Stock ↑</option>
-                            <option value="stock_desc"  <?= $orden === 'stock_desc'  ? 'selected' : '' ?>>Stock ↓</option>
-                            <option value="fecha_desc"  <?= $orden === 'fecha_desc'  ? 'selected' : '' ?>>Más recientes</option>
-                            <option value="fecha_asc"   <?= $orden === 'fecha_asc'   ? 'selected' : '' ?>>Más antiguos</option>
+                            <option value="nombre_asc"     <?= $orden === 'nombre_asc'     ? 'selected' : '' ?>>Nombre A→Z</option>
+                            <option value="nombre_desc"    <?= $orden === 'nombre_desc'    ? 'selected' : '' ?>>Nombre Z→A</option>
+                            <option value="ref_asc"        <?= $orden === 'ref_asc'        ? 'selected' : '' ?>>Referencia A→Z</option>
+                            <option value="ref_desc"       <?= $orden === 'ref_desc'       ? 'selected' : '' ?>>Referencia Z→A</option>
+                            <option value="categoria_asc"  <?= $orden === 'categoria_asc'  ? 'selected' : '' ?>>Categoría A→Z</option>
+                            <option value="categoria_desc" <?= $orden === 'categoria_desc' ? 'selected' : '' ?>>Categoría Z→A</option>
+                            <option value="marca_asc"      <?= $orden === 'marca_asc'      ? 'selected' : '' ?>>Marca A→Z</option>
+                            <option value="marca_desc"     <?= $orden === 'marca_desc'     ? 'selected' : '' ?>>Marca Z→A</option>
+                            <option value="precio_asc"     <?= $orden === 'precio_asc'     ? 'selected' : '' ?>>Precio ↑</option>
+                            <option value="precio_desc"    <?= $orden === 'precio_desc'    ? 'selected' : '' ?>>Precio ↓</option>
+                            <option value="stock_asc"      <?= $orden === 'stock_asc'      ? 'selected' : '' ?>>Stock ↑</option>
+                            <option value="stock_desc"     <?= $orden === 'stock_desc'     ? 'selected' : '' ?>>Stock ↓</option>
+                            <option value="estado_asc"     <?= $orden === 'estado_asc'     ? 'selected' : '' ?>>Estado (Disponible primero)</option>
+                            <option value="estado_desc"    <?= $orden === 'estado_desc'    ? 'selected' : '' ?>>Estado (Stock bajo primero)</option>
+                            <option value="fecha_desc"     <?= $orden === 'fecha_desc'     ? 'selected' : '' ?>>Más recientes</option>
+                            <option value="fecha_asc"      <?= $orden === 'fecha_asc'      ? 'selected' : '' ?>>Más antiguos</option>
                         </select>
                     </div>
                 </div>
@@ -660,6 +704,11 @@ $hayFiltros = $termino !== '' || $categoriaId !== null || $precioMin !== null
                     <strong><?= $total ?></strong> producto<?= $total !== 1 ? 's' : '' ?> en total
                 <?php endif; ?>
             </span>
+            <select id="filterPorPagina" class="filter-select" style="max-width:130px" title="Resultados por página">
+                <?php foreach ($porPaginaOpts as $opt): ?>
+                    <option value="<?= $opt ?>" <?= $porPagina === $opt ? 'selected' : '' ?>><?= $opt ?> por página</option>
+                <?php endforeach; ?>
+            </select>
             <div class="view-toggle">
                 <button class="view-btn active" id="btnViewTable" title="Vista tabla" aria-label="Vista tabla">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
@@ -673,16 +722,16 @@ $hayFiltros = $termino !== '' || $categoriaId !== null || $precioMin !== null
         <!-- Table view -->
         <div class="card" id="tableView">
             <div class="card-body" style="padding:0;overflow-x:auto;">
-                <table class="data-table">
+                <table class="data-table" data-sortable>
                     <thead>
                         <tr>
                             <th class="td-check"></th>
-                            <th>Ref.</th>
-                            <th>Producto</th>
-                            <th>Categoría</th>
-                            <th>Precio</th>
-                            <th>Stock</th>
-                            <th>Estado</th>
+                            <th class="th-sortable" data-sort-col="ref">Ref.<span class="th-arrow">⇅</span></th>
+                            <th class="th-sortable" data-sort-col="nombre">Producto<span class="th-arrow">⇅</span></th>
+                            <th class="th-sortable" data-sort-col="categoria">Categoría<span class="th-arrow">⇅</span></th>
+                            <th class="th-sortable" data-sort-col="precio">Precio<span class="th-arrow">⇅</span></th>
+                            <th class="th-sortable" data-sort-col="stock">Stock<span class="th-arrow">⇅</span></th>
+                            <th class="th-sortable" data-sort-col="estado">Estado<span class="th-arrow">⇅</span></th>
                             <th>Acciones</th>
                         </tr>
                     </thead>

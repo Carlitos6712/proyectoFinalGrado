@@ -93,6 +93,12 @@ function collectFilters() {
     const cat = document.getElementById('filterCategoria')?.value ?? '';
     if (cat)                                 params.set('categoria_id', cat);
 
+    const marca = document.getElementById('filterMarca')?.value ?? '';
+    if (marca)                               params.set('marca_id',    marca);
+
+    const pp = document.getElementById('filterPorPagina')?.value ?? '';
+    if (pp)                                  params.set('por_pagina',  pp);
+
     const pMin = document.getElementById('filterPrecioMin')?.value ?? '';
     if (pMin !== '')                          params.set('precio_min',  pMin);
 
@@ -124,7 +130,7 @@ function collectFilters() {
 function updateFilterBadge(params) {
     const badge   = document.getElementById('filterBadge');
     const hasFilters = params.toString() !== '' && (
-        params.has('q') || params.has('categoria_id') ||
+        params.has('q') || params.has('categoria_id') || params.has('marca_id') ||
         params.has('precio_min') || params.has('precio_max') ||
         params.has('stock_min')  || params.has('stock_max') ||
         params.has('stock_bajo')
@@ -217,12 +223,15 @@ async function fetchResults(page = 1) {
             // Re-attach confirm-delete listeners handled by event delegation in initConfirmDelete
         }
 
+        const ordenSelect = document.getElementById('filterOrden');
+        if (ordenSelect) updateSortHeaders(ordenSelect.value);
+
         // Sincronizar grid con los mismos datos (recarga del servidor)
         // El grid se actualiza al cambiar de vista — aquí solo mostramos tabla
         renderPagination(json.page ?? page, json.total_pages ?? 0);
 
         const hasFilters = urlParams.toString() !== '' && (
-            urlParams.has('q') || urlParams.has('categoria_id') ||
+            urlParams.has('q') || urlParams.has('categoria_id') || urlParams.has('marca_id') ||
             urlParams.has('precio_min') || urlParams.has('precio_max') ||
             urlParams.has('stock_min')  || urlParams.has('stock_max') ||
             urlParams.has('stock_bajo')
@@ -244,8 +253,8 @@ async function fetchResults(page = 1) {
  * @returns {void}
  */
 function clearFilters() {
-    const ids = ['searchQ', 'filterCategoria', 'filterPrecioMin', 'filterPrecioMax',
-                 'filterStockMin', 'filterStockMax', 'filterOrden'];
+    const ids = ['searchQ', 'filterCategoria', 'filterMarca', 'filterPrecioMin', 'filterPrecioMax',
+                 'filterStockMin', 'filterStockMax', 'filterOrden', 'filterPorPagina'];
 
     ids.forEach(id => {
         const el = document.getElementById(id);
@@ -329,7 +338,7 @@ function initSearch() {
     document.getElementById('btnClear')?.addEventListener('click', clearFilters);
 
     // Filtros: aplicar al cambiar select u orden
-    ['filterCategoria', 'filterOrden'].forEach(id => {
+    ['filterCategoria', 'filterMarca', 'filterOrden', 'filterPorPagina'].forEach(id => {
         document.getElementById(id)?.addEventListener('change', () => fetchResults(1));
     });
 
@@ -346,15 +355,17 @@ function initSearch() {
     window.addEventListener('popstate', () => {
         const urlParams = new URLSearchParams(window.location.search);
 
-        ['q','categoria_id','precio_min','precio_max','stock_min','stock_max','orden'].forEach(key => {
+        ['q','categoria_id','marca_id','precio_min','precio_max','stock_min','stock_max','orden','por_pagina'].forEach(key => {
             const map = {
                 q:            'searchQ',
                 categoria_id: 'filterCategoria',
+                marca_id:     'filterMarca',
                 precio_min:   'filterPrecioMin',
                 precio_max:   'filterPrecioMax',
                 stock_min:    'filterStockMin',
                 stock_max:    'filterStockMax',
                 orden:        'filterOrden',
+                por_pagina:   'filterPorPagina',
             };
             const el = document.getElementById(map[key]);
             if (el) el.value = urlParams.get(key) ?? '';
@@ -368,6 +379,58 @@ function initSearch() {
     });
 }
 
+// ── Sort headers (buscar.php AJAX table) ─────────────────────────────────────
+
+/**
+ * Actualiza los indicadores visuales de orden en los th[data-sort-col].
+ *
+ * @param {string} ordenValue Valor actual de filterOrden.
+ * @returns {void}
+ */
+function updateSortHeaders(ordenValue) {
+    document.querySelectorAll('th[data-sort-col]').forEach(th => {
+        const col   = th.dataset.sortCol;
+        const arrow = th.querySelector('.th-arrow');
+        if (!arrow) return;
+        if (ordenValue === `${col}_asc`) {
+            arrow.textContent = '↑';
+            arrow.classList.add('th-arrow-active');
+            th.setAttribute('aria-sort', 'ascending');
+        } else if (ordenValue === `${col}_desc`) {
+            arrow.textContent = '↓';
+            arrow.classList.add('th-arrow-active');
+            th.setAttribute('aria-sort', 'descending');
+        } else {
+            arrow.textContent = '⇅';
+            arrow.classList.remove('th-arrow-active');
+            th.removeAttribute('aria-sort');
+        }
+    });
+}
+
+/**
+ * Inicializa el click en th[data-sort-col] para ordenar la tabla AJAX.
+ *
+ * @returns {void}
+ */
+function initSortHeaders() {
+    const ordenSelect = document.getElementById('filterOrden');
+    if (!ordenSelect) return;
+
+    document.querySelectorAll('th[data-sort-col]').forEach(th => {
+        th.addEventListener('click', () => {
+            const col  = th.dataset.sortCol;
+            const asc  = `${col}_asc`;
+            const desc = `${col}_desc`;
+            ordenSelect.value = ordenSelect.value === asc ? desc : asc;
+            updateSortHeaders(ordenSelect.value);
+            fetchResults(1);
+        });
+    });
+
+    updateSortHeaders(ordenSelect.value);
+}
+
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -377,4 +440,5 @@ document.addEventListener('DOMContentLoaded', () => {
     initFilterPanel();
     initViewToggle();
     initSearch();
+    initSortHeaders();
 });

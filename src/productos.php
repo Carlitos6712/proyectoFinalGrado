@@ -12,6 +12,7 @@ require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Categoria.php';
+require_once __DIR__ . '/includes/Marca.php';
 
 $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
@@ -19,31 +20,70 @@ unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
 $productos      = [];
 $categorias     = [];
+$marcas         = [];
 $stockBajoCount = 0;
 $error          = '';
 
-const POR_PAGINA_PRODUCTOS = 15;
+$porPaginaOpts  = [10, 15, 25, 50, 100];
+$porPaginaInput = filter_input(INPUT_GET, 'por_pagina', FILTER_VALIDATE_INT);
+$porPagina      = in_array((int)$porPaginaInput, $porPaginaOpts, true) ? (int)$porPaginaInput : 15;
+
+$validOrdenes = [
+    'nombre_asc','nombre_desc','precio_asc','precio_desc','stock_asc','stock_desc',
+    'fecha_asc','fecha_desc','ref_asc','ref_desc','categoria_asc','categoria_desc',
+    'marca_asc','marca_desc','estado_asc','estado_desc',
+];
 
 $paginaActual = max(1, (int) filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT));
-$terminoBusq  = trim(filter_input(INPUT_GET, 'q',            FILTER_SANITIZE_SPECIAL_CHARS) ?? '');
+$terminoBusq  = trim(filter_input(INPUT_GET, 'q', FILTER_SANITIZE_SPECIAL_CHARS) ?? '');
 $catFiltro    = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
+$marcaFiltro  = filter_input(INPUT_GET, 'marca_id',     FILTER_VALIDATE_INT) ?: null;
+$ordenActivo  = in_array($_GET['orden'] ?? '', $validOrdenes, true) ? $_GET['orden'] : 'nombre_asc';
 $totalPaginas = 1;
 $totalItems   = 0;
 
 try {
     $productoModel  = new Producto();
     $categoriaModel = new Categoria();
+    $marcaModel     = new Marca();
 
-    $totalItems     = $productoModel->contarFiltrados($terminoBusq ?: null, $catFiltro);
-    $totalPaginas   = max(1, (int) ceil($totalItems / POR_PAGINA_PRODUCTOS));
+    $totalItems     = $productoModel->contarFiltrados($terminoBusq ?: null, $catFiltro, null, null, null, null, null, $marcaFiltro);
+    $totalPaginas   = max(1, (int) ceil($totalItems / $porPagina));
     $paginaActual   = min($paginaActual, $totalPaginas);
 
-    $productos      = $productoModel->listarPaginado($paginaActual, POR_PAGINA_PRODUCTOS, $terminoBusq ?: null, $catFiltro);
+    $productos      = $productoModel->listarPaginado($paginaActual, $porPagina, $terminoBusq ?: null, $catFiltro, null, null, null, null, $ordenActivo, null, $marcaFiltro);
     $categorias     = $categoriaModel->listar();
+    $marcas         = $marcaModel->listar();
     $stockBajoCount = count($productoModel->filtrarStockBajo());
 } catch (\Throwable $e) {
     $error = 'Error al cargar datos: ' . $e->getMessage();
 }
+
+// Sort link helper
+$filterQs = http_build_query(array_filter([
+    'q'            => $terminoBusq ?: null,
+    'categoria_id' => $catFiltro,
+    'marca_id'     => $marcaFiltro,
+    'por_pagina'   => $porPagina !== 15 ? $porPagina : null,
+], fn($v) => $v !== null && $v !== ''));
+
+$sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): string {
+    $asc  = "{$campo}_asc";
+    $desc = "{$campo}_desc";
+    if ($ordenActivo === $asc) {
+        $newOrden = $desc;
+        $arrow    = '<span class="th-arrow th-arrow-active">↓</span>';
+    } elseif ($ordenActivo === $desc) {
+        $newOrden = $asc;
+        $arrow    = '<span class="th-arrow th-arrow-active">↑</span>';
+    } else {
+        $newOrden = $asc;
+        $arrow    = '<span class="th-arrow">⇅</span>';
+    }
+    $qs  = $filterQs ? "{$filterQs}&orden={$newOrden}" : "orden={$newOrden}";
+    $url = htmlspecialchars("productos.php?{$qs}", ENT_QUOTES, 'UTF-8');
+    return "<a href=\"{$url}\" class=\"th-sort-link\">{$label}{$arrow}</a>";
+};
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -52,6 +92,31 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Productos – es21plus</title>
     <link rel="stylesheet" href="css/estilos.css">
+    <style>
+        .th-sortable { padding: 0 !important; }
+        .th-sort-link {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 16px;
+            color: inherit;
+            text-decoration: none;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .th-sort-link:hover { color: var(--accent); }
+        .th-arrow {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            opacity: .5;
+            line-height: 1;
+        }
+        .th-arrow-active { color: var(--accent); opacity: 1; }
+    </style>
 </head>
 <body class="layout">
 
@@ -222,6 +287,12 @@ try {
                 <p class="page-subtitle">Catálogo completo de productos del inventario</p>
             </div>
             <div class="page-actions">
+                <a href="importar_csv.php" class="btn-secondary" title="Importar productos desde CSV">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                    </svg>
+                    Importar CSV
+                </a>
                 <a href="nuevo_producto.php" class="btn-primary">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -232,22 +303,38 @@ try {
         </div>
 
         <!-- Toolbar -->
-        <div class="data-toolbar">
+        <form method="get" class="data-toolbar" id="toolbar-form">
+            <input type="hidden" name="orden" value="<?= htmlspecialchars($ordenActivo, ENT_QUOTES, 'UTF-8') ?>">
             <div class="search-box">
                 <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
-                <input type="text" id="buscar-input" class="search-input" placeholder="Buscar nombre o referencia…" autocomplete="off">
+                <input type="text" name="q" id="buscar-input" class="search-input"
+                       placeholder="Buscar nombre o referencia…" autocomplete="off"
+                       value="<?= htmlspecialchars($terminoBusq, ENT_QUOTES, 'UTF-8') ?>">
             </div>
-            <select id="filtro-categoria" class="filter-select">
+            <select name="categoria_id" id="filtro-categoria" class="filter-select" onchange="this.form.submit()">
                 <option value="">Todas las categorías</option>
                 <?php foreach ($categorias as $cat): ?>
-                    <option value="<?= (int)$cat['id'] ?>">
+                    <option value="<?= (int)$cat['id'] ?>" <?= (int)($catFiltro ?? 0) === (int)$cat['id'] ? 'selected' : '' ?>>
                         <?= htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8') ?>
                     </option>
                 <?php endforeach; ?>
             </select>
-        </div>
+            <select name="marca_id" id="filtro-marca" class="filter-select" onchange="this.form.submit()">
+                <option value="">Todas las marcas</option>
+                <?php foreach ($marcas as $m): ?>
+                    <option value="<?= (int)$m['id'] ?>" <?= (int)($marcaFiltro ?? 0) === (int)$m['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($m['nombre'], ENT_QUOTES, 'UTF-8') ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <select name="por_pagina" id="filtro-por-pagina" class="filter-select" onchange="this.form.submit()" style="max-width:120px" title="Productos por página">
+                <?php foreach ($porPaginaOpts as $opt): ?>
+                    <option value="<?= $opt ?>" <?= $porPagina === $opt ? 'selected' : '' ?>><?= $opt ?> por página</option>
+                <?php endforeach; ?>
+            </select>
+        </form>
 
         <!-- Data table -->
         <div class="data-table-wrapper">
@@ -255,13 +342,13 @@ try {
                 <thead>
                     <tr>
                         <th class="td-check"><input type="checkbox" id="selectAll" aria-label="Seleccionar todos"></th>
-                        <th>Ref</th>
-                        <th>Producto</th>
-                        <th>Categoría</th>
-                        <th>Marca</th>
-                        <th>Precio</th>
-                        <th>Stock</th>
-                        <th>Estado</th>
+                        <th class="th-sortable"><?= $sortTh('ref',       'Ref') ?></th>
+                        <th class="th-sortable"><?= $sortTh('nombre',    'Producto') ?></th>
+                        <th class="th-sortable"><?= $sortTh('categoria', 'Categoría') ?></th>
+                        <th class="th-sortable"><?= $sortTh('marca',     'Marca') ?></th>
+                        <th class="th-sortable"><?= $sortTh('precio',    'Precio') ?></th>
+                        <th class="th-sortable"><?= $sortTh('stock',     'Stock') ?></th>
+                        <th class="th-sortable"><?= $sortTh('estado',    'Estado') ?></th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -346,8 +433,8 @@ try {
         <div class="pagination-bar">
             <span class="pagination-info">
                 <?php
-                $desde = ($paginaActual - 1) * POR_PAGINA_PRODUCTOS + 1;
-                $hasta = min($paginaActual * POR_PAGINA_PRODUCTOS, $totalItems);
+                $desde = ($paginaActual - 1) * $porPagina + 1;
+                $hasta = min($paginaActual * $porPagina, $totalItems);
                 echo $totalItems > 0
                     ? "Mostrando {$desde}–{$hasta} de {$totalItems} productos"
                     : "0 productos";
@@ -357,8 +444,11 @@ try {
             <nav class="pagination" aria-label="Paginación de productos">
                 <?php
                 $baseParams = [];
-                if ($terminoBusq)  $baseParams['q']           = $terminoBusq;
-                if ($catFiltro)    $baseParams['categoria_id'] = $catFiltro;
+                if ($terminoBusq)           $baseParams['q']            = $terminoBusq;
+                if ($catFiltro)             $baseParams['categoria_id'] = $catFiltro;
+                if ($marcaFiltro)           $baseParams['marca_id']     = $marcaFiltro;
+                if ($ordenActivo !== 'nombre_asc') $baseParams['orden'] = $ordenActivo;
+                if ($porPagina !== 15)      $baseParams['por_pagina']   = $porPagina;
                 $buildUrl = fn(int $p) => 'productos.php?' . http_build_query(array_merge($baseParams, ['page' => $p]));
                 ?>
                 <a href="<?= $buildUrl(1) ?>"

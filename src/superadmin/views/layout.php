@@ -229,9 +229,23 @@
                     <span class="sa-badge-count"><?= (int)$mensajesSinLeer ?></span>
                 <?php endif; ?>
             </a>
+            <a href="<?= $base ?? './' ?>tickets.php" class="<?= ($activeMenu ?? '') === 'tickets' ? 'active' : '' ?>">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Tickets
+            </a>
             <a href="<?= $base ?? './' ?>announcements.php" class="<?= ($activeMenu ?? '') === 'announcements' ? 'active' : '' ?>">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17H2a3 3 0 000 6h20a3 3 0 000-6z"/><path d="M6 17V3a2 2 0 012-2h8a2 2 0 012 2v14"/></svg>
                 Anuncios
+            </a>
+
+            <div class="sa-nav-section">Finanzas</div>
+            <a href="<?= $base ?? './' ?>billing.php" class="<?= ($activeMenu ?? '') === 'billing' ? 'active' : '' ?>">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                Facturación
+            </a>
+            <a href="<?= $base ?? './' ?>reports.php" class="<?= ($activeMenu ?? '') === 'reports' ? 'active' : '' ?>">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Reportes
             </a>
 
             <div class="sa-nav-section">Auditoría</div>

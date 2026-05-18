@@ -99,6 +99,23 @@ class BusinessMiddleware
             }
         }
 
+        // 7. Cargar límites de plan en sesión (con caché de 5 min)
+        if (empty($_SESSION['plan_features']) || (time() - ($_SESSION['plan_features_loaded_at'] ?? 0)) > 300) {
+            try {
+                $plan    = $business['plan'] ?? 'free';
+                $pdo2    = Database::getInstance();
+                $featRow = $pdo2->prepare('SELECT features FROM plan_prices WHERE plan = ?');
+                $featRow->execute([$plan]);
+                $row = $featRow->fetch();
+                if ($row && $row['features']) {
+                    $_SESSION['plan_features']           = json_decode($row['features'], true) ?? [];
+                    $_SESSION['plan_features_loaded_at'] = time();
+                }
+            } catch (\Throwable) {
+                // plan_prices puede no existir aún; no bloquear
+            }
+        }
+
         return $business;
     }
 

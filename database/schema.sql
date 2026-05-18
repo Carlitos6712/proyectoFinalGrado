@@ -218,3 +218,64 @@ CREATE TABLE IF NOT EXISTS compatibilidades (
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE,
     FOREIGN KEY (modelo_id)   REFERENCES modelos_moto(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Tickets de soporte, Facturación y Planes
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id             INT          AUTO_INCREMENT PRIMARY KEY,
+    business_id    INT          NOT NULL,
+    employee_id    INT          NULL,
+    ticket_number  VARCHAR(20)  NOT NULL UNIQUE,
+    subject        VARCHAR(255) NOT NULL,
+    status         ENUM('open','in_progress','resolved','closed') NOT NULL DEFAULT 'open',
+    priority       ENUM('low','normal','high','urgent')           NOT NULL DEFAULT 'normal',
+    created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    closed_at      TIMESTAMP    NULL DEFAULT NULL,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ticket_messages (
+    id           INT         AUTO_INCREMENT PRIMARY KEY,
+    ticket_id    INT         NOT NULL,
+    sender_type  ENUM('business','superadmin') NOT NULL,
+    sender_id    INT         NOT NULL,
+    message      TEXT        NOT NULL,
+    created_at   TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticket_id) REFERENCES support_tickets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ticket_attachments (
+    id            INT         AUTO_INCREMENT PRIMARY KEY,
+    message_id    INT         NOT NULL,
+    filename      VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    mime_type     VARCHAR(100) NOT NULL,
+    size          INT         NOT NULL DEFAULT 0,
+    uploaded_at   TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (message_id) REFERENCES ticket_messages(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS plan_prices (
+    id            INT              AUTO_INCREMENT PRIMARY KEY,
+    plan          ENUM('free','basic','pro') NOT NULL UNIQUE,
+    monthly_price DECIMAL(8,2)     NOT NULL DEFAULT 0.00,
+    annual_price  DECIMAL(8,2)     NOT NULL DEFAULT 0.00,
+    features      JSON,
+    updated_at    TIMESTAMP        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS invoices (
+    id             INT           AUTO_INCREMENT PRIMARY KEY,
+    business_id    INT           NOT NULL,
+    invoice_number VARCHAR(20)   NOT NULL UNIQUE,
+    amount         DECIMAL(10,2) NOT NULL,
+    status         ENUM('pending','paid','cancelled') NOT NULL DEFAULT 'pending',
+    period_start   DATE          NULL,
+    period_end     DATE          NULL,
+    notes          TEXT          NULL,
+    paid_at        TIMESTAMP     NULL DEFAULT NULL,
+    created_at     TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

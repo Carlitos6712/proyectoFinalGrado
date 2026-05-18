@@ -4,7 +4,7 @@
  *
  * @package  Es21Plus\Superadmin\Controllers
  * @author   Carlos Vico
- * @version  1.0.0
+ * @version  1.1.0
  */
 
 require_once __DIR__ . '/../../includes/Database.php';
@@ -12,6 +12,8 @@ require_once __DIR__ . '/../../includes/AppException.php';
 require_once __DIR__ . '/../../core/Mailer.php';
 require_once __DIR__ . '/../../core/Session.php';
 require_once __DIR__ . '/../../core/BusinessSeeder.php';
+require_once __DIR__ . '/../../core/ActivityLogger.php';
+require_once __DIR__ . '/../../core/NotificationService.php';
 
 class BusinessController
 {
@@ -35,11 +37,7 @@ class BusinessController
         $offset  = ($page - 1) * $perPage;
         $search  = '%' . $q . '%';
 
-        $total = (int)$this->pdo->prepare(
-            'SELECT COUNT(*) FROM businesses WHERE name LIKE ?'
-        )->execute([$search]) && ($cnt = $this->pdo->prepare(
-            'SELECT COUNT(*) FROM businesses WHERE name LIKE ?'
-        ));
+        $cnt = $this->pdo->prepare('SELECT COUNT(*) FROM businesses WHERE name LIKE ?');
         $cnt->execute([$search]);
         $total = (int)$cnt->fetchColumn();
 
@@ -94,12 +92,6 @@ class BusinessController
         $stmt->execute([$id]);
         $business['movimientos'] = $stmt->fetchAll();
 
-        $business['total_productos'] = (int)$this->pdo->prepare(
-            'SELECT COUNT(*) FROM productos WHERE business_id = ? AND deleted_at IS NULL'
-        )->execute([$id]) ? $this->pdo->prepare(
-            'SELECT COUNT(*) FROM productos WHERE business_id = ? AND deleted_at IS NULL'
-        )->execute([$id]) && 0 : 0;
-
         $cntProd = $this->pdo->prepare('SELECT COUNT(*) FROM productos WHERE business_id = ? AND deleted_at IS NULL');
         $cntProd->execute([$id]);
         $business['total_productos'] = (int)$cntProd->fetchColumn();
@@ -148,18 +140,26 @@ class BusinessController
         $plainPassword = $this->generarPassword();
         $this->crearEmpleadoAdmin($businessId, $name, $email, $plainPassword);
 
-        // Datos de demostración para que el panel no arranque vacío
         BusinessSeeder::seed($businessId);
 
         if ($email) {
             $this->enviarBienvenida($email, $name, $email, $plainPassword);
         }
 
+        // Notificar nuevo negocio al superadmin
+        NotificationService::notify(
+            'new_business',
+            'Nuevo negocio registrado: ' . $name,
+            "Se ha creado el negocio \"{$name}\" con plan " . ($data['plan'] ?? 'free') . '.',
+            '/superadmin/businesses.php?action=show&id=' . $businessId
+        );
+
         return $businessId;
     }
 
     /**
      * Actualiza los datos de un negocio.
+     * Si cambia el plan, registra acción crítica en activity_logs.
      *
      * @param int   $id
      * @param array $data
@@ -172,6 +172,11 @@ class BusinessController
         if (!$name) {
             throw new AppException('El nombre es obligatorio.', 422);
         }
+
+        // Capturar estado anterior para auditoría
+        $antes = $this->pdo->prepare('SELECT name, plan, plan_expires_at FROM businesses WHERE id = ?');
+        $antes->execute([$id]);
+        $anterior = $antes->fetch();
 
         $stmt = $this->pdo->prepare(
             'UPDATE businesses SET name=?, contact_email=?, phone=?, address=?, plan=?, plan_expires_at=?
@@ -186,40 +191,67 @@ class BusinessController
             ($data['plan_expires_at'] ?? '') ?: null,
             $id,
         ]);
+
+        // Log crítico si cambia el plan
+        if ($anterior && $anterior['plan'] !== ($data['plan'] ?? 'free')) {
+            $saId = (int)($_SESSION['usuario_id'] ?? 0);
+            ActivityLogger::log(
+                $id,
+                $saId,
+                'Cambió el plan de ' . $anterior['plan'] . ' a ' . ($data['plan'] ?? 'free'),
+                'business',
+                $id,
+                [
+                    'antes'   => ['plan' => $anterior['plan'], 'plan_expires_at' => $anterior['plan_expires_at']],
+                    'despues' => ['plan' => $data['plan'] ?? 'free', 'plan_expires_at' => $data['plan_expires_at'] ?? null],
+                ],
+                true
+            );
+        }
     }
 
     /**
      * Activa o desactiva un negocio.
+     * Desactivar registra acción crítica y crea notificación.
      *
      * @param int $id
      * @return bool Nuevo estado is_active.
      */
     public function toggle(int $id): bool
     {
-        $stmt = $this->pdo->prepare('SELECT is_active FROM businesses WHERE id = ?');
+        $stmt = $this->pdo->prepare('SELECT is_active, name FROM businesses WHERE id = ?');
         $stmt->execute([$id]);
-        $current = (int)$stmt->fetchColumn();
-        $nuevo = $current === 1 ? 0 : 1;
+        $row     = $stmt->fetch();
+        $current = (int)($row['is_active'] ?? 1);
+        $nuevo   = $current === 1 ? 0 : 1;
 
         $this->pdo->prepare('UPDATE businesses SET is_active = ? WHERE id = ?')->execute([$nuevo, $id]);
+
+        if ($nuevo === 0) {
+            $saId = (int)($_SESSION['usuario_id'] ?? 0);
+            ActivityLogger::log(
+                $id,
+                $saId,
+                'Desactivó el negocio "' . ($row['name'] ?? '') . '"',
+                'business',
+                $id,
+                ['antes' => ['is_active' => 1], 'despues' => ['is_active' => 0]],
+                true
+            );
+            NotificationService::notify(
+                'business_deactivated',
+                'Negocio desactivado: ' . ($row['name'] ?? ''),
+                'El negocio "' . ($row['name'] ?? '') . '" ha sido desactivado por el superadmin.',
+                '/superadmin/businesses.php?action=show&id=' . $id
+            );
+        }
+
         return (bool)$nuevo;
     }
 
     /**
      * Inicia una sesión impersonada como administrador de la empresa.
-     *
-     * Guarda los datos del superadmin en sesión para poder volver.
-     * El superadmin accede al panel de empresa como si fuera su admin.
-     *
-     * @param int $id ID del negocio.
-     * @throws AppException Si el negocio no existe o no tiene empleado admin.
-     * @return void — redirige a /index.php
-     */
-    /**
-     * Inicia una sesión impersonada como administrador de la empresa.
-     *
-     * El superadmin accede al panel de empresa como si fuera su admin.
-     * Guarda las claves de retorno en sesión para poder volver.
+     * Registra acción crítica en activity_logs.
      *
      * @param int $id ID del negocio.
      * @throws AppException Si el negocio no existe o no tiene empleado admin.
@@ -244,7 +276,17 @@ class BusinessController
             throw new AppException('Este negocio no tiene empleados admin activos.', 409);
         }
 
-        // Capturar datos del superadmin antes de sobreescribir la sesión
+        $saId = (int)($_SESSION['usuario_id'] ?? 0);
+        ActivityLogger::log(
+            $id,
+            $saId,
+            'Acceso impersonado al negocio "' . $business['name'] . '"',
+            'business',
+            $id,
+            ['superadmin_id' => $saId, 'employee_id' => (int)$employee['id']],
+            true
+        );
+
         $saReturn = [
             'usuario_id'       => $_SESSION['usuario_id']       ?? null,
             'usuario_nombre'   => $_SESSION['usuario_nombre']   ?? '',
@@ -252,10 +294,8 @@ class BusinessController
             'rol'              => $_SESSION['rol']              ?? 'superadmin',
         ];
 
-        // Establecer sesión de empresa (setBusinessUser no hace session_unset)
         Session::setBusinessUser($employee, $business);
 
-        // Añadir marcadores de impersonación + datos de retorno
         $_SESSION['superadmin_impersonating']   = true;
         $_SESSION['superadmin_return_uid']      = $saReturn['usuario_id'];
         $_SESSION['superadmin_return_nombre']   = $saReturn['usuario_nombre'];
@@ -270,8 +310,7 @@ class BusinessController
         $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $name), '-'));
         $base = $slug;
         $i    = 1;
-        while ($this->pdo->prepare('SELECT id FROM businesses WHERE slug = ?')->execute([$slug])
-               && $this->pdo->prepare('SELECT id FROM businesses WHERE slug = ?')->execute([$slug])) {
+        while (true) {
             $check = $this->pdo->prepare('SELECT COUNT(*) FROM businesses WHERE slug = ?');
             $check->execute([$slug]);
             if (!(int)$check->fetchColumn()) break;

@@ -12,6 +12,8 @@
  * @version  1.0.0
  */
 require_once __DIR__ . '/includes/auth_check.php';
+require_once __DIR__ . '/middleware/RoleMiddleware.php';
+RoleMiddleware::requireAdmin();
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Categoria.php';
@@ -315,6 +317,8 @@ $csrfToken = $_SESSION['csrf_token'];
     </style>
 </head>
 <body>
+
+<?php require_once __DIR__ . '/includes/topbar_user.php'; ?>
 
 <div class="csv-page">
 

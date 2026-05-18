@@ -10,7 +10,7 @@ services:
       MYSQL_USER: admin
       MYSQL_PASSWORD: luigi21plus
     ports:
-      - "3307:3306"   # 3306 ocupado por MySQL local → usamos 3307 en el host
+      - "3308:3306"   # 3306 y 3307 ocupados localmente → usamos 3308 en el host
     volumes:
       # Carga inicial de la base de datos
       - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
@@ -25,7 +25,7 @@ services:
     container_name: inventario_motos_web
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "8090:80"
     # Variables de entorno que PHP leerá via $_ENV
     environment:
       DB_HOST: db
@@ -39,6 +39,8 @@ services:
     volumes:
       # Hot-reload: cambios en src se reflejan sin rebuild
       - ./src:/var/www/html
+      # Preservar vendor del build (el mount de src lo sobreescribiría)
+      - vendor_data:/var/www/html/vendor
     depends_on:
       - db
     networks:
@@ -47,6 +49,7 @@ services:
 # Volúmenes definidos
 volumes:
   db_data:
+  vendor_data:
 
 # Red interna para comunicación entre contenedores
 networks:

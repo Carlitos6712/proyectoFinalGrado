@@ -26,17 +26,19 @@ class Session
         }
         session_regenerate_id(true);
 
-        $_SESSION['user_id']          = (int)$employee['id'];
-        $_SESSION['user_name']         = $employee['name'];
-        $_SESSION['user_email']        = $employee['email'];
-        $_SESSION['user_role']         = $employee['role'];
-        $_SESSION['business_id']       = (int)$business['id'];
-        $_SESSION['business_name']     = $business['name'];
-        $_SESSION['business_slug']     = $business['slug'];
-        $_SESSION['business_active']   = (int)$business['is_active'];
-        $_SESSION['business_plan']     = $business['plan'];
-        $_SESSION['business_logo']     = $business['logo_path'] ?? null;
-        $_SESSION['last_activity']     = time();
+        $_SESSION['user_id']                    = (int)$employee['id'];
+        $_SESSION['user_name']                   = $employee['name'];
+        $_SESSION['user_email']                  = $employee['email'];
+        $_SESSION['user_role']                   = $employee['role'];
+        $_SESSION['business_id']                 = (int)$business['id'];
+        $_SESSION['business_name']               = $business['name'];
+        $_SESSION['business_slug']               = $business['slug'];
+        $_SESSION['business_active']             = (int)$business['is_active'];
+        $_SESSION['business_plan']               = $business['plan'];
+        $_SESSION['business_logo']               = $business['logo_path'] ?? null;
+        $_SESSION['business_theme_color']        = $business['theme_color'] ?? '#4F46E5';
+        $_SESSION['business_onboarding_completed'] = (int)($business['onboarding_completed'] ?? 0);
+        $_SESSION['last_activity']               = time();
     }
 
     /**

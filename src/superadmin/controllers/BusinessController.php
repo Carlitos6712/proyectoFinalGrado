@@ -178,8 +178,10 @@ class BusinessController
         $antes->execute([$id]);
         $anterior = $antes->fetch();
 
+        $customDomain = trim($data['custom_domain'] ?? '') ?: null;
+
         $stmt = $this->pdo->prepare(
-            'UPDATE businesses SET name=?, contact_email=?, phone=?, address=?, plan=?, plan_expires_at=?
+            'UPDATE businesses SET name=?, contact_email=?, phone=?, address=?, plan=?, plan_expires_at=?, custom_domain=?
              WHERE id=?'
         );
         $stmt->execute([
@@ -189,6 +191,7 @@ class BusinessController
             trim($data['address'] ?? '') ?: null,
             $data['plan'] ?? 'free',
             ($data['plan_expires_at'] ?? '') ?: null,
+            $customDomain,
             $id,
         ]);
 

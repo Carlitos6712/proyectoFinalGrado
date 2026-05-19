@@ -22,13 +22,32 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Usuario.php';
 require_once __DIR__ . '/core/Session.php';
 require_once __DIR__ . '/core/AuthController.php';
+require_once __DIR__ . '/core/Settings.php';
 
 $error       = '';
 $redirect    = $_GET['redirect'] ?? 'index.php';
 $expired     = isset($_GET['expired']);
 $switched    = isset($_GET['switch']);
 $deactivated = isset($_GET['deactivated']);
+$registered  = isset($_GET['registered']);
 $negocioInactivo = isset($_GET['error']) && $_GET['error'] === 'negocio_inactivo';
+
+// Detección de dominio personalizado: pre-rellenar empresa y ocultarla
+$prefilledBusiness = '';
+$hideBusiness      = false;
+try {
+    $httpHost = $_SERVER['HTTP_HOST'] ?? '';
+    if ($httpHost) {
+        $pdo = Database::getInstance();
+        $domStmt = $pdo->prepare("SELECT name FROM businesses WHERE custom_domain = ? AND is_active = 1 LIMIT 1");
+        $domStmt->execute([$httpHost]);
+        $domBiz = $domStmt->fetchColumn();
+        if ($domBiz) {
+            $prefilledBusiness = $domBiz;
+            $hideBusiness      = true;
+        }
+    }
+} catch (\Throwable) {}
 
 // Modo login: 'business' cuando se rellena el campo empresa, 'local' en caso contrario
 $loginMode  = '';
@@ -46,7 +65,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email = trim($_POST['email'] ?? '');
             $auth  = new AuthController();
             $auth->login($business, $email, $password);
-            header('Location: index.php');
+            // Redirigir a onboarding si el admin aún no lo completó
+            if (
+                ($_SESSION['user_role'] ?? '') === 'admin' &&
+                (int)($_SESSION['business_onboarding_completed'] ?? 0) === 0
+            ) {
+                header('Location: onboarding.php');
+            } else {
+                header('Location: index.php');
+            }
             exit;
 
         } else {
@@ -186,7 +213,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h2>Iniciar sesión</h2>
         <p class="desc">Introduce tus credenciales para acceder al panel.</p>
 
-        <?php if ($expired): ?>
+        <?php if ($registered): ?>
+        <div class="expired-notice" style="background:#dcfce7;border-color:#22c55e;color:#14532d;">
+            Empresa creada correctamente. Ya puedes iniciar sesión.
+        </div>
+        <?php elseif ($expired): ?>
         <div class="expired-notice">Tu sesión ha expirado por inactividad. Por favor, inicia sesión de nuevo.</div>
         <?php elseif ($switched): ?>
         <div class="expired-notice" style="background:#e0f2fe;border-color:#0284c7;color:#075985;">
@@ -213,6 +244,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect, ENT_QUOTES, 'UTF-8') ?>">
 
             <!-- Campo empresa -->
+            <?php if ($hideBusiness): ?>
+            <input type="hidden" name="business" value="<?= htmlspecialchars($prefilledBusiness, ENT_QUOTES, 'UTF-8') ?>">
+            <?php else: ?>
             <div class="form-field" style="margin-bottom:1.25rem;">
                 <label class="field-label">Empresa <span style="color:#94a3b8;font-weight:400;">(opcional — solo empleados de empresa)</span></label>
                 <input type="text" name="business" id="fieldBusiness" class="field-input"
@@ -220,6 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        placeholder="Nombre o código de tu empresa"
                        autocomplete="off">
             </div>
+            <?php endif; ?>
 
             <!-- Selector de empleado (modo empresa) -->
             <div class="form-field" style="margin-bottom:1.25rem;display:none;" id="wrapEmpleado">
@@ -254,6 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         /**
          * Alterna entre modo empresa (selector empleado) y modo local (username).
          * Carga empleados del negocio por AJAX cuando hay texto en el campo empresa.
+         * En modo dominio personalizado, se carga automáticamente la empresa pre-rellena.
          */
         let _bizDebounce = null;
         let _empleadoMap = {}; // id → email
@@ -266,7 +302,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const fieldUsername  = document.getElementById('fieldUsername');
         const bizStatus      = document.getElementById('bizStatus');
 
-        fieldBusiness.addEventListener('input', () => {
+        if (fieldBusiness) fieldBusiness.addEventListener('input', () => {
             clearTimeout(_bizDebounce);
             const biz = fieldBusiness.value.trim();
 
@@ -346,21 +382,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             bizStatus.textContent      = '';
         }
 
-        // Estado inicial según si viene valor de empresa por POST (error previo)
-        (function init() {
-            const bizVal = fieldBusiness.value.trim();
-            if (bizVal !== '') {
-                cargarEmpleados(bizVal);
-            } else {
-                mostrarModoLocal();
-            }
+        // Estado inicial: dominio personalizado → cargar empleados automáticamente
+        <?php if ($hideBusiness): ?>
+        (function() {
+            const wrapEmpleado = document.getElementById('wrapEmpleado');
+            const wrapUsername = document.getElementById('wrapUsername');
+            if (wrapEmpleado) wrapEmpleado.style.display = 'block';
+            if (wrapUsername) wrapUsername.style.display = 'none';
+            cargarEmpleados(<?= json_encode($prefilledBusiness) ?>);
         })();
+        <?php else: ?>
+        if (fieldBusiness) {
+            (function init() {
+                const bizVal = fieldBusiness.value.trim();
+                if (bizVal !== '') {
+                    cargarEmpleados(bizVal);
+                } else {
+                    mostrarModoLocal();
+                }
+            })();
+        }
+        <?php endif; ?>
         </script>
     </div>
 
     <div class="login-footer">
         <a href="landing.php" style="color:#6366f1;text-decoration:none;">&larr; Volver al inicio</a>
         &nbsp;&middot;&nbsp;
+        <?php if (Settings::get('registration_open', '0') === '1'): ?>
+        <a href="registro.php" style="color:#6366f1;text-decoration:none;">Crear cuenta</a>
+        &nbsp;&middot;&nbsp;
+        <?php endif; ?>
         &copy; <?= date('Y') ?> es21plus · Carlos Vico
     </div>
 </div>

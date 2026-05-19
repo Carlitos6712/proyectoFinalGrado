@@ -410,3 +410,42 @@ CREATE TABLE IF NOT EXISTS invoices (
     created_at     TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Fase: Onboarding, Campañas de email, Personalización por empresa
+-- @author Carlos Vico
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Columna onboarding_completed en businesses
+SET @col_onb = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'businesses' AND COLUMN_NAME = 'onboarding_completed');
+SET @sql_onb = IF(@col_onb = 0, 'ALTER TABLE businesses ADD COLUMN onboarding_completed TINYINT(1) DEFAULT 0 AFTER is_active', 'SELECT 1');
+PREPARE stmt FROM @sql_onb; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Columna theme_color en businesses
+SET @col_tc = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'businesses' AND COLUMN_NAME = 'theme_color');
+SET @sql_tc = IF(@col_tc = 0, "ALTER TABLE businesses ADD COLUMN theme_color VARCHAR(7) DEFAULT '#4F46E5' AFTER logo_path", 'SELECT 1');
+PREPARE stmt FROM @sql_tc; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Columna custom_domain en businesses
+SET @col_cd = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'businesses' AND COLUMN_NAME = 'custom_domain');
+SET @sql_cd = IF(@col_cd = 0, 'ALTER TABLE businesses ADD COLUMN custom_domain VARCHAR(255) NULL AFTER slug', 'SELECT 1');
+PREPARE stmt FROM @sql_cd; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Columna last_login en employees
+SET @col_ll = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'employees' AND COLUMN_NAME = 'last_login');
+SET @sql_ll = IF(@col_ll = 0, 'ALTER TABLE employees ADD COLUMN last_login TIMESTAMP NULL DEFAULT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql_ll; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Tabla campañas de email masivo
+CREATE TABLE IF NOT EXISTS email_campaigns (
+    id               INT          AUTO_INCREMENT PRIMARY KEY,
+    subject          VARCHAR(200) NOT NULL,
+    body_html        TEXT         NOT NULL,
+    target_plan      ENUM('all','free','basic','pro') DEFAULT 'all',
+    target_status    ENUM('all','active','inactive')  DEFAULT 'active',
+    status           ENUM('draft','scheduled','sent') DEFAULT 'draft',
+    scheduled_at     TIMESTAMP    NULL,
+    sent_at          TIMESTAMP    NULL,
+    recipients_count INT          DEFAULT 0,
+    created_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

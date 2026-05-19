@@ -33,6 +33,16 @@
                 <textarea name="address" class="field-input" rows="2"><?= htmlspecialchars($business['address'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
             </div>
 
+            <div class="form-field" style="margin-top:.9rem;">
+                <label class="field-label">Dominio personalizado</label>
+                <input type="text" name="custom_domain" class="field-input"
+                       value="<?= htmlspecialchars($business['custom_domain'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                       placeholder="app.mitaller.com">
+                <p style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem;">
+                    Para activarlo, el cliente debe configurar un registro CNAME apuntando a la IP del servidor. Confirmar manualmente cuando esté propagado.
+                </p>
+            </div>
+
             <div class="sa-form-grid" style="margin-top:.9rem;">
                 <div class="form-field">
                     <label class="field-label">Plan</label>

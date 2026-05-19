@@ -21,6 +21,10 @@
   --sidebar-section-label:  #475569;
   --sidebar-width:          260px;
 
+  /* Primary (sobreescrito por theme_inject.php en panel de empresa) */
+  --primary:                #6366f1;
+  --primary-dark:           #4f46e5;
+
   /* Accent */
   --accent:                 #6366f1;
   --accent-dark:            #4f46e5;

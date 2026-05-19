@@ -14,8 +14,9 @@ require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Movimiento.php';
 require_once __DIR__ . '/includes/Categoria.php';
 
-$flashSuccess = $_SESSION['flash_success'] ?? '';
-$flashError   = $_SESSION['flash_error']   ?? '';
+$flashSuccess  = $_SESSION['flash_success'] ?? '';
+$flashError    = $_SESSION['flash_error']   ?? '';
+$showWelcome   = isset($_GET['welcome']) && $_GET['welcome'] === '1';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
 $totalProductos   = 0;
@@ -52,6 +53,7 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard – es21plus</title>
     <link rel="stylesheet" href="css/estilos.css">
+    <?php require_once __DIR__ . '/includes/theme_inject.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body class="layout">
@@ -142,6 +144,12 @@ try {
                 <span class="nav-label">Usuarios</span>
             </a>
             <?php endif; ?>
+            <?php if (($_SESSION['user_role'] ?? '') === 'admin'): ?>
+            <a href="perfil_empresa.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'perfil_empresa.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
+                <span class="nav-label">Perfil de empresa</span>
+            </a>
+            <?php endif; ?>
         </div>
         <div class="nav-section">
             <span class="nav-section-label">Ayuda</span>
@@ -203,6 +211,13 @@ try {
 
     <!-- CONTENT -->
     <main class="content">
+
+        <?php if ($showWelcome): ?>
+        <div id="welcomeBanner" style="background:#dcfce7;border:1px solid #22c55e;color:#14532d;border-radius:8px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+            <span><strong>¡Bienvenido a es21plus!</strong> Tu panel está listo.</span>
+            <button onclick="document.getElementById('welcomeBanner').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#14532d;line-height:1;">&times;</button>
+        </div>
+        <?php endif; ?>
 
         <?php if ($flashSuccess): ?>
         <div class="toast toast-success" data-autodismiss="4000">

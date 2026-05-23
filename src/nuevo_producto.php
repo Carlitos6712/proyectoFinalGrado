@@ -13,6 +13,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Categoria.php';
 require_once __DIR__ . '/includes/Marca.php';
+require_once __DIR__ . '/includes/Proveedor.php';
 
 $error          = '';
 $success        = '';
@@ -22,9 +23,11 @@ try {
     $productoModel  = new Producto();
     $categoriaModel = new Categoria();
     $marcaModel     = new Marca();
+    $proveedorModel = new Proveedor();
     $stockBajoCount = count($productoModel->filtrarStockBajo());
     $categorias     = $categoriaModel->listar();
     $marcas         = $marcaModel->listar();
+    $proveedoresDisponibles = $proveedorModel->listar(true);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nombre           = trim($_POST['nombre']            ?? '');
@@ -45,6 +48,7 @@ try {
         $longitud         = ($_POST['longitud']  ?? '') !== '' ? (int)$_POST['longitud']  : null;
         $anchura          = ($_POST['anchura']   ?? '') !== '' ? (int)$_POST['anchura']   : null;
         $diametro         = ($_POST['diametro']  ?? '') !== '' ? (float)$_POST['diametro'] : null;
+        $proveedorId      = (int)($_POST['proveedor_id'] ?? 0) ?: null;
 
         if ($nombre === '') {
             throw new AppException('El nombre del producto es obligatorio.', 400);
@@ -56,7 +60,7 @@ try {
         $newId = $productoModel->crear(
             $nombre, $descripcion, $precio, $categoriaId, $stock, $stockMinimo,
             $codigoRef, $descripcionLarga, $marcaId, $codigoBarras, $urlProveedor, $proveedor, $ubicacion,
-            $peso, $capacidad, $longitud, $anchura, $diametro
+            $peso, $capacidad, $longitud, $anchura, $diametro, $proveedorId
         );
 
         if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] !== UPLOAD_ERR_NO_FILE) {
@@ -313,10 +317,22 @@ try {
                         </div>
 
                         <div class="form-field">
-                            <label class="field-label" for="proveedor">Proveedor</label>
+                            <label class="field-label" for="proveedor">Proveedor (texto libre)</label>
                             <input class="field-input" type="text" id="proveedor" name="proveedor"
                                    placeholder="Nombre del proveedor"
                                    value="<?= htmlspecialchars($_POST['proveedor'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="field-label" for="proveedor_id">Proveedor vinculado</label>
+                            <select class="field-input" id="proveedor_id" name="proveedor_id">
+                                <option value="">— Sin proveedor vinculado —</option>
+                                <?php foreach ($proveedoresDisponibles as $pv): ?>
+                                <option value="<?= (int)$pv['id'] ?>" <?= (int)$pv['id'] === (int)($_POST['proveedor_id'] ?? 0) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($pv['nombre'], ENT_QUOTES, 'UTF-8') ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
 
                         <div class="form-field">

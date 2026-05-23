@@ -167,18 +167,20 @@ class ProductoImportTest extends TestCase
     {
         $this->insertarProductoConRef('REF_DUP');
 
+        // 2 filas: 1 duplicada (error) + 1 válida → 1/2 = 50% → NO supera el umbral
         $csv  = "Ref,Nombre,Categoria,Marca,Precio,Stock,Stock Minimo,Descripcion,Proveedor,Ubicacion\n";
         $csv .= "REF_DUP,Producto Duplicado,,,5.00,1,1,,,\n";
+        $csv .= "REF_NEW,Producto Nuevo,,,7.00,2,1,,,\n";
         $tmp  = $this->crearCsvTemporal($csv);
 
         $resultado = $this->model->procesar($tmp, false);
 
-        // Debe generar error de línea, no insertar duplicado
-        $this->assertSame(0, $resultado['insertados']);
+        // Debe generar error de línea en la duplicada, pero insertar la nueva
+        $this->assertSame(1, $resultado['insertados']);
         $this->assertCount(1, $resultado['errores']);
         $this->assertStringContainsString('ya existe', $resultado['errores'][0]['motivo']);
 
-        // Verificar que sigue habiendo solo 1 producto con esa ref
+        // Verificar que sigue habiendo solo 1 producto con REF_DUP
         $count = (int)$this->pdo->query("SELECT COUNT(*) FROM productos WHERE codigo_ref = 'REF_DUP'")->fetchColumn();
         $this->assertSame(1, $count);
 
@@ -188,8 +190,10 @@ class ProductoImportTest extends TestCase
     #[Test]
     public function it_records_row_error_when_nombre_is_empty(): void
     {
+        // 2 filas: 1 con nombre vacío (error) + 1 válida → 1/2 = 50% → NO supera el umbral
         $csv  = "Ref,Nombre,Categoria,Marca,Precio,Stock,Stock Minimo,Descripcion,Proveedor,Ubicacion\n";
         $csv .= "REF999,,,,9.99,10,2,,,\n";
+        $csv .= "REF000,Producto Valido,,,9.99,10,2,,,\n";
         $tmp  = $this->crearCsvTemporal($csv);
 
         $resultado = $this->model->procesar($tmp, false);
@@ -198,7 +202,7 @@ class ProductoImportTest extends TestCase
         $this->assertArrayHasKey('linea',  $resultado['errores'][0]);
         $this->assertArrayHasKey('motivo', $resultado['errores'][0]);
         $this->assertSame(2, $resultado['errores'][0]['linea']);
-        $this->assertSame(0, $resultado['insertados']);
+        $this->assertSame(1, $resultado['insertados']); // la fila válida se insertó
 
         @unlink($tmp);
     }
@@ -206,15 +210,17 @@ class ProductoImportTest extends TestCase
     #[Test]
     public function it_records_row_error_when_precio_is_negative(): void
     {
+        // 2 filas: 1 con precio negativo (error) + 1 válida → 1/2 = 50% → NO supera el umbral
         $csv  = "Ref,Nombre,Categoria,Marca,Precio,Stock,Stock Minimo,Descripcion,Proveedor,Ubicacion\n";
         $csv .= "REF001,Producto Malo,,,-5,10,2,,,\n";
+        $csv .= "REF002,Producto Valido,,,5.00,10,2,,,\n";
         $tmp  = $this->crearCsvTemporal($csv);
 
         $resultado = $this->model->procesar($tmp, false);
 
         $this->assertCount(1, $resultado['errores']);
         $this->assertStringContainsString('precio', strtolower($resultado['errores'][0]['motivo']));
-        $this->assertSame(0, $resultado['insertados']);
+        $this->assertSame(1, $resultado['insertados']); // la fila válida se insertó
 
         @unlink($tmp);
     }

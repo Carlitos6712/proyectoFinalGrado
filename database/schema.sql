@@ -242,3 +242,27 @@ SET @sql_prov = IF(@col_prov = 0,
     'ALTER TABLE productos ADD COLUMN proveedor_id INT NULL, ADD CONSTRAINT fk_productos_proveedor FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON DELETE SET NULL',
     'SELECT 1');
 PREPARE stmt_prov FROM @sql_prov; EXECUTE stmt_prov; DEALLOCATE PREPARE stmt_prov;
+
+-- -------------------------------------------------------------
+-- Tablas: pedidos y pedidos_lineas (Fase 13)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pedidos (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    proveedor_id  INT  NULL,
+    estado        ENUM('borrador','enviado','recibido','cancelado') DEFAULT 'borrador',
+    notas         TEXT,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    enviado_at    TIMESTAMP NULL DEFAULT NULL,
+    recibido_at   TIMESTAMP NULL DEFAULT NULL,
+    FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pedidos_lineas (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    pedido_id   INT NOT NULL,
+    producto_id INT NOT NULL,
+    cantidad    INT NOT NULL,
+    precio_unit DECIMAL(10,2) NULL,
+    FOREIGN KEY (pedido_id)   REFERENCES pedidos(id)   ON DELETE CASCADE,
+    FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -28,3 +28,4 @@ require_once __DIR__ . '/../src/core/Session.php';
 require_once __DIR__ . '/../src/includes/ModeloMoto.php';
 require_once __DIR__ . '/../src/includes/Proveedor.php';
 require_once __DIR__ . '/../src/includes/Pedido.php';
+require_once __DIR__ . '/../src/includes/ImportadorProductos.php';

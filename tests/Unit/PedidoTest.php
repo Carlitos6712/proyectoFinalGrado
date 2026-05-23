@@ -57,9 +57,14 @@ class PedidoTest extends TestCase
         );
         $this->pdo->exec(
             "CREATE TABLE proveedores (
-                id     INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT    NOT NULL,
-                activo INTEGER DEFAULT 1
+                id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre   TEXT    NOT NULL,
+                contacto TEXT,
+                email    TEXT,
+                telefono TEXT,
+                web      TEXT,
+                notas    TEXT,
+                activo   INTEGER DEFAULT 1
             )"
         );
         $this->pdo->exec(
@@ -76,12 +81,30 @@ class PedidoTest extends TestCase
         );
         $this->pdo->exec(
             "CREATE TABLE productos (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre       TEXT    NOT NULL,
-                precio       REAL    DEFAULT 0,
-                stock        INTEGER DEFAULT 0,
-                stock_minimo INTEGER DEFAULT 5,
-                deleted_at   TEXT    DEFAULT NULL
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre            TEXT    NOT NULL,
+                descripcion       TEXT,
+                descripcion_larga TEXT,
+                precio            REAL    DEFAULT 0,
+                stock             INTEGER DEFAULT 0,
+                stock_minimo      INTEGER DEFAULT 5,
+                codigo_ref        TEXT,
+                categoria_id      INTEGER,
+                marca_id          INTEGER,
+                imagen            TEXT,
+                codigo_barras     TEXT,
+                url_proveedor     TEXT,
+                proveedor         TEXT,
+                ubicacion         TEXT,
+                peso              INTEGER,
+                capacidad         INTEGER,
+                longitud          INTEGER,
+                anchura           INTEGER,
+                diametro          REAL,
+                alertas_email     INTEGER DEFAULT 1,
+                deleted_at        TEXT    DEFAULT NULL,
+                created_at        TEXT    DEFAULT CURRENT_TIMESTAMP,
+                updated_at        TEXT    DEFAULT CURRENT_TIMESTAMP
             )"
         );
         $this->pdo->exec(

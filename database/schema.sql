@@ -218,3 +218,27 @@ CREATE TABLE IF NOT EXISTS compatibilidades (
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE,
     FOREIGN KEY (modelo_id)   REFERENCES modelos_moto(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- -------------------------------------------------------------
+-- Tabla: proveedores (Fase 12)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS proveedores (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    nombre     VARCHAR(150) NOT NULL,
+    contacto   VARCHAR(100),
+    email      VARCHAR(150),
+    telefono   VARCHAR(30),
+    web        VARCHAR(500),
+    notas      TEXT,
+    activo     TINYINT(1)   DEFAULT 1,
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Añadir proveedor_id FK a productos (Fase 12)
+-- Usando prepared statement condicional para idempotencia en MySQL 8.0
+SET @col_prov = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'productos' AND COLUMN_NAME = 'proveedor_id');
+SET @sql_prov = IF(@col_prov = 0,
+    'ALTER TABLE productos ADD COLUMN proveedor_id INT NULL, ADD CONSTRAINT fk_productos_proveedor FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON DELETE SET NULL',
+    'SELECT 1');
+PREPARE stmt_prov FROM @sql_prov; EXECUTE stmt_prov; DEALLOCATE PREPARE stmt_prov;

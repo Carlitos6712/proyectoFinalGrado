@@ -12,6 +12,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Movimiento.php';
 require_once __DIR__ . '/includes/ModeloMoto.php';
+require_once __DIR__ . '/includes/Proveedor.php';
 
 $stockBajoCount = 0;
 $movimientos    = [];
@@ -40,6 +41,16 @@ try {
     );
     $stmtCompat->execute([':pid' => $id]);
     $compatibilidades = $stmtCompat->fetchAll(PDO::FETCH_ASSOC);
+
+    // Cargar datos del proveedor vinculado (Fase 12)
+    $proveedorVinculado = null;
+    if (!empty($producto['proveedor_id'])) {
+        try {
+            $proveedorVinculado = (new Proveedor($pdo))->obtener((int)$producto['proveedor_id']);
+        } catch (\Throwable $e) {
+            // Si no se encuentra el proveedor, ignorar silenciosamente
+        }
+    }
 } catch (AppException $e) {
     $_SESSION['flash_error'] = $e->getMessage();
     header('Location: productos.php');
@@ -522,12 +533,39 @@ $imgRuta  = Producto::rutaImagen($producto['imagen'] ?? null);
                         <div class="detail-fields">
                             <div class="detail-section-title">Proveedor</div>
 
+                            <?php if ($proveedorVinculado): ?>
+                            <div class="detail-field">
+                                <span class="detail-label">Proveedor vinculado</span>
+                                <span class="detail-value">
+                                    <a href="proveedores.php?ver_productos=<?= (int)$proveedorVinculado['id'] ?>">
+                                        <?= htmlspecialchars($proveedorVinculado['nombre'], ENT_QUOTES, 'UTF-8') ?>
+                                    </a>
+                                </span>
+                            </div>
+                            <?php if (!empty($proveedorVinculado['email'])): ?>
+                            <div class="detail-field">
+                                <span class="detail-label">Email proveedor</span>
+                                <span class="detail-value">
+                                    <a href="mailto:<?= htmlspecialchars($proveedorVinculado['email'], ENT_QUOTES, 'UTF-8') ?>">
+                                        <?= htmlspecialchars($proveedorVinculado['email'], ENT_QUOTES, 'UTF-8') ?>
+                                    </a>
+                                </span>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($proveedorVinculado['telefono'])): ?>
+                            <div class="detail-field">
+                                <span class="detail-label">Teléfono proveedor</span>
+                                <span class="detail-value"><?= htmlspecialchars($proveedorVinculado['telefono'], ENT_QUOTES, 'UTF-8') ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <?php else: ?>
                             <div class="detail-field">
                                 <span class="detail-label">Proveedor</span>
                                 <span class="detail-value <?= empty($producto['proveedor']) ? 'detail-value-empty' : '' ?>">
                                     <?= !empty($producto['proveedor']) ? htmlspecialchars($producto['proveedor'], ENT_QUOTES, 'UTF-8') : '—' ?>
                                 </span>
                             </div>
+                            <?php endif; ?>
 
                             <div class="detail-field">
                                 <span class="detail-label">URL del Proveedor</span>

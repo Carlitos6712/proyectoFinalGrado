@@ -74,9 +74,7 @@ function handleGet(Movimiento $modelo): void
 {
     // ── Exportación CSV ───────────────────────────────────────────────────────
     if (isset($_GET['export']) && $_GET['export'] === 'csv') {
-        $fechaDesde = $_GET['fecha_desde'] ?? null;
-        $fechaHasta = $_GET['fecha_hasta'] ?? null;
-        exportarCsvMovimientos($fechaDesde, $fechaHasta);
+        exportarCsvMovimientos($modelo);
     }
 
     if (isset($_GET['grafico'])) {
@@ -109,56 +107,59 @@ function handleGet(Movimiento $modelo): void
 }
 
 /**
- * Genera y envía el CSV de movimientos con rango de fechas opcional.
+ * Genera y envía el CSV de movimientos con filtros opcionales.
  *
- * @param string|null $fechaDesde Fecha inicio (YYYY-MM-DD) o null.
- * @param string|null $fechaHasta Fecha fin   (YYYY-MM-DD) o null.
- * @return void
+ * @param Movimiento $modelo Instancia del modelo de movimientos.
+ * @author Carlitos6712
  */
-function exportarCsvMovimientos(?string $fechaDesde, ?string $fechaHasta): void
+function exportarCsvMovimientos(Movimiento $modelo): void
 {
-    $pdo    = Database::getInstance();
-    $sql    = "SELECT m.fecha, p.nombre AS producto, m.tipo,
-                      m.cantidad, m.observaciones,
-                      COALESCE(m.usuario, 'admin') AS usuario
-               FROM movimientos m
-               JOIN productos p ON p.id = m.producto_id
-               WHERE p.deleted_at IS NULL";
-    $params = [];
+    $desde      = $_GET['desde']      ?? null;
+    $hasta      = $_GET['hasta']      ?? null;
+    $productoId = filter_input(INPUT_GET, 'producto_id', FILTER_VALIDATE_INT) ?: null;
+    $tipo       = in_array($_GET['tipo'] ?? '', ['entrada', 'salida'], true) ? $_GET['tipo'] : null;
 
-    if ($fechaDesde !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaDesde)) {
-        $sql .= " AND DATE(m.fecha) >= :fecha_desde";
-        $params[':fecha_desde'] = $fechaDesde;
-    }
-    if ($fechaHasta !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaHasta)) {
-        $sql .= " AND DATE(m.fecha) <= :fecha_hasta";
-        $params[':fecha_hasta'] = $fechaHasta;
-    }
-    $sql .= " ORDER BY m.fecha DESC";
+    $filas = $modelo->listarParaExportar($desde, $hasta, $productoId, $tipo);
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $desdeLabel = $desde ?? date('Y-m-d', strtotime('-30 days'));
+    $hastaLabel = $hasta ?? date('Y-m-d');
+    $filename   = "movimientos_{$desdeLabel}_{$hastaLabel}.csv";
 
-    $fecha = date('Ymd_His');
     header('Content-Type: text/csv; charset=UTF-8');
-    header("Content-Disposition: attachment; filename=\"movimientos_{$fecha}.csv\"");
+    header("Content-Disposition: attachment; filename=\"{$filename}\"");
     header('Cache-Control: no-cache, no-store, must-revalidate');
 
     $out = fopen('php://output', 'w');
-    fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Fecha', 'Producto', 'Tipo', 'Cantidad', 'Observaciones', 'Usuario'], ';');
+    fwrite($out, "\xEF\xBB\xBF"); // BOM UTF-8 para Excel
 
-    foreach ($rows as $row) {
+    // Cabecera
+    fputcsv($out, ['ID', 'Fecha', 'Producto', 'Referencia', 'Tipo', 'Cantidad', 'Observaciones', 'Usuario'], ';');
+
+    // Filas
+    $totalEntradas = 0;
+    $totalSalidas  = 0;
+    foreach ($filas as $f) {
         fputcsv($out, [
-            $row['fecha']        ?? '',
-            $row['producto']     ?? '',
-            $row['tipo']         ?? '',
-            (int)$row['cantidad'],
-            $row['observaciones'] ?? '',
-            $row['usuario']      ?? 'admin',
+            $f['id'],
+            $f['fecha'],
+            $f['producto'] ?? '',
+            $f['referencia'] ?? '',
+            $f['tipo'],
+            $f['cantidad'],
+            $f['observaciones'] ?? '',
+            $f['usuario'] ?? '',
         ], ';');
+        if ($f['tipo'] === 'entrada') {
+            $totalEntradas += (int) $f['cantidad'];
+        } else {
+            $totalSalidas += (int) $f['cantidad'];
+        }
     }
+
+    // Filas de totales
+    fputcsv($out, [], ';'); // línea en blanco
+    fputcsv($out, ['', '', '', '', 'Total entradas', $totalEntradas, '', ''], ';');
+    fputcsv($out, ['', '', '', '', 'Total salidas',  $totalSalidas,  '', ''], ';');
 
     fclose($out);
     exit;

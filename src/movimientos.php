@@ -136,6 +136,17 @@ $balance  = $entradas - $salidas;
                 <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
                 <span class="nav-label">Modelos de Moto</span>
             </a>
+            <a href="proveedores.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
+                <span class="nav-label">Proveedores</span>
+            </a>
+            <a href="pedidos.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'pedidos.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
+                <span class="nav-label">Pedidos</span>
+            </a>
+
             <?php endif; ?>
         </div>
         <div class="nav-section">
@@ -357,6 +368,27 @@ $balance  = $entradas - $salidas;
             </div>
         </div>
 
+        <!-- Exportar CSV de movimientos -->
+        <div class="export-bar" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+            <label class="field-label" style="margin:0">Exportar CSV:</label>
+            <input type="date" id="export-desde" class="field-input" style="width:160px"
+                   value="<?= htmlspecialchars(date('Y-m-d', strtotime('-30 days')), ENT_QUOTES, 'UTF-8') ?>"
+                   max="<?= date('Y-m-d') ?>">
+            <span>hasta</span>
+            <input type="date" id="export-hasta" class="field-input" style="width:160px"
+                   value="<?= htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8') ?>"
+                   max="<?= date('Y-m-d') ?>">
+            <button type="button" onclick="exportarMovimientosCSV()" class="btn btn-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Exportar CSV
+            </button>
+        </div>
+
         <div class="data-table-wrapper">
             <?php if (empty($movimientos)): ?>
             <div class="td-empty" style="padding:2.5rem;text-align:center;">
@@ -438,5 +470,25 @@ $balance  = $entradas - $salidas;
 </div>
 
 <script src="js/app.js"></script>
+<script>
+/**
+ * Descarga el CSV de movimientos respetando los filtros activos.
+ * Pasa producto_id y tipo si están en la URL actual.
+ */
+function exportarMovimientosCSV() {
+    const desde = document.getElementById('export-desde').value;
+    const hasta = document.getElementById('export-hasta').value;
+    const params = new URLSearchParams({ export: 'csv' });
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    // Respetar filtros activos de la vista actual
+    const url = new URL(window.location.href);
+    const productoId = url.searchParams.get('producto_id');
+    const tipo = url.searchParams.get('tipo');
+    if (productoId) params.set('producto_id', productoId);
+    if (tipo) params.set('tipo', tipo);
+    window.location.href = 'api/movimientos.php?' + params.toString();
+}
+</script>
 </body>
 </html>

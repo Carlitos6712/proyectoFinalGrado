@@ -13,6 +13,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Movimiento.php';
 require_once __DIR__ . '/includes/Categoria.php';
+require_once __DIR__ . '/includes/Pedido.php';
 
 $flashSuccess  = $_SESSION['flash_success'] ?? '';
 $flashError    = $_SESSION['flash_error']   ?? '';
@@ -24,6 +25,7 @@ $valorInventario  = 0.0;
 $stockBajoCount   = 0;
 $movimientosMes   = 0;
 $totalCategorias  = 0;
+$pedidosPendientes = 0;
 $productosStockBajo = [];
 $ultimosMovimientos = [];
 $error = '';
@@ -32,12 +34,14 @@ try {
     $productoModel   = new Producto();
     $movimientoModel = new Movimiento();
     $categoriaModel  = new Categoria();
+    $pedidoModel     = new Pedido();
 
     $totalProductos     = $productoModel->contarActivos();
     $valorInventario    = $productoModel->valorInventario();
     $stockBajoCount     = count($productoModel->filtrarStockBajo());
     $movimientosMes     = $movimientoModel->contarEsteMes();
     $totalCategorias    = count($categoriaModel->listar());
+    $pedidosPendientes  = $pedidoModel->contarPendientes();
     $productosStockBajo = $productoModel->filtrarStockBajo();
     // Solo los top 5
     $productosStockBajo = array_slice($productosStockBajo, 0, 5);
@@ -114,6 +118,16 @@ try {
                class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
                 <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
                 <span class="nav-label">Modelos de Moto</span>
+            </a>
+            <a href="proveedores.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
+                <span class="nav-label">Proveedores</span>
+            </a>
+            <a href="pedidos.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'pedidos.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
+                <span class="nav-label">Pedidos</span>
             </a>
             <?php endif; ?>
         </div>
@@ -319,6 +333,15 @@ try {
                     <span class="stat-label">Movimientos (mes)</span>
                 </div>
             </div>
+            <div class="stat-card <?= $pedidosPendientes > 0 ? 'stat-card-warning' : '' ?>">
+                <div class="stat-card-icon stat-icon-blue">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                </div>
+                <div class="stat-card-body">
+                    <a href="pedidos.php" class="stat-value stat-link"><?= $pedidosPendientes ?></a>
+                    <span class="stat-label">Pedidos pendientes</span>
+                </div>
+            </div>
         </div>
 
         <!-- Chart card -->
@@ -354,6 +377,9 @@ try {
                                 <th>Categoría</th>
                                 <th>Stock</th>
                                 <th>Mínimo</th>
+                                <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+                                <th>Acción</th>
+                                <?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
@@ -371,6 +397,14 @@ try {
                                     <span class="stock-value stock-value-low"><?= (int)$p['stock'] ?></span>
                                 </td>
                                 <td><?= (int)($p['stock_minimo'] ?? 5) ?></td>
+                                <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+                                <td>
+                                    <a href="nuevo_pedido.php?producto_id=<?= (int)$p['id'] ?>&cantidad=<?= max(1, ($p['stock_minimo'] ?? 5) - ($p['stock'] ?? 0)) ?>"
+                                       class="btn btn-sm btn-primary">
+                                        Pedir reposición
+                                    </a>
+                                </td>
+                                <?php endif; ?>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>

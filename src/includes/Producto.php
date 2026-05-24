@@ -106,6 +106,7 @@ class Producto
      * @param int|null    $longitud         Longitud en milímetros.
      * @param int|null    $anchura          Anchura en milímetros.
      * @param float|null  $diametro         Diámetro en milímetros.
+     * @param int|null    $proveedorId      ID del proveedor FK (Fase 12).
      * @return int ID del producto creado.
      * @author Carlitos6712
      */
@@ -127,7 +128,8 @@ class Producto
         ?int $capacidad = null,
         ?int $longitud = null,
         ?int $anchura = null,
-        ?float $diametro = null
+        ?float $diametro = null,
+        ?int $proveedorId = null
     ): int {
         $bizCol = $this->businessId !== null ? ', business_id' : '';
         $bizVal = $this->businessId !== null ? ', :biz_id'    : '';
@@ -135,10 +137,10 @@ class Producto
             "INSERT INTO productos
              (nombre, descripcion, descripcion_larga, precio, categoria_id, stock, stock_minimo,
               codigo_ref, marca_id, codigo_barras, url_proveedor, proveedor, ubicacion,
-              peso, capacidad, longitud, anchura, diametro{$bizCol})
+              peso, capacidad, longitud, anchura, diametro, proveedor_id{$bizCol})
              VALUES (:nombre, :descripcion, :descripcion_larga, :precio, :categoria_id, :stock,
                      :stock_minimo, :codigo_ref, :marca_id, :codigo_barras, :url_proveedor, :proveedor,
-                     :ubicacion, :peso, :capacidad, :longitud, :anchura, :diametro{$bizVal})"
+                     :ubicacion, :peso, :capacidad, :longitud, :anchura, :diametro, :proveedor_id{$bizVal})"
         );
         $stmt->execute(array_merge([
             ':nombre'            => $nombre,
@@ -159,13 +161,14 @@ class Producto
             ':longitud'          => $longitud,
             ':anchura'           => $anchura,
             ':diametro'          => $diametro,
+            ':proveedor_id'      => $proveedorId,
         ], $this->bizParam()));
         $id = (int) $this->pdo->lastInsertId();
         $this->auditarOperacion(
             'crear', $id, null,
             compact('nombre', 'descripcion', 'descripcionLarga', 'precio', 'categoriaId',
                     'stock', 'stockMinimo', 'codigoRef', 'marcaId', 'codigoBarras',
-                    'urlProveedor', 'proveedor', 'ubicacion', 'peso', 'capacidad', 'longitud', 'anchura', 'diametro')
+                    'urlProveedor', 'proveedor', 'ubicacion', 'peso', 'capacidad', 'longitud', 'anchura', 'diametro', 'proveedorId')
         );
         return $id;
     }
@@ -191,6 +194,7 @@ class Producto
      * @param int|null    $longitud         Nueva longitud en milímetros.
      * @param int|null    $anchura          Nueva anchura en milímetros.
      * @param float|null  $diametro         Nuevo diámetro en milímetros.
+     * @param int|null    $proveedorId      ID del proveedor FK (Fase 12).
      * @return bool
      * @author Carlitos6712
      */
@@ -212,7 +216,8 @@ class Producto
         ?int $capacidad = null,
         ?int $longitud = null,
         ?int $anchura = null,
-        ?float $diametro = null
+        ?float $diametro = null,
+        ?int $proveedorId = null
     ): bool {
         if ($precio <= 0) {
             throw new AppException('El precio debe ser mayor que cero.', 400);
@@ -228,7 +233,7 @@ class Producto
                  codigo_ref = :codigo_ref, marca_id = :marca_id, codigo_barras = :codigo_barras,
                  url_proveedor = :url_proveedor, proveedor = :proveedor, ubicacion = :ubicacion,
                  peso = :peso, capacidad = :capacidad, longitud = :longitud,
-                 anchura = :anchura, diametro = :diametro
+                 anchura = :anchura, diametro = :diametro, proveedor_id = :proveedor_id
              WHERE id = :id AND deleted_at IS NULL" . $this->bizWhere('')
         );
         $resultado = $stmt->execute(array_merge([
@@ -250,13 +255,14 @@ class Producto
             ':longitud'          => $longitud,
             ':anchura'           => $anchura,
             ':diametro'          => $diametro,
+            ':proveedor_id'      => $proveedorId,
         ], $this->bizParam()));
         if ($resultado && $stmt->rowCount() > 0) {
             $this->auditarOperacion(
                 'actualizar', $id, $anterior,
                 compact('nombre', 'descripcion', 'descripcionLarga', 'precio', 'categoriaId',
                         'stockMinimo', 'codigoRef', 'marcaId', 'codigoBarras',
-                        'urlProveedor', 'proveedor', 'ubicacion', 'peso', 'capacidad', 'longitud', 'anchura', 'diametro')
+                        'urlProveedor', 'proveedor', 'ubicacion', 'peso', 'capacidad', 'longitud', 'anchura', 'diametro', 'proveedorId')
             );
         }
         return $resultado;

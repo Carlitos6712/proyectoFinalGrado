@@ -94,6 +94,7 @@ class ProductoTest extends TestCase
                 anchura          INTEGER,
                 diametro         REAL,
                 alertas_email    INTEGER DEFAULT 1,
+                proveedor_id     INTEGER NULL,
                 deleted_at       TEXT    DEFAULT NULL,
                 created_at       TEXT    DEFAULT CURRENT_TIMESTAMP,
                 updated_at       TEXT    DEFAULT CURRENT_TIMESTAMP

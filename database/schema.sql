@@ -449,3 +449,51 @@ CREATE TABLE IF NOT EXISTS email_campaigns (
     recipients_count INT          DEFAULT 0,
     created_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------------------------------------------
+-- Tabla: proveedores (Fase 12)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS proveedores (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    nombre     VARCHAR(150) NOT NULL,
+    contacto   VARCHAR(100),
+    email      VARCHAR(150),
+    telefono   VARCHAR(30),
+    web        VARCHAR(500),
+    notas      TEXT,
+    activo     TINYINT(1)   DEFAULT 1,
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Añadir proveedor_id FK a productos (Fase 12)
+-- Usando prepared statement condicional para idempotencia en MySQL 8.0
+SET @col_prov = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'productos' AND COLUMN_NAME = 'proveedor_id');
+SET @sql_prov = IF(@col_prov = 0,
+    'ALTER TABLE productos ADD COLUMN proveedor_id INT NULL, ADD CONSTRAINT fk_productos_proveedor FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON DELETE SET NULL',
+    'SELECT 1');
+PREPARE stmt_prov FROM @sql_prov; EXECUTE stmt_prov; DEALLOCATE PREPARE stmt_prov;
+
+-- -------------------------------------------------------------
+-- Tablas: pedidos y pedidos_lineas (Fase 13)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pedidos (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    proveedor_id  INT  NULL,
+    estado        ENUM('borrador','enviado','recibido','cancelado') DEFAULT 'borrador',
+    notas         TEXT,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    enviado_at    TIMESTAMP NULL DEFAULT NULL,
+    recibido_at   TIMESTAMP NULL DEFAULT NULL,
+    FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pedidos_lineas (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    pedido_id   INT NOT NULL,
+    producto_id INT NOT NULL,
+    cantidad    INT NOT NULL,
+    precio_unit DECIMAL(10,2) NULL,
+    FOREIGN KEY (pedido_id)   REFERENCES pedidos(id)   ON DELETE CASCADE,
+    FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

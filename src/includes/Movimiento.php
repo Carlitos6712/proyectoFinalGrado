@@ -245,4 +245,48 @@ class Movimiento
         $stmt->execute();
         return $stmt->fetchAll();
     }
+
+    /**
+     * Lista movimientos filtrados para exportación CSV.
+     *
+     * Sin fechas, exporta los últimos 30 días por defecto.
+     * Ambos extremos del rango son inclusivos.
+     *
+     * @param  string|null $desde      Fecha inicio en formato Y-m-d (incluida). Default: hoy - 30 días.
+     * @param  string|null $hasta      Fecha fin en formato Y-m-d (incluida). Default: hoy.
+     * @param  int|null    $productoId Filtro opcional por producto.
+     * @param  string|null $tipo       Filtro opcional: 'entrada' o 'salida'.
+     * @return array<int, array<string, mixed>> Filas de movimientos con nombre de producto.
+     * @author Carlitos6712
+     */
+    public function listarParaExportar(
+        ?string $desde = null,
+        ?string $hasta = null,
+        ?int $productoId = null,
+        ?string $tipo = null
+    ): array {
+        $desde = $desde ?: date('Y-m-d', strtotime('-30 days'));
+        $hasta = $hasta ?: date('Y-m-d');
+
+        $sql    = "SELECT m.id, m.fecha, p.nombre AS producto, p.codigo_ref AS referencia,
+                          m.tipo, m.cantidad, m.observaciones, m.usuario
+                   FROM movimientos m
+                   LEFT JOIN productos p ON m.producto_id = p.id
+                   WHERE substr(m.fecha, 1, 10) >= :desde AND substr(m.fecha, 1, 10) <= :hasta";
+        $params = [':desde' => $desde, ':hasta' => $hasta];
+
+        if ($productoId !== null) {
+            $sql .= " AND m.producto_id = :producto_id";
+            $params[':producto_id'] = $productoId;
+        }
+        if ($tipo !== null && in_array($tipo, ['entrada', 'salida'], true)) {
+            $sql .= " AND m.tipo = :tipo";
+            $params[':tipo'] = $tipo;
+        }
+
+        $sql .= " ORDER BY m.fecha DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
 }

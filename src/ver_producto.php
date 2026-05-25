@@ -12,6 +12,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Movimiento.php';
 require_once __DIR__ . '/includes/ModeloMoto.php';
+require_once __DIR__ . '/includes/Proveedor.php';
 
 $stockBajoCount = 0;
 $movimientos    = [];
@@ -40,6 +41,16 @@ try {
     );
     $stmtCompat->execute([':pid' => $id]);
     $compatibilidades = $stmtCompat->fetchAll(PDO::FETCH_ASSOC);
+
+    // Cargar datos del proveedor vinculado (Fase 12)
+    $proveedorVinculado = null;
+    if (!empty($producto['proveedor_id'])) {
+        try {
+            $proveedorVinculado = (new Proveedor($pdo))->obtener((int)$producto['proveedor_id']);
+        } catch (\Throwable $e) {
+            // Si no se encuentra el proveedor, ignorar silenciosamente
+        }
+    }
 } catch (AppException $e) {
     $_SESSION['flash_error'] = $e->getMessage();
     header('Location: productos.php');
@@ -245,6 +256,17 @@ $imgRuta  = Producto::rutaImagen($producto['imagen'] ?? null);
                 <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
                 <span class="nav-label">Modelos de Moto</span>
             </a>
+            <a href="proveedores.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
+                <span class="nav-label">Proveedores</span>
+            </a>
+            <a href="pedidos.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'pedidos.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
+                <span class="nav-label">Pedidos</span>
+            </a>
+
             <?php endif; ?>
         </div>
         <div class="nav-section">
@@ -522,12 +544,39 @@ $imgRuta  = Producto::rutaImagen($producto['imagen'] ?? null);
                         <div class="detail-fields">
                             <div class="detail-section-title">Proveedor</div>
 
+                            <?php if ($proveedorVinculado): ?>
+                            <div class="detail-field">
+                                <span class="detail-label">Proveedor vinculado</span>
+                                <span class="detail-value">
+                                    <a href="proveedores.php?ver_productos=<?= (int)$proveedorVinculado['id'] ?>">
+                                        <?= htmlspecialchars($proveedorVinculado['nombre'], ENT_QUOTES, 'UTF-8') ?>
+                                    </a>
+                                </span>
+                            </div>
+                            <?php if (!empty($proveedorVinculado['email'])): ?>
+                            <div class="detail-field">
+                                <span class="detail-label">Email proveedor</span>
+                                <span class="detail-value">
+                                    <a href="mailto:<?= htmlspecialchars($proveedorVinculado['email'], ENT_QUOTES, 'UTF-8') ?>">
+                                        <?= htmlspecialchars($proveedorVinculado['email'], ENT_QUOTES, 'UTF-8') ?>
+                                    </a>
+                                </span>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($proveedorVinculado['telefono'])): ?>
+                            <div class="detail-field">
+                                <span class="detail-label">Teléfono proveedor</span>
+                                <span class="detail-value"><?= htmlspecialchars($proveedorVinculado['telefono'], ENT_QUOTES, 'UTF-8') ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <?php else: ?>
                             <div class="detail-field">
                                 <span class="detail-label">Proveedor</span>
                                 <span class="detail-value <?= empty($producto['proveedor']) ? 'detail-value-empty' : '' ?>">
                                     <?= !empty($producto['proveedor']) ? htmlspecialchars($producto['proveedor'], ENT_QUOTES, 'UTF-8') : '—' ?>
                                 </span>
                             </div>
+                            <?php endif; ?>
 
                             <div class="detail-field">
                                 <span class="detail-label">URL del Proveedor</span>

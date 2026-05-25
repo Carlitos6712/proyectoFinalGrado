@@ -54,7 +54,15 @@ try {
 
     switch ($method) {
         case 'GET':    handleGet($modelo);    break;
-        case 'POST':   handlePost($modelo);   break;
+        case 'POST':
+            // Importación CSV tiene su propio handler
+            if (isset($_GET['action']) && $_GET['action'] === 'import') {
+                handleImport();
+                break;
+            }
+            requireAdmin();
+            handlePost($modelo);
+            break;
         case 'PUT':    handlePut($modelo);    break;
         case 'DELETE': handleDelete($modelo); break;
         default:
@@ -353,4 +361,49 @@ function handleDelete(Producto $modelo): void
     $modelo->obtener($id);
     $ok = $modelo->eliminar($id);
     jsonResponse($ok, null, $ok ? 'Producto eliminado.' : 'No se pudo eliminar.');
+}
+
+/**
+ * Verifica que el usuario tiene rol de administrador.
+ * Termina con 403 si no lo es.
+ *
+ * @return void
+ * @author Carlitos6712
+ */
+function requireAdmin(): void
+{
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    if (($_SESSION['rol'] ?? '') !== 'admin') {
+        jsonResponse(false, null, 'Acceso denegado.', 403);
+    }
+}
+
+/**
+ * Importa productos desde un archivo CSV subido.
+ * Requiere autenticación de admin.
+ * Acepta multipart/form-data con campo 'csv' y parámetro opcional 'modo'=actualizacion.
+ *
+ * @return void
+ * @author Carlitos6712
+ */
+function handleImport(): void
+{
+    requireAdmin();
+    require_once __DIR__ . '/../includes/ImportadorProductos.php';
+
+    if (empty($_FILES['csv'])) {
+        jsonResponse(false, null, 'No se ha recibido ningún archivo.', 400);
+    }
+
+    $importador = new ImportadorProductos();
+    try {
+        $importador->validarArchivo($_FILES['csv']);
+        $modoActualizacion = (($_POST['modo'] ?? '') === 'actualizacion');
+        $resultado = $importador->procesar($_FILES['csv']['tmp_name'], $modoActualizacion);
+        jsonResponse(true, $resultado, 'Importación completada.');
+    } catch (AppException $e) {
+        jsonResponse(false, null, $e->getMessage(), $e->getCode() ?: 400);
+    }
 }

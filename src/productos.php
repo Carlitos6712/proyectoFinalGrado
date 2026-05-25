@@ -177,6 +177,11 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
                 <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
                 <span class="nav-label">Modelos de Moto</span>
             </a>
+            <a href="proveedores.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
+                <span class="nav-label">Proveedores</span>
+            </a>
             <?php endif; ?>
         </div>
         <div class="nav-section">
@@ -294,12 +299,12 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
                 <p class="page-subtitle">Catálogo completo de productos del inventario</p>
             </div>
             <div class="page-actions">
-                <a href="importar_csv.php" class="btn-secondary" title="Importar productos desde CSV">
+                <button type="button" onclick="abrirModalImport()" class="btn-secondary" title="Importar productos desde CSV">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
                     </svg>
                     Importar CSV
-                </a>
+                </button>
                 <a href="nuevo_producto.php" class="btn-primary">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -488,5 +493,130 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
 </div>
 
 <script src="js/app.js"></script>
+
+<!-- Modal Importar CSV -->
+<div id="modal-import" class="modal-overlay" style="display:none">
+    <div class="modal-box" style="max-width:600px">
+        <div class="modal-header">
+            <h3>Importar productos desde CSV</h3>
+            <button type="button" onclick="cerrarModalImport()" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom:12px;color:var(--text-secondary)">
+                Formato esperado: <code>Ref,Nombre,Categoria,Marca,Precio,Stock,Stock Minimo,Descripcion,Proveedor,Ubicacion</code>
+            </p>
+            <div class="field-group">
+                <label class="field-label">Archivo CSV <span style="color:red">*</span></label>
+                <input type="file" id="import-file" accept=".csv" class="field-input">
+            </div>
+            <div class="field-group" style="margin-top:12px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="checkbox" id="import-modo-actualizacion">
+                    <span>Modo actualización (actualizar si la Ref ya existe)</span>
+                </label>
+            </div>
+            <!-- Preview primeras 5 filas -->
+            <div id="import-preview" style="display:none;margin-top:16px">
+                <h4 style="margin-bottom:8px">Vista previa (primeras 5 filas)</h4>
+                <div style="overflow-x:auto">
+                    <table class="data-table" id="preview-table">
+                        <thead id="preview-head"></thead>
+                        <tbody id="preview-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Resultado -->
+            <div id="import-result" style="display:none;margin-top:16px"></div>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+            <button type="button" onclick="previsualizarCSV()" class="btn btn-secondary">Previsualizar</button>
+            <button type="button" onclick="importarCSV()" class="btn btn-primary" id="btn-importar">Importar</button>
+            <button type="button" onclick="cerrarModalImport()" class="btn btn-ghost">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Importación CSV ────────────────────────────────────────
+/**
+ * Abre el modal de importación CSV y resetea su estado.
+ */
+function abrirModalImport() {
+    document.getElementById('modal-import').style.display = 'flex';
+    document.getElementById('import-result').style.display = 'none';
+    document.getElementById('import-preview').style.display = 'none';
+    document.getElementById('import-file').value = '';
+}
+
+/**
+ * Cierra el modal de importación CSV.
+ */
+function cerrarModalImport() {
+    document.getElementById('modal-import').style.display = 'none';
+}
+
+/**
+ * Lee el CSV seleccionado y muestra una vista previa de las primeras 5 filas.
+ */
+function previsualizarCSV() {
+    const file = document.getElementById('import-file').files[0];
+    if (!file) { alert('Selecciona un archivo CSV primero.'); return; }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const lines = e.target.result.split('\n').filter(l => l.trim());
+        if (lines.length < 2) { alert('El CSV debe tener al menos una fila de datos.'); return; }
+        const headers = lines[0].replace(/^﻿/, '').split(',');
+        const rows = lines.slice(1, 6); // primeras 5 filas de datos
+        const thead = document.getElementById('preview-head');
+        const tbody = document.getElementById('preview-body');
+        thead.innerHTML = '<tr>' + headers.map(h => `<th>${h.trim()}</th>`).join('') + '</tr>';
+        tbody.innerHTML = rows.map(row => {
+            const cells = row.split(',');
+            return '<tr>' + cells.map(c => `<td>${c.trim()}</td>`).join('') + '</tr>';
+        }).join('');
+        document.getElementById('import-preview').style.display = 'block';
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+/**
+ * Envía el archivo CSV al endpoint de importación y muestra el resultado.
+ */
+function importarCSV() {
+    const file = document.getElementById('import-file').files[0];
+    if (!file) { alert('Selecciona un archivo CSV primero.'); return; }
+    const modo = document.getElementById('import-modo-actualizacion').checked ? 'actualizacion' : '';
+    const formData = new FormData();
+    formData.append('csv', file);
+    formData.append('modo', modo);
+    const btn = document.getElementById('btn-importar');
+    btn.disabled = true;
+    btn.textContent = 'Importando…';
+    fetch('api/productos.php?action=import', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            const div = document.getElementById('import-result');
+            div.style.display = 'block';
+            if (data.success) {
+                const d = data.data;
+                const errHtml = d.errores && d.errores.length
+                    ? `<ul style="margin-top:8px">${d.errores.map(e => `<li>Línea ${e.linea}: ${e.motivo}</li>`).join('')}</ul>`
+                    : '';
+                div.innerHTML = `<div class="alert alert-success">
+                    ✅ Importación completada: <strong>${d.insertados}</strong> insertados,
+                    <strong>${d.actualizados}</strong> actualizados,
+                    <strong>${d.errores ? d.errores.length : 0}</strong> errores.${errHtml}
+                </div>`;
+            } else {
+                div.innerHTML = `<div class="alert alert-error">❌ ${data.message}</div>`;
+            }
+        })
+        .catch(() => {
+            document.getElementById('import-result').innerHTML = '<div class="alert alert-error">❌ Error de red al importar.</div>';
+            document.getElementById('import-result').style.display = 'block';
+        })
+        .finally(() => { btn.disabled = false; btn.textContent = 'Importar'; });
+}
+</script>
 </body>
 </html>

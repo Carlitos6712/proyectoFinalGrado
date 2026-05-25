@@ -4,7 +4,6 @@
  *
  * @package  Es21Plus
  * @author   Carlitos6712
- * @author   miguelrechefdez
  * @version  1.0.0
  */
 require_once __DIR__ . '/includes/auth_check.php';
@@ -33,16 +32,16 @@ try {
         exit;
     }
 
-    $producto   = $productoModel->obtener($id);
-    $categorias = $categoriaModel->listar();
-    $marcas    = $marcaModel->listar();
-    $modelos   = $modeloMotoModel->listarParaSelect();
-    $proveedorModel        = new Proveedor($pdo);
+    $pdo                    = Database::getInstance();
+    $producto               = $productoModel->obtener($id);
+    $categorias             = $categoriaModel->listar();
+    $marcas                 = $marcaModel->listar();
+    $modelos                = $modeloMotoModel->listarParaSelect();
+    $proveedorModel         = new Proveedor($pdo);
     $proveedoresDisponibles = $proveedorModel->listar(true);
-    $proveedorIdActual     = (int)($producto['proveedor_id'] ?? 0);
+    $proveedorIdActual      = (int)($producto['proveedor_id'] ?? 0);
 
     // Cargar compatibilidades actuales del producto
-    $pdo = Database::getInstance();
     $stmtCompat = $pdo->prepare("SELECT modelo_id, notas FROM compatibilidades WHERE producto_id = :pid");
     $stmtCompat->execute([':pid' => $id]);
     $compatActuales  = $stmtCompat->fetchAll(PDO::FETCH_ASSOC);
@@ -87,7 +86,6 @@ try {
 
         // Sincronizar compatibilidades
         $modelosSeleccionados = array_map('intval', $_POST['modelos_compatibles'] ?? []);
-        $pdo = Database::getInstance();
         $stmt = $pdo->prepare("DELETE FROM compatibilidades WHERE producto_id = :pid");
         $stmt->execute([':pid' => $id]);
         foreach ($modelosSeleccionados as $modeloId) {
@@ -123,14 +121,153 @@ try {
     }
     $error = 'Error inesperado: ' . $e->getMessage();
 }
+
+$esBajo  = isset($producto) && (int)$producto['stock'] <= (int)($producto['stock_minimo'] ?? 5);
+$inicial = isset($producto) ? mb_strtoupper(mb_substr($producto['nombre'], 0, 1, 'UTF-8'), 'UTF-8') : '?';
+$imgRuta = isset($producto) ? Producto::rutaImagen($producto['imagen'] ?? null) : '';
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editar Producto – es21plus</title>
+    <title>Editar <?= isset($producto) ? htmlspecialchars($producto['nombre'], ENT_QUOTES, 'UTF-8') : 'Producto' ?> – es21plus</title>
     <link rel="stylesheet" href="css/estilos.css">
+    <style>
+        /* ── Layout de dos columnas igual que ver_producto ── */
+        .product-detail-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 1.5rem;
+            align-items: start;
+        }
+        .product-detail-image-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            position: sticky;
+            top: 1.5rem;
+        }
+        .product-detail-img {
+            width: 220px;
+            height: 220px;
+            object-fit: cover;
+            border-radius: var(--radius-md);
+            background: var(--bg-hover);
+        }
+        .product-detail-avatar-lg {
+            width: 220px;
+            height: 220px;
+            border-radius: var(--radius-md);
+            background: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .product-detail-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-align: center;
+        }
+        .product-detail-price {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .product-detail-actions {
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+            width: 100%;
+        }
+        /* ── Campos dentro de los detail-cards ── */
+        .detail-fields {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        .detail-field {
+            display: flex;
+            flex-direction: column;
+            gap: .35rem;
+        }
+        .detail-field-full {
+            grid-column: 1 / -1;
+        }
+        .detail-label {
+            font-size: .72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: var(--text-muted);
+        }
+        .detail-section-title {
+            font-size: .8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: var(--text-muted);
+            padding-bottom: .5rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: .5rem;
+            grid-column: 1 / -1;
+        }
+        /* Inputs dentro de tarjetas de detalle */
+        .detail-field .field-input,
+        .detail-field textarea.field-input {
+            font-size: .875rem;
+            padding: .4rem .65rem;
+        }
+        .detail-field textarea.field-input {
+            resize: vertical;
+        }
+        .field-hint-sm {
+            font-size: .72rem;
+            color: var(--text-muted);
+        }
+        /* Upload block dentro del panel izquierdo */
+        .left-upload-block {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+            padding-top: .5rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .left-upload-label {
+            font-size: .72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: var(--text-muted);
+            text-align: center;
+        }
+        @media (max-width: 900px) {
+            .product-detail-grid { grid-template-columns: 1fr; }
+            .product-detail-image-card {
+                position: static;
+                flex-direction: row;
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+            .product-detail-img,
+            .product-detail-avatar-lg {
+                width: 100px;
+                height: 100px;
+                font-size: 2.5rem;
+            }
+            .detail-fields { grid-template-columns: 1fr; }
+        }
+    </style>
 </head>
 <body class="layout">
 
@@ -149,91 +286,74 @@ try {
             </svg>
         </button>
     </div>
-
     <nav class="sidebar-nav">
         <div class="nav-section">
             <span class="nav-section-label">Principal</span>
             <a href="index.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['index.php','dashboard.php']) ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-                    </svg>
-                </span>
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
                 <span class="nav-label">Dashboard</span>
             </a>
             <a href="productos.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['productos.php','nuevo_producto.php','editar_producto.php','eliminar_producto.php']) ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                    </svg>
-                </span>
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>
                 <span class="nav-label">Productos</span>
             </a>
             <a href="categorias.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'categorias.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
-                    </svg>
-                </span>
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
                 <span class="nav-label">Categorías</span>
             </a>
             <a href="marcas.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'marcas.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
-                    </svg>
-                </span>
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg></span>
                 <span class="nav-label">Marcas</span>
             </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-            <a href="modelos_moto.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
+            <?php if (isAdmin()): ?>
+            <a href="modelos_moto.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
                 <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
                 <span class="nav-label">Modelos de Moto</span>
             </a>
-            <a href="proveedores.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
+            <a href="proveedores.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
                 <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
                 <span class="nav-label">Proveedores</span>
             </a>
-            <a href="pedidos.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'pedidos.php' ? 'active' : '' ?>">
+            <a href="pedidos.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'pedidos.php' ? 'active' : '' ?>">
                 <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
                 <span class="nav-label">Pedidos</span>
             </a>
-
             <?php endif; ?>
         </div>
         <div class="nav-section">
             <span class="nav-section-label">Operaciones</span>
             <a href="movimientos.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'movimientos.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-                    </svg>
-                </span>
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
                 <span class="nav-label">Movimientos</span>
             </a>
         </div>
         <div class="nav-section">
             <span class="nav-section-label">Administración</span>
             <a href="auditoria.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'auditoria.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-                    </svg>
-                </span>
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
                 <span class="nav-label">Auditoría</span>
             </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+            <?php if (isAdmin()): ?>
             <a href="usuarios.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'usuarios.php' ? 'active' : '' ?>">
                 <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                 <span class="nav-label">Usuarios</span>
             </a>
             <?php endif; ?>
+            <?php if ((($_SESSION['user_role'] ?? '') === 'admin')): ?>
+            <a href="perfil_empresa.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'perfil_empresa.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
+                <span class="nav-label">Perfil de empresa</span>
+            </a>
+            <?php endif; ?>
+        </div>
+        <div class="nav-section">
+            <span class="nav-section-label">Ayuda</span>
+            <a href="soporte/mis-tickets.php" class="nav-item <?= str_contains($_SERVER['PHP_SELF'] ?? '', '/soporte/') ? 'active' : '' ?>">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+                <span class="nav-label">Soporte</span>
+            </a>
         </div>
     </nav>
-
     <div class="sidebar-footer">
         <div class="sidebar-user">
             <div class="user-avatar-sm"><?= mb_strtoupper(mb_substr($_SESSION['user_name'] ?? $_SESSION['usuario_nombre'] ?? 'U', 0, 2)) ?></div>
@@ -263,7 +383,11 @@ try {
                 <span class="breadcrumb-sep">›</span>
                 <a href="productos.php" class="breadcrumb-item">Productos</a>
                 <span class="breadcrumb-sep">›</span>
-                <span class="breadcrumb-item active">Editar Producto</span>
+                <?php if (isset($producto)): ?>
+                <a href="ver_producto.php?id=<?= (int)$producto['id'] ?>" class="breadcrumb-item"><?= htmlspecialchars($producto['nombre'], ENT_QUOTES, 'UTF-8') ?></a>
+                <span class="breadcrumb-sep">›</span>
+                <?php endif; ?>
+                <span class="breadcrumb-item active">Editar</span>
             </nav>
         </div>
         <div class="topbar-right">
@@ -285,14 +409,14 @@ try {
         <!-- Page header -->
         <div class="page-header">
             <div class="page-header-info">
-                <h1 class="page-title">Editar Producto</h1>
-                <p class="page-subtitle">
+                <h1 class="page-title">
                     <?php if (isset($producto)): ?>
-                        Modificando: <strong><?= htmlspecialchars($producto['nombre'], ENT_QUOTES, 'UTF-8') ?></strong>
+                        Editando: <?= htmlspecialchars($producto['nombre'], ENT_QUOTES, 'UTF-8') ?>
                     <?php else: ?>
-                        Modifica los datos del producto seleccionado
+                        Editar Producto
                     <?php endif; ?>
-                </p>
+                </h1>
+                <p class="page-subtitle">Modifica los datos y pulsa <strong>Guardar cambios</strong></p>
             </div>
             <div class="page-actions">
                 <a href="productos.php" class="btn-ghost">
@@ -301,11 +425,19 @@ try {
                     </svg>
                     Volver
                 </a>
+                <?php if (isset($producto)): ?>
+                <a href="ver_producto.php?id=<?= (int)$producto['id'] ?>" class="btn-ghost">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    Ver detalle
+                </a>
+                <?php endif; ?>
             </div>
         </div>
 
         <?php if ($error): ?>
-        <div class="alert-banner alert-banner-error">
+        <div class="alert-banner alert-banner-error" style="margin-bottom:1.25rem;">
             <svg class="alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
@@ -314,243 +446,345 @@ try {
         <?php endif; ?>
 
         <?php if (isset($producto)): ?>
-        <div class="card card-form">
-            <div class="card-header">
-                <h2 class="card-title">Datos del Producto</h2>
-                <p class="card-subtitle">Los campos marcados con <span class="field-required">*</span> son obligatorios</p>
+        <form method="POST" enctype="multipart/form-data">
+
+        <div class="product-detail-grid">
+
+            <!-- ══════════════════════════════════════
+                 COLUMNA IZQUIERDA – preview + acciones
+                 ══════════════════════════════════════ -->
+            <div class="product-detail-image-card">
+
+                <!-- Avatar / imagen actual -->
+                <div id="imgPreviewWrap">
+                    <?php if (!empty($producto['imagen'])): ?>
+                        <img src="<?= htmlspecialchars($imgRuta, ENT_QUOTES, 'UTF-8') ?>"
+                             alt="Imagen del producto"
+                             class="product-detail-img"
+                             id="imgPreviewEl">
+                    <?php else: ?>
+                        <div class="product-detail-avatar-lg" id="imgPreviewEl"><?= $inicial ?></div>
+                    <?php endif; ?>
+                </div>
+
+                <div class="product-detail-name"><?= htmlspecialchars($producto['nombre'], ENT_QUOTES, 'UTF-8') ?></div>
+                <div class="product-detail-price"><?= number_format((float)$producto['precio'], 2, ',', '.') ?> €</div>
+
+                <div style="width:100%;text-align:center;">
+                    <?php if ($esBajo): ?>
+                        <span class="status-pill status-pill-warning">Stock bajo</span>
+                    <?php else: ?>
+                        <span class="status-pill status-pill-success">Disponible</span>
+                    <?php endif; ?>
+                    <div style="font-size:.78rem;color:var(--text-muted);margin-top:.35rem;">
+                        Stock: <strong><?= (int)$producto['stock'] ?></strong> uds.
+                    </div>
+                </div>
+
+                <!-- Upload de imagen directamente en panel izquierdo -->
+                <div class="left-upload-block">
+                    <span class="left-upload-label">Cambiar imagen</span>
+                    <input class="field-input" type="file" id="imagen" name="imagen"
+                           accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                           style="cursor:pointer;font-size:.8rem;">
+                    <span class="field-hint-sm" style="text-align:center;">JPG, PNG o WebP · Máx. 2 MB</span>
+                    <?php if (!empty($producto['imagen'])): ?>
+                    <label style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;cursor:pointer;justify-content:center;">
+                        <input type="checkbox" name="eliminar_imagen" value="1"> Eliminar imagen actual
+                    </label>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Acciones -->
+                <div class="product-detail-actions">
+                    <button type="submit" class="btn-primary" style="text-align:center;justify-content:center;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Guardar cambios
+                    </button>
+                    <a href="ver_producto.php?id=<?= (int)$producto['id'] ?>" class="btn-ghost" style="text-align:center;justify-content:center;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        Ver detalle
+                    </a>
+                    <a href="movimientos.php?producto_id=<?= (int)$producto['id'] ?>" class="btn-ghost" style="text-align:center;justify-content:center;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+                        </svg>
+                        Ver movimientos
+                    </a>
+                    <a href="eliminar_producto.php?id=<?= (int)$producto['id'] ?>" class="btn-danger"
+                       style="text-align:center;justify-content:center;"
+                       onclick="return confirm('¿Eliminar este producto? Esta acción no se puede deshacer.')">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+                        </svg>
+                        Eliminar producto
+                    </a>
+                </div>
             </div>
-            <div class="card-body">
-                <form method="POST" enctype="multipart/form-data" class="form-grid-wrapper">
-                    <div class="form-grid">
 
-                        <div class="form-field form-field-full">
-                            <label class="field-label" for="nombre">Nombre <span class="field-required">*</span></label>
-                            <input class="field-input" type="text" id="nombre" name="nombre" required
-                                   placeholder="Nombre del producto"
-                                   value="<?= htmlspecialchars($producto['nombre'], ENT_QUOTES, 'UTF-8') ?>">
-                        </div>
+            <!-- ══════════════════════════════════════
+                 COLUMNA DERECHA – secciones del form
+                 ══════════════════════════════════════ -->
+            <div style="display:flex;flex-direction:column;gap:1.5rem;">
 
-                        <div class="form-field form-field-full">
-                            <label class="field-label" for="descripcion">Descripción corta</label>
-                            <textarea class="field-input field-textarea" id="descripcion" name="descripcion" rows="2"
-                                      placeholder="Resumen breve del producto…"><?= htmlspecialchars($producto['descripcion'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
-                        </div>
+                <!-- Datos básicos -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="detail-fields">
+                            <div class="detail-section-title">Datos básicos</div>
 
-                        <div class="form-field form-field-full">
-                            <label class="field-label" for="descripcion_larga">Descripción larga</label>
-                            <textarea class="field-input field-textarea" id="descripcion_larga" name="descripcion_larga" rows="5"
-                                      placeholder="Descripción técnica detallada, especificaciones, compatibilidades…"><?= htmlspecialchars($producto['descripcion_larga'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
-                        </div>
+                            <div class="detail-field detail-field-full">
+                                <label class="detail-label" for="nombre">Nombre <span style="color:var(--danger,#ef4444)">*</span></label>
+                                <input class="field-input" type="text" id="nombre" name="nombre" required
+                                       placeholder="Nombre del producto"
+                                       value="<?= htmlspecialchars($producto['nombre'], ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
 
-                        <div class="form-field">
-                            <label class="field-label" for="precio">Precio (€) <span class="field-required">*</span></label>
-                            <input class="field-input" type="number" id="precio" name="precio" step="0.01" min="0" required
-                                   placeholder="0.00"
-                                   value="<?= htmlspecialchars((string)$producto['precio'], ENT_QUOTES, 'UTF-8') ?>">
-                            <span class="field-hint">Precio de venta al público</span>
-                        </div>
+                            <div class="detail-field detail-field-full">
+                                <label class="detail-label" for="descripcion">Descripción corta</label>
+                                <textarea class="field-input" id="descripcion" name="descripcion" rows="2"
+                                          placeholder="Resumen breve del producto…"><?= htmlspecialchars($producto['descripcion'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                            </div>
 
-                        <div class="form-field">
-                            <label class="field-label" for="stock_minimo">Stock Mínimo</label>
-                            <input class="field-input" type="number" id="stock_minimo" name="stock_minimo" min="0"
-                                   placeholder="5"
-                                   value="<?= (int)($producto['stock_minimo'] ?? 5) ?>">
-                            <span class="field-hint">Alerta cuando el stock baje de este valor</span>
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="codigo_ref">Código de Referencia</label>
-                            <input class="field-input" type="text" id="codigo_ref" name="codigo_ref"
-                                   placeholder="Ej. REF-001"
-                                   value="<?= htmlspecialchars($producto['codigo_ref'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                            <span class="field-hint">Referencia interna o del fabricante</span>
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="codigo_barras">Código de Barras / EAN</label>
-                            <input class="field-input" type="text" id="codigo_barras" name="codigo_barras"
-                                   placeholder="Ej. 8412345678901"
-                                   value="<?= htmlspecialchars($producto['codigo_barras'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="proveedor">Proveedor (texto libre)</label>
-                            <input class="field-input" type="text" id="proveedor" name="proveedor"
-                                   placeholder="Nombre del proveedor"
-                                   value="<?= htmlspecialchars($producto['proveedor'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="proveedor_id">Proveedor vinculado</label>
-                            <select class="field-input" id="proveedor_id" name="proveedor_id">
-                                <option value="">— Sin proveedor vinculado —</option>
-                                <?php foreach ($proveedoresDisponibles as $pv): ?>
-                                <option value="<?= (int)$pv['id'] ?>" <?= (int)$pv['id'] === $proveedorIdActual ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($pv['nombre'], ENT_QUOTES, 'UTF-8') ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="url_proveedor">URL del Proveedor</label>
-                            <input class="field-input" type="url" id="url_proveedor" name="url_proveedor"
-                                   placeholder="https://proveedor.com/producto"
-                                   value="<?= htmlspecialchars($producto['url_proveedor'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="ubicacion">Ubicación en Taller</label>
-                            <input class="field-input" type="text" id="ubicacion" name="ubicacion"
-                                   placeholder="Ej. Estante A3, Cajón 2…"
-                                   value="<?= htmlspecialchars($producto['ubicacion'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                            <span class="field-hint">Dónde está físicamente en el taller</span>
-                        </div>
-
-                        <!-- Dimensiones técnicas -->
-                        <div class="form-field">
-                            <label class="field-label" for="peso">Peso (g)</label>
-                            <input class="field-input" type="number" id="peso" name="peso" min="0"
-                                   placeholder="Ej. 500"
-                                   value="<?= htmlspecialchars((string)($producto['peso'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                            <span class="field-hint">Peso en gramos</span>
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="capacidad">Capacidad (ml)</label>
-                            <input class="field-input" type="number" id="capacidad" name="capacidad" min="0"
-                                   placeholder="Ej. 1000"
-                                   value="<?= htmlspecialchars((string)($producto['capacidad'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                            <span class="field-hint">Capacidad en mililitros</span>
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="longitud">Longitud (mm)</label>
-                            <input class="field-input" type="number" id="longitud" name="longitud" min="0"
-                                   placeholder="Ej. 800"
-                                   value="<?= htmlspecialchars((string)($producto['longitud'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                            <span class="field-hint">Longitud en milímetros</span>
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="anchura">Anchura (mm)</label>
-                            <input class="field-input" type="number" id="anchura" name="anchura" min="0"
-                                   placeholder="Ej. 340"
-                                   value="<?= htmlspecialchars((string)($producto['anchura'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                            <span class="field-hint">Anchura en milímetros</span>
-                        </div>
-
-                        <div class="form-field">
-                            <label class="field-label" for="diametro">Diámetro (mm)</label>
-                            <input class="field-input" type="number" id="diametro" name="diametro" min="0" step="0.01"
-                                   placeholder="Ej. 310.00"
-                                   value="<?= htmlspecialchars((string)($producto['diametro'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                            <span class="field-hint">Diámetro en milímetros</span>
-                        </div>
-
-                        <div class="form-field form-field-full">
-                            <label class="field-label">Imagen del Producto</label>
-                            <div class="image-upload-wrap">
-                                <div class="image-preview" id="imagePreview">
-                                    <?php $imgActual = $producto['imagen'] ?? null; ?>
-                                    <?php if ($imgActual): ?>
-                                        <img src="<?= htmlspecialchars(\Producto::rutaImagen($imgActual), ENT_QUOTES, 'UTF-8') ?>"
-                                             alt="Imagen actual"
-                                             style="width:80px;height:80px;object-fit:cover;border-radius:8px;">
-                                    <?php else: ?>
-                                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-muted)">
-                                            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-                                        </svg>
-                                        <span style="font-size:.8rem;color:var(--text-muted);margin-top:.5rem;">Sin imagen</span>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="image-upload-info">
-                                    <input class="field-input" type="file" id="imagen" name="imagen"
-                                           accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                                           style="cursor:pointer;">
-                                    <span class="field-hint">JPG, PNG o WebP · Máximo 2 MB. Reemplazará la imagen actual.</span>
-                                    <?php if ($imgActual): ?>
-                                    <label style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.875rem;cursor:pointer;">
-                                        <input type="checkbox" name="eliminar_imagen" value="1"> Eliminar imagen actual
-                                    </label>
-                                    <?php endif; ?>
-                                </div>
+                            <div class="detail-field detail-field-full">
+                                <label class="detail-label" for="descripcion_larga">Descripción larga</label>
+                                <textarea class="field-input" id="descripcion_larga" name="descripcion_larga" rows="4"
+                                          placeholder="Descripción técnica detallada, especificaciones…"><?= htmlspecialchars($producto['descripcion_larga'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div class="form-field">
-                            <label class="field-label" for="categoria_id">Categoría</label>
-                            <select class="field-input field-select" id="categoria_id" name="categoria_id">
-                                <option value="">Sin categoría</option>
-                                <?php foreach ($categorias as $cat): ?>
-                                    <option value="<?= (int)$cat['id'] ?>"
-                                        <?= (int)$cat['id'] === (int)$producto['categoria_id'] ? 'selected' : '' ?>>
+                <!-- Precio y stock -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="detail-fields">
+                            <div class="detail-section-title">Precio y stock</div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="precio">Precio (€) <span style="color:var(--danger,#ef4444)">*</span></label>
+                                <input class="field-input" type="number" id="precio" name="precio"
+                                       step="0.01" min="0.01" required placeholder="0.00"
+                                       value="<?= htmlspecialchars((string)$producto['precio'], ENT_QUOTES, 'UTF-8') ?>">
+                                <span class="field-hint-sm">Precio de venta al público</span>
+                            </div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="stock_minimo">Stock mínimo</label>
+                                <input class="field-input" type="number" id="stock_minimo" name="stock_minimo"
+                                       min="0" placeholder="5"
+                                       value="<?= (int)($producto['stock_minimo'] ?? 5) ?>">
+                                <span class="field-hint-sm">Alerta cuando baje de este valor</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Identificación -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="detail-fields">
+                            <div class="detail-section-title">Identificación</div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="categoria_id">Categoría</label>
+                                <select class="field-input" id="categoria_id" name="categoria_id">
+                                    <option value="">Sin categoría</option>
+                                    <?php foreach ($categorias as $cat): ?>
+                                    <option value="<?= (int)$cat['id'] ?>" <?= (int)$cat['id'] === (int)$producto['categoria_id'] ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8') ?>
                                     </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
 
-                        <div class="form-field">
-                            <label class="field-label" for="marca_id">Marca</label>
-                            <select class="field-input field-select" id="marca_id" name="marca_id">
-                                <option value="">Sin marca</option>
-                                <?php foreach ($marcas as $m): ?>
-                                    <option value="<?= (int)$m['id'] ?>"
-                                        <?= (int)$m['id'] === (int)($producto['marca_id'] ?? 0) ? 'selected' : '' ?>>
+                            <div class="detail-field">
+                                <label class="detail-label" for="marca_id">Marca</label>
+                                <select class="field-input" id="marca_id" name="marca_id">
+                                    <option value="">Sin marca</option>
+                                    <?php foreach ($marcas as $m): ?>
+                                    <option value="<?= (int)$m['id'] ?>" <?= (int)$m['id'] === (int)($producto['marca_id'] ?? 0) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($m['nombre'], ENT_QUOTES, 'UTF-8') ?>
                                     </option>
-                                <?php endforeach; ?>
-                            </select>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="codigo_ref">Código de referencia</label>
+                                <input class="field-input" type="text" id="codigo_ref" name="codigo_ref"
+                                       placeholder="Ej. REF-001"
+                                       value="<?= htmlspecialchars($producto['codigo_ref'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="codigo_barras">Código de barras / EAN</label>
+                                <input class="field-input" type="text" id="codigo_barras" name="codigo_barras"
+                                       placeholder="Ej. 8412345678901"
+                                       value="<?= htmlspecialchars($producto['codigo_barras'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+
+                            <div class="detail-field detail-field-full">
+                                <label class="detail-label" for="ubicacion">Ubicación en taller</label>
+                                <input class="field-input" type="text" id="ubicacion" name="ubicacion"
+                                       placeholder="Ej. Estante A3, Cajón 2…"
+                                       value="<?= htmlspecialchars($producto['ubicacion'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
                         </div>
-
                     </div>
+                </div>
 
+                <!-- Dimensiones técnicas -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="detail-fields">
+                            <div class="detail-section-title">Dimensiones técnicas</div>
 
-                    <div class="form-section" style="margin-top:1.5rem;">
-                        <h3 class="form-section-title" style="font-size:1rem;font-weight:600;margin-bottom:1rem;">Motos compatibles</h3>
+                            <div class="detail-field">
+                                <label class="detail-label" for="peso">Peso (g)</label>
+                                <input class="field-input" type="number" id="peso" name="peso" min="0" placeholder="Ej. 500"
+                                       value="<?= htmlspecialchars((string)($producto['peso'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="capacidad">Capacidad (ml)</label>
+                                <input class="field-input" type="number" id="capacidad" name="capacidad" min="0" placeholder="Ej. 1000"
+                                       value="<?= htmlspecialchars((string)($producto['capacidad'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="longitud">Longitud (mm)</label>
+                                <input class="field-input" type="number" id="longitud" name="longitud" min="0" placeholder="Ej. 800"
+                                       value="<?= htmlspecialchars((string)($producto['longitud'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="anchura">Anchura (mm)</label>
+                                <input class="field-input" type="number" id="anchura" name="anchura" min="0" placeholder="Ej. 340"
+                                       value="<?= htmlspecialchars((string)($producto['anchura'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="diametro">Diámetro (mm)</label>
+                                <input class="field-input" type="number" id="diametro" name="diametro" min="0" step="0.01" placeholder="Ej. 310.00"
+                                       value="<?= htmlspecialchars((string)($producto['diametro'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Proveedor -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="detail-fields">
+                            <div class="detail-section-title">Proveedor</div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="proveedor_id">Proveedor vinculado</label>
+                                <select class="field-input" id="proveedor_id" name="proveedor_id">
+                                    <option value="">— Sin proveedor vinculado —</option>
+                                    <?php foreach ($proveedoresDisponibles as $pv): ?>
+                                    <option value="<?= (int)$pv['id'] ?>" <?= (int)$pv['id'] === $proveedorIdActual ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($pv['nombre'], ENT_QUOTES, 'UTF-8') ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="detail-field">
+                                <label class="detail-label" for="proveedor">Proveedor (texto libre)</label>
+                                <input class="field-input" type="text" id="proveedor" name="proveedor"
+                                       placeholder="Nombre del proveedor"
+                                       value="<?= htmlspecialchars($producto['proveedor'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+
+                            <div class="detail-field detail-field-full">
+                                <label class="detail-label" for="url_proveedor">URL del proveedor</label>
+                                <input class="field-input" type="url" id="url_proveedor" name="url_proveedor"
+                                       placeholder="https://proveedor.com/producto"
+                                       value="<?= htmlspecialchars($producto['url_proveedor'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Motos compatibles -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Motos compatibles</h3>
+                    </div>
+                    <div class="card-body">
                         <?php if (empty($modelos)): ?>
-                            <p class="text-muted" style="color:#6b7280;">No hay modelos de moto registrados. <a href="modelos_moto.php">Añadir modelos</a></p>
+                            <p style="color:#6b7280;font-style:italic;">No hay modelos registrados. <a href="modelos_moto.php">Añadir modelos</a></p>
                         <?php else: ?>
-                        <div class="compat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0.75rem;">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem;">
                             <?php foreach ($modelos as $m): ?>
-                            <div class="compat-item" style="padding:0.5rem;border:1px solid var(--border-color, #e5e7eb);border-radius:6px;">
-                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:500;">
+                            <div style="padding:.5rem;border:1px solid var(--border-color,#e5e7eb);border-radius:6px;">
+                                <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.875rem;font-weight:500;">
                                     <input type="checkbox"
                                            name="modelos_compatibles[]"
                                            value="<?= (int)$m['id'] ?>"
                                            <?= in_array((int)$m['id'], $modelosActuales, true) ? 'checked' : '' ?>>
                                     <?= htmlspecialchars("{$m['marca']} {$m['modelo']}", ENT_QUOTES, 'UTF-8') ?>
-                                    <span style="color:#6b7280;font-size:0.85em;">(<?= (int)$m['anio_desde'] ?>–<?= $m['anio_hasta'] ? (int)$m['anio_hasta'] : 'actual' ?>)</span>
+                                    <span style="color:#6b7280;font-size:.82em;">(<?= (int)$m['anio_desde'] ?>–<?= $m['anio_hasta'] ? (int)$m['anio_hasta'] : 'actual' ?>)</span>
                                 </label>
                                 <input type="text"
                                        name="notas_compatibilidad[<?= (int)$m['id'] ?>]"
                                        placeholder="Notas (opcional)"
-                                       style="width:100%;margin-top:0.25rem;padding:0.25rem 0.5rem;border:1px solid var(--border-color,#d1d5db);border-radius:4px;font-size:0.85em;"
+                                       style="width:100%;margin-top:.25rem;padding:.25rem .5rem;border:1px solid var(--border-color,#d1d5db);border-radius:4px;font-size:.82em;background:var(--bg-input,#fff);color:var(--text-primary);"
                                        value="<?= htmlspecialchars($notasActuales[$m['id']] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             </div>
                             <?php endforeach; ?>
                         </div>
                         <?php endif; ?>
                     </div>
+                </div>
 
-                    <div class="card-footer">
-                        <a href="productos.php" class="btn-ghost">Cancelar</a>
-                        <button type="submit" class="btn-primary">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                <polyline points="20 6 9 17 4 12"/>
-                            </svg>
-                            Guardar Cambios
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                <!-- Botones de acción al pie de la columna derecha -->
+                <div style="display:flex;gap:.75rem;justify-content:flex-end;padding-bottom:.5rem;">
+                    <a href="productos.php" class="btn-ghost">Cancelar</a>
+                    <button type="submit" class="btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Guardar cambios
+                    </button>
+                </div>
+
+            </div><!-- /columna derecha -->
+        </div><!-- /product-detail-grid -->
+
+        </form>
         <?php endif; ?>
 
     </main>
 </div>
 
 <script src="js/app.js"></script>
+<script>
+/**
+ * Preview en tiempo real de la imagen seleccionada.
+ * @author Carlitos6712
+ */
+(function () {
+    const input = document.getElementById('imagen');
+    if (!input) return;
+    input.addEventListener('change', function () {
+        const file = this.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const wrap = document.getElementById('imgPreviewWrap');
+            if (!wrap) return;
+            wrap.innerHTML = '<img src="' + e.target.result + '" alt="Preview" class="product-detail-img">';
+        };
+        reader.readAsDataURL(file);
+    });
+}());
+</script>
 </body>
 </html>

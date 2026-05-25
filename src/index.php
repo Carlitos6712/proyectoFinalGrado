@@ -14,18 +14,20 @@ require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Movimiento.php';
 require_once __DIR__ . '/includes/Categoria.php';
 require_once __DIR__ . '/includes/Pedido.php';
+require_once __DIR__ . '/includes/Proveedor.php';
 
 $flashSuccess  = $_SESSION['flash_success'] ?? '';
 $flashError    = $_SESSION['flash_error']   ?? '';
 $showWelcome   = isset($_GET['welcome']) && $_GET['welcome'] === '1';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-$totalProductos   = 0;
-$valorInventario  = 0.0;
-$stockBajoCount   = 0;
-$movimientosMes   = 0;
-$totalCategorias  = 0;
-$pedidosPendientes = 0;
+$totalProductos     = 0;
+$valorInventario    = 0.0;
+$stockBajoCount     = 0;
+$movimientosMes     = 0;
+$totalCategorias    = 0;
+$pedidosPendientes  = 0;
+$totalProveedores   = 0;
 $productosStockBajo = [];
 $ultimosMovimientos = [];
 $error = '';
@@ -35,6 +37,8 @@ try {
     $movimientoModel = new Movimiento();
     $categoriaModel  = new Categoria();
     $pedidoModel     = new Pedido();
+    $pdo             = Database::getInstance();
+    $proveedorModel  = new Proveedor($pdo);
 
     $totalProductos     = $productoModel->contarActivos();
     $valorInventario    = $productoModel->valorInventario();
@@ -42,6 +46,7 @@ try {
     $movimientosMes     = $movimientoModel->contarEsteMes();
     $totalCategorias    = count($categoriaModel->listar());
     $pedidosPendientes  = $pedidoModel->contarPendientes();
+    $totalProveedores   = $proveedorModel->contarActivos();
     $productosStockBajo = $productoModel->filtrarStockBajo();
     // Solo los top 5
     $productosStockBajo = array_slice($productosStockBajo, 0, 5);
@@ -113,7 +118,7 @@ try {
                 </span>
                 <span class="nav-label">Marcas</span>
             </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+            <?php if (isAdmin()): ?>
             <a href="modelos_moto.php"
                class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
                 <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
@@ -152,7 +157,7 @@ try {
                 </span>
                 <span class="nav-label">Auditoría</span>
             </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+            <?php if (isAdmin()): ?>
             <a href="usuarios.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'usuarios.php' ? 'active' : '' ?>">
                 <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                 <span class="nav-label">Usuarios</span>
@@ -288,8 +293,8 @@ try {
         </div>
 
         <!-- Stat cards -->
-        <div class="stat-cards">
-            <div class="stat-card">
+        <div class="stat-cards stat-cards-6">
+            <a href="productos.php" class="stat-card stat-card-link">
                 <div class="stat-card-icon stat-icon-blue">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -299,8 +304,8 @@ try {
                     <span class="stat-value"><?= $totalProductos ?></span>
                     <span class="stat-label">Total Productos</span>
                 </div>
-            </div>
-            <div class="stat-card">
+            </a>
+            <a href="productos.php" class="stat-card stat-card-link">
                 <div class="stat-card-icon stat-icon-green">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
@@ -310,19 +315,19 @@ try {
                     <span class="stat-value"><?= number_format($valorInventario, 2, ',', '.') ?> €</span>
                     <span class="stat-label">Valor Inventario</span>
                 </div>
-            </div>
-            <div class="stat-card <?= $stockBajoCount > 0 ? 'stat-card-warning' : '' ?>">
+            </a>
+            <a href="productos.php?stock_bajo=1" class="stat-card stat-card-link <?= $stockBajoCount > 0 ? 'stat-card-warning' : '' ?>">
                 <div class="stat-card-icon stat-icon-orange">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                     </svg>
                 </div>
                 <div class="stat-card-body">
-                    <a href="productos.php" class="stat-value stat-link"><?= $stockBajoCount ?></a>
+                    <span class="stat-value"><?= $stockBajoCount ?></span>
                     <span class="stat-label">Stock Bajo</span>
                 </div>
-            </div>
-            <div class="stat-card">
+            </a>
+            <a href="movimientos.php" class="stat-card stat-card-link">
                 <div class="stat-card-icon stat-icon-purple">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
@@ -332,16 +337,25 @@ try {
                     <span class="stat-value"><?= $movimientosMes ?></span>
                     <span class="stat-label">Movimientos (mes)</span>
                 </div>
-            </div>
-            <div class="stat-card <?= $pedidosPendientes > 0 ? 'stat-card-warning' : '' ?>">
+            </a>
+            <a href="pedidos.php" class="stat-card stat-card-link <?= $pedidosPendientes > 0 ? 'stat-card-warning' : '' ?>">
                 <div class="stat-card-icon stat-icon-blue">
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
                 </div>
                 <div class="stat-card-body">
-                    <a href="pedidos.php" class="stat-value stat-link"><?= $pedidosPendientes ?></a>
+                    <span class="stat-value"><?= $pedidosPendientes ?></span>
                     <span class="stat-label">Pedidos pendientes</span>
                 </div>
-            </div>
+            </a>
+            <a href="proveedores.php" class="stat-card stat-card-link">
+                <div class="stat-card-icon stat-icon-green">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div class="stat-card-body">
+                    <span class="stat-value"><?= $totalProveedores ?></span>
+                    <span class="stat-label">Proveedores activos</span>
+                </div>
+            </a>
         </div>
 
         <!-- Chart card -->
@@ -374,33 +388,32 @@ try {
                         <thead>
                             <tr>
                                 <th>Producto</th>
-                                <th>Categoría</th>
-                                <th>Stock</th>
-                                <th>Mínimo</th>
-                                <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-                                <th>Acción</th>
+                                <th style="width:70px;text-align:center">Stock</th>
+                                <th style="width:50px;text-align:center">Mín.</th>
+                                <?php if (isAdmin()): ?>
+                                <th style="width:130px">Acción</th>
                                 <?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
                         <?php foreach ($productosStockBajo as $p): ?>
                             <tr>
-                                <td>
-                                    <a href="movimientos.php?producto_id=<?= (int)$p['id'] ?>" class="product-name">
+                                <td style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                                    <a href="movimientos.php?producto_id=<?= (int)$p['id'] ?>" class="product-name"
+                                       title="<?= htmlspecialchars($p['nombre'], ENT_QUOTES, 'UTF-8') ?>">
                                         <?= htmlspecialchars($p['nombre'], ENT_QUOTES, 'UTF-8') ?>
                                     </a>
+                                    <br><small style="color:var(--text-muted,#6b7280);font-size:.72rem"><?= htmlspecialchars($p['categoria_nombre'] ?? '—', ENT_QUOTES, 'UTF-8') ?></small>
                                 </td>
-                                <td>
-                                    <span class="category-pill"><?= htmlspecialchars($p['categoria_nombre'] ?? 'Sin categoría', ENT_QUOTES, 'UTF-8') ?></span>
-                                </td>
-                                <td>
+                                <td style="text-align:center">
                                     <span class="stock-value stock-value-low"><?= (int)$p['stock'] ?></span>
                                 </td>
-                                <td><?= (int)($p['stock_minimo'] ?? 5) ?></td>
-                                <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-                                <td>
+                                <td style="text-align:center;color:var(--text-muted,#6b7280)"><?= (int)($p['stock_minimo'] ?? 5) ?></td>
+                                <?php if (isAdmin()): ?>
+                                <td style="text-align:center">
                                     <a href="nuevo_pedido.php?producto_id=<?= (int)$p['id'] ?>&cantidad=<?= max(1, ($p['stock_minimo'] ?? 5) - ($p['stock'] ?? 0)) ?>"
-                                       class="btn btn-sm btn-primary">
+                                       style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:var(--accent,#2563eb);color:#fff;border-radius:5px;text-decoration:none;font-size:.75rem;font-weight:600;white-space:nowrap">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                                         Pedir reposición
                                     </a>
                                 </td>
@@ -428,25 +441,37 @@ try {
                     <table class="data-table data-table-mini">
                         <thead>
                             <tr>
-                                <th>Fecha</th>
                                 <th>Producto</th>
-                                <th>Tipo</th>
-                                <th>Cantidad</th>
+                                <th style="width:80px;text-align:center">Tipo</th>
+                                <th style="width:60px;text-align:center">Cant.</th>
+                                <th style="width:100px"></th>
                             </tr>
                         </thead>
                         <tbody>
                         <?php foreach ($ultimosMovimientos as $mov): ?>
                             <tr>
-                                <td><?= htmlspecialchars(substr($mov['fecha'], 0, 10), ENT_QUOTES, 'UTF-8') ?></td>
-                                <td><?= htmlspecialchars($mov['producto_nombre'], ENT_QUOTES, 'UTF-8') ?></td>
-                                <td>
+                                <td style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                                    <a href="movimientos.php?producto_id=<?= (int)$mov['producto_id'] ?>"
+                                       class="product-name"
+                                       title="<?= htmlspecialchars($mov['producto_nombre'], ENT_QUOTES, 'UTF-8') ?>">
+                                        <?= htmlspecialchars($mov['producto_nombre'], ENT_QUOTES, 'UTF-8') ?>
+                                    </a>
+                                    <br><small style="color:var(--text-muted,#6b7280);font-size:.72rem"><?= htmlspecialchars(substr($mov['fecha'], 0, 10), ENT_QUOTES, 'UTF-8') ?></small>
+                                </td>
+                                <td style="text-align:center">
                                     <?php if ($mov['tipo'] === 'entrada'): ?>
                                         <span class="status-pill status-pill-success">Entrada</span>
                                     <?php else: ?>
                                         <span class="status-pill status-pill-danger">Salida</span>
                                     <?php endif; ?>
                                 </td>
-                                <td><strong><?= (int)$mov['cantidad'] ?></strong></td>
+                                <td style="text-align:center"><strong><?= (int)$mov['cantidad'] ?></strong></td>
+                                <td style="text-align:center">
+                                    <a href="movimientos.php?producto_id=<?= (int)$mov['producto_id'] ?>"
+                                       style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:transparent;color:var(--accent,#2563eb);border:1px solid var(--accent,#2563eb);border-radius:5px;text-decoration:none;font-size:.75rem;font-weight:600;white-space:nowrap">
+                                        Ver detalle
+                                    </a>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>

@@ -56,7 +56,7 @@ function requireAuth(string $rolRequerido = 'any'): void
     if (empty($_SESSION['usuario_id'])) {
         jsonResponse(false, null, 'No autenticado.', 401);
     }
-    if ($rolRequerido === 'admin' && ($_SESSION['rol'] ?? '') !== 'admin') {
+    if ($rolRequerido === 'admin' && !isAdmin()) {
         jsonResponse(false, null, 'Acceso denegado. Se requiere rol de administrador.', 403);
     }
 }

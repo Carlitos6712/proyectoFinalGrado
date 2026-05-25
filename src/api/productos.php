@@ -375,7 +375,7 @@ function requireAdmin(): void
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
-    if (($_SESSION['rol'] ?? '') !== 'admin') {
+    if (!isAdmin()) {
         jsonResponse(false, null, 'Acceso denegado.', 403);
     }
 }

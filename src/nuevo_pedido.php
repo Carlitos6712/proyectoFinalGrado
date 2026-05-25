@@ -14,7 +14,7 @@ require_once __DIR__ . '/includes/Proveedor.php';
 require_once __DIR__ . '/includes/Pedido.php';
 
 // Solo admin puede crear pedidos
-if (($_SESSION['rol'] ?? '') !== 'admin') {
+if (!isAdmin()) {
     header('Location: index.php');
     exit;
 }

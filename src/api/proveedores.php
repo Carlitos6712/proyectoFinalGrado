@@ -56,7 +56,7 @@ function jsonResponse(bool $success, mixed $data, string $message = '', int $cod
  */
 function requireAdmin(): void
 {
-    if (($_SESSION['rol'] ?? '') !== 'admin') {
+    if (!isAdmin()) {
         jsonResponse(false, null, 'Acceso restringido a administradores.', 403);
     }
 }

@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$pedidoId || !$nuevoEstado) {
                 throw new AppException('Datos inválidos.', 400);
             }
-            if (($_SESSION['rol'] ?? '') !== 'admin') {
+            if (!isAdmin()) {
                 throw new AppException('No tienes permisos para esta acción.', 403);
             }
             $pedidoModel->cambiarEstado($pedidoId, $nuevoEstado);
@@ -64,13 +64,21 @@ if (isset($_GET['pdf'])) {
 // ── Cargar listado ─────────────────────────────────────────────────────────────
 $filtroEstado = $_GET['estado'] ?? '';
 $pedidos      = [];
+$contadores   = ['todos' => 0, 'borrador' => 0, 'enviado' => 0, 'recibido' => 0, 'cancelado' => 0];
 try {
     $pedidos = $pedidoModel->listar($filtroEstado ?: null);
+    // Contadores por estado para las tabs
+    $pdo  = Database::getInstance();
+    $rows = $pdo->query("SELECT estado, COUNT(*) AS n FROM pedidos GROUP BY estado")->fetchAll();
+    foreach ($rows as $r) {
+        $contadores[$r['estado']] = (int)$r['n'];
+        $contadores['todos'] += (int)$r['n'];
+    }
 } catch (\Throwable $e) {
     $flashError = 'Error al cargar pedidos: ' . $e->getMessage();
 }
 
-$esAdmin = ($_SESSION['rol'] ?? '') === 'admin';
+$esAdmin = isAdmin();
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -160,6 +168,19 @@ $esAdmin = ($_SESSION['rol'] ?? '') === 'admin';
                 <span class="nav-label">Usuarios</span>
             </a>
             <?php endif; ?>
+            <?php if ((($_SESSION['user_role'] ?? '') === 'admin')): ?>
+            <a href="perfil_empresa.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'perfil_empresa.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
+                <span class="nav-label">Perfil de empresa</span>
+            </a>
+            <?php endif; ?>
+        </div>
+        <div class="nav-section">
+            <span class="nav-section-label">Ayuda</span>
+            <a href="soporte/mis-tickets.php" class="nav-item <?= str_contains($_SERVER['PHP_SELF'] ?? '', '/soporte/') ? 'active' : '' ?>">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+                <span class="nav-label">Soporte</span>
+            </a>
         </div>
     </nav>
 
@@ -252,17 +273,33 @@ $esAdmin = ($_SESSION['rol'] ?? '') === 'admin';
         </div>
 
         <!-- Filtros por estado -->
-        <div class="card" style="margin-bottom:1rem;">
-            <div class="card-body" style="padding:.75rem 1rem;">
-                <div class="filter-links">
-                    <strong>Filtrar:</strong>
-                    <a href="pedidos.php" class="<?= $filtroEstado === '' ? 'active' : '' ?>">Todos</a>
-                    <a href="pedidos.php?estado=borrador"  class="<?= $filtroEstado === 'borrador'  ? 'active' : '' ?>">Borrador</a>
-                    <a href="pedidos.php?estado=enviado"   class="<?= $filtroEstado === 'enviado'   ? 'active' : '' ?>">Enviado</a>
-                    <a href="pedidos.php?estado=recibido"  class="<?= $filtroEstado === 'recibido'  ? 'active' : '' ?>">Recibido</a>
-                    <a href="pedidos.php?estado=cancelado" class="<?= $filtroEstado === 'cancelado' ? 'active' : '' ?>">Cancelado</a>
-                </div>
-            </div>
+        <div class="pedido-tabs" role="tablist" aria-label="Filtrar por estado">
+            <?php
+            $tabs = [
+                ''          => ['label' => 'Todos',     'color' => '#64748b', 'bg' => '#f1f5f9'],
+                'borrador'  => ['label' => 'Borrador',  'color' => '#475569', 'bg' => '#e2e8f0'],
+                'enviado'   => ['label' => 'Enviado',   'color' => '#1d4ed8', 'bg' => '#dbeafe'],
+                'recibido'  => ['label' => 'Recibido',  'color' => '#15803d', 'bg' => '#dcfce7'],
+                'cancelado' => ['label' => 'Cancelado', 'color' => '#b91c1c', 'bg' => '#fee2e2'],
+            ];
+            foreach ($tabs as $estado => $cfg):
+                $activo  = $filtroEstado === $estado;
+                $href    = $estado ? "pedidos.php?estado={$estado}" : "pedidos.php";
+                $count   = $estado === '' ? $contadores['todos'] : ($contadores[$estado] ?? 0);
+                $style   = $activo
+                    ? "background:{$cfg['bg']};color:{$cfg['color']};border-color:{$cfg['color']};"
+                    : "background:#fff;color:#64748b;border-color:#e2e8f0;";
+            ?>
+            <a href="<?= $href ?>"
+               role="tab"
+               aria-selected="<?= $activo ? 'true' : 'false' ?>"
+               style="<?= $style ?>display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border:1.5px solid;border-radius:8px;text-decoration:none;font-size:.875rem;font-weight:<?= $activo ? '700' : '500' ?>;white-space:nowrap;transition:all .15s;">
+                <?= htmlspecialchars($cfg['label'], ENT_QUOTES, 'UTF-8') ?>
+                <span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 6px;border-radius:999px;font-size:.75rem;font-weight:700;background:<?= $activo ? $cfg['color'] : '#e2e8f0' ?>;color:<?= $activo ? '#fff' : '#475569' ?>;">
+                    <?= $count ?>
+                </span>
+            </a>
+            <?php endforeach; ?>
         </div>
 
         <!-- Tabla de pedidos -->
@@ -304,7 +341,7 @@ $esAdmin = ($_SESSION['rol'] ?? '') === 'admin';
                                     default     => 'badge-borrador',
                                 };
                                 ?>
-                                <span class="badge-estado <?= $estadoClass ?>"><?= htmlspecialchars($ped['estado'], ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="badge-estado <?= $estadoClass ?>"><?= htmlspecialchars(ucfirst($ped['estado']), ENT_QUOTES, 'UTF-8') ?></span>
                             </td>
                             <td><?= (int)$ped['total_lineas'] ?></td>
                             <td><?= htmlspecialchars(substr($ped['created_at'] ?? '', 0, 10), ENT_QUOTES, 'UTF-8') ?></td>

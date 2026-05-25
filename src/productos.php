@@ -34,11 +34,12 @@ $validOrdenes = [
     'marca_asc','marca_desc','estado_asc','estado_desc',
 ];
 
-$paginaActual = max(1, (int) filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT));
-$terminoBusq  = trim(filter_input(INPUT_GET, 'q', FILTER_SANITIZE_SPECIAL_CHARS) ?? '');
-$catFiltro    = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
-$marcaFiltro  = filter_input(INPUT_GET, 'marca_id',     FILTER_VALIDATE_INT) ?: null;
-$ordenActivo  = in_array($_GET['orden'] ?? '', $validOrdenes, true) ? $_GET['orden'] : 'nombre_asc';
+$paginaActual  = max(1, (int) filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT));
+$terminoBusq   = trim(filter_input(INPUT_GET, 'q', FILTER_SANITIZE_SPECIAL_CHARS) ?? '');
+$catFiltro     = filter_input(INPUT_GET, 'categoria_id', FILTER_VALIDATE_INT) ?: null;
+$marcaFiltro   = filter_input(INPUT_GET, 'marca_id',     FILTER_VALIDATE_INT) ?: null;
+$ordenActivo   = in_array($_GET['orden'] ?? '', $validOrdenes, true) ? $_GET['orden'] : 'nombre_asc';
+$soloStockBajo = isset($_GET['stock_bajo']) && $_GET['stock_bajo'] === '1' ? true : null;
 $totalPaginas = 1;
 $totalItems   = 0;
 
@@ -47,11 +48,11 @@ try {
     $categoriaModel = new Categoria();
     $marcaModel     = new Marca();
 
-    $totalItems     = $productoModel->contarFiltrados($terminoBusq ?: null, $catFiltro, null, null, null, null, null, $marcaFiltro);
+    $totalItems     = $productoModel->contarFiltrados($terminoBusq ?: null, $catFiltro, null, null, null, null, $soloStockBajo, $marcaFiltro);
     $totalPaginas   = max(1, (int) ceil($totalItems / $porPagina));
     $paginaActual   = min($paginaActual, $totalPaginas);
 
-    $productos      = $productoModel->listarPaginado($paginaActual, $porPagina, $terminoBusq ?: null, $catFiltro, null, null, null, null, $ordenActivo, null, $marcaFiltro);
+    $productos      = $productoModel->listarPaginado($paginaActual, $porPagina, $terminoBusq ?: null, $catFiltro, null, null, null, null, $ordenActivo, $soloStockBajo, $marcaFiltro);
     $categorias     = $categoriaModel->listar();
     $marcas         = $marcaModel->listar();
     $stockBajoCount = count($productoModel->filtrarStockBajo());
@@ -64,6 +65,7 @@ $filterQs = http_build_query(array_filter([
     'q'            => $terminoBusq ?: null,
     'categoria_id' => $catFiltro,
     'marca_id'     => $marcaFiltro,
+    'stock_bajo'   => $soloStockBajo ? '1' : null,
     'por_pagina'   => $porPagina !== 15 ? $porPagina : null,
 ], fn($v) => $v !== null && $v !== ''));
 
@@ -171,7 +173,7 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
                 </span>
                 <span class="nav-label">Marcas</span>
             </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+            <?php if (isAdmin()): ?>
             <a href="modelos_moto.php"
                class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
                 <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
@@ -181,6 +183,11 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
                class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
                 <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
                 <span class="nav-label">Proveedores</span>
+            </a>
+            <a href="pedidos.php"
+               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'pedidos.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
+                <span class="nav-label">Pedidos</span>
             </a>
             <?php endif; ?>
         </div>
@@ -205,12 +212,25 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
                 </span>
                 <span class="nav-label">Auditoría</span>
             </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+            <?php if (isAdmin()): ?>
             <a href="usuarios.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'usuarios.php' ? 'active' : '' ?>">
                 <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                 <span class="nav-label">Usuarios</span>
             </a>
             <?php endif; ?>
+            <?php if ((($_SESSION['user_role'] ?? '') === 'admin')): ?>
+            <a href="perfil_empresa.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'perfil_empresa.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
+                <span class="nav-label">Perfil de empresa</span>
+            </a>
+            <?php endif; ?>
+        </div>
+        <div class="nav-section">
+            <span class="nav-section-label">Ayuda</span>
+            <a href="soporte/mis-tickets.php" class="nav-item <?= str_contains($_SERVER['PHP_SELF'] ?? '', '/soporte/') ? 'active' : '' ?>">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+                <span class="nav-label">Soporte</span>
+            </a>
         </div>
     </nav>
 
@@ -314,9 +334,24 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
             </div>
         </div>
 
+        <?php if ($soloStockBajo): ?>
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.75rem;">
+            <span style="font-size:.8rem;color:var(--text-muted);">Filtro activo:</span>
+            <span style="display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .65rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;border-radius:999px;font-size:.8rem;font-weight:600;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                Stock bajo
+                <a href="productos.php" style="color:inherit;text-decoration:none;margin-left:.2rem;font-weight:700;" title="Quitar filtro">✕</a>
+            </span>
+        </div>
+        <?php endif; ?>
+
         <!-- Toolbar -->
         <form method="get" class="data-toolbar" id="toolbar-form">
             <input type="hidden" name="orden" value="<?= htmlspecialchars($ordenActivo, ENT_QUOTES, 'UTF-8') ?>">
+            <?php if ($soloStockBajo): ?><input type="hidden" name="stock_bajo" value="1"><?php endif; ?>
             <div class="search-box">
                 <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>

@@ -32,7 +32,9 @@ class Marca
 
     private function bizWhere(string $alias = 'm'): string
     {
-        return $this->businessId !== null ? " AND {$alias}.business_id = :biz_id" : "";
+        if ($this->businessId === null) return "";
+        $col = $alias !== '' ? "{$alias}.business_id" : "business_id";
+        return " AND {$col} = :biz_id";
     }
 
     private function bizParam(): array
@@ -67,7 +69,7 @@ class Marca
      */
     public function obtenerPorId(int $id): array
     {
-        $sql  = "SELECT * FROM marcas WHERE id = :id" . $this->bizWhere();
+        $sql  = "SELECT * FROM marcas WHERE id = :id" . $this->bizWhere('');
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute(array_merge([':id' => $id], $this->bizParam()));
         $row = $stmt->fetch();
@@ -114,7 +116,7 @@ class Marca
     {
         $anterior = $this->obtenerPorId($id);
         $sql      = "UPDATE marcas SET nombre = :nombre, descripcion = :descripcion
-                     WHERE id = :id" . $this->bizWhere();
+                     WHERE id = :id" . $this->bizWhere('');
         $stmt     = $this->pdo->prepare($sql);
         $resultado = $stmt->execute(array_merge(
             [':nombre' => $nombre, ':descripcion' => $descripcion, ':id' => $id],
@@ -145,7 +147,7 @@ class Marca
         }
 
         $anterior  = $this->obtenerPorId($id);
-        $sql       = "DELETE FROM marcas WHERE id = :id" . $this->bizWhere();
+        $sql       = "DELETE FROM marcas WHERE id = :id" . $this->bizWhere('');
         $del       = $this->pdo->prepare($sql);
         $resultado = $del->execute(array_merge([':id' => $id], $this->bizParam()));
         if ($resultado) {

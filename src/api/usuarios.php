@@ -27,6 +27,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../includes/AppException.php';
 require_once __DIR__ . '/../includes/Database.php';
 require_once __DIR__ . '/../includes/Usuario.php';
+require_once __DIR__ . '/../includes/csrf.php';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -93,6 +94,10 @@ try {
         // ── POST: crear usuario ───────────────────────────────────────────────
         case 'POST':
             $body = json_decode(file_get_contents('php://input'), true) ?? [];
+            $csrfToken = $body['csrf_token'] ?? '';
+            if (!validateCsrfToken('gestionar_usuarios', $csrfToken)) {
+                jsonResponse(false, null, 'Token CSRF inválido.', 403);
+            }
 
             $username        = trim($body['username']        ?? '');
             $password        = $body['password']             ?? '';
@@ -115,6 +120,10 @@ try {
             }
 
             $body = json_decode(file_get_contents('php://input'), true) ?? [];
+            $csrfToken = $body['csrf_token'] ?? '';
+            if (!validateCsrfToken('gestionar_usuarios', $csrfToken)) {
+                jsonResponse(false, null, 'Token CSRF inválido.', 403);
+            }
 
             $username       = trim($body['username']        ?? '');
             $nombreCompleto = trim($body['nombre_completo'] ?? '');
@@ -133,6 +142,12 @@ try {
         case 'PATCH':
             if ($id === null) {
                 jsonResponse(false, null, 'Parámetro id requerido.', 400);
+            }
+
+            $body = json_decode(file_get_contents('php://input'), true) ?? [];
+            $csrfToken = $body['csrf_token'] ?? '';
+            if (!validateCsrfToken('gestionar_usuarios', $csrfToken)) {
+                jsonResponse(false, null, 'Token CSRF inválido.', 403);
             }
 
             if ($accion === 'toggle') {

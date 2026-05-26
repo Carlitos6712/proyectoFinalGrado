@@ -430,6 +430,11 @@ SET @col_cd = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEM
 SET @sql_cd = IF(@col_cd = 0, 'ALTER TABLE businesses ADD COLUMN custom_domain VARCHAR(255) NULL AFTER slug', 'SELECT 1');
 PREPARE stmt FROM @sql_cd; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- Columna description en businesses
+SET @col_desc = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'businesses' AND COLUMN_NAME = 'description');
+SET @sql_desc = IF(@col_desc = 0, 'ALTER TABLE businesses ADD COLUMN description TEXT NULL AFTER address', 'SELECT 1');
+PREPARE stmt FROM @sql_desc; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- Columna last_login en employees
 SET @col_ll = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'employees' AND COLUMN_NAME = 'last_login');
 SET @sql_ll = IF(@col_ll = 0, 'ALTER TABLE employees ADD COLUMN last_login TIMESTAMP NULL DEFAULT NULL', 'SELECT 1');

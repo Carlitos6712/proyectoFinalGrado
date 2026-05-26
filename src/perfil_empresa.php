@@ -101,6 +101,54 @@ try {
 
         <div style="display:grid;gap:1.5rem;max-width:720px;">
 
+            <!-- ── Datos de cuenta (solo lectura) ─────────────────── -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Datos de la cuenta</h2>
+                </div>
+                <div class="card-body">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div>
+                            <span style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);">Identificador (slug)</span>
+                            <p style="margin:.25rem 0 0;font-family:var(--font-mono,monospace);font-size:.9rem;color:var(--text-primary);"><?= htmlspecialchars($business['slug'], ENT_QUOTES, 'UTF-8') ?></p>
+                        </div>
+                        <div>
+                            <span style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);">Estado</span>
+                            <p style="margin:.25rem 0 0;">
+                                <?php if ((int)$business['is_active']): ?>
+                                    <span class="badge" style="background:#d1fae5;color:#065f46;">Activo</span>
+                                <?php else: ?>
+                                    <span class="badge" style="background:#fee2e2;color:#991b1b;">Inactivo</span>
+                                <?php endif; ?>
+                            </p>
+                        </div>
+                        <div>
+                            <span style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);">Plan actual</span>
+                            <p style="margin:.25rem 0 0;">
+                                <?php
+                                $planLabels = ['free' => 'Gratuito', 'basic' => 'Basic', 'pro' => 'Pro'];
+                                $planColors = ['free' => '#f1f5f9;color:#475569', 'basic' => '#dbeafe;color:#1e40af', 'pro' => '#ede9fe;color:#5b21b6'];
+                                $plan = $business['plan'] ?? 'free';
+                                ?>
+                                <span class="badge" style="background:<?= $planColors[$plan] ?? '#f1f5f9;color:#475569' ?>;"><?= $planLabels[$plan] ?? ucfirst($plan) ?></span>
+                            </p>
+                        </div>
+                        <div>
+                            <span style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);">Expiración del plan</span>
+                            <p style="margin:.25rem 0 0;font-size:.9rem;color:var(--text-primary);">
+                                <?= $business['plan_expires_at'] ? date('d/m/Y', strtotime($business['plan_expires_at'])) : 'Sin fecha límite' ?>
+                            </p>
+                        </div>
+                        <div>
+                            <span style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);">Miembro desde</span>
+                            <p style="margin:.25rem 0 0;font-size:.9rem;color:var(--text-primary);">
+                                <?= $business['created_at'] ? date('d/m/Y', strtotime($business['created_at'])) : '—' ?>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ── Información general ─────────────────────────────── -->
             <div class="card">
                 <div class="card-header">
@@ -124,10 +172,15 @@ try {
                         <input type="text" id="infoAddress" class="field-input"
                                value="<?= htmlspecialchars($business['address'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                     </div>
-                    <div class="form-field" style="margin-bottom:1.25rem;">
+                    <div class="form-field" style="margin-bottom:1rem;">
                         <label class="field-label">Email de contacto</label>
                         <input type="email" id="infoEmail" class="field-input"
                                value="<?= htmlspecialchars($business['contact_email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                    </div>
+                    <div class="form-field" style="margin-bottom:1.25rem;">
+                        <label class="field-label">Descripción del negocio</label>
+                        <textarea id="infoDescription" class="field-input" rows="3"
+                                  placeholder="Breve descripción de tu taller o negocio…"><?= htmlspecialchars($business['description'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
                     </div>
                     <button class="btn btn-primary" onclick="saveInfo()">Guardar información</button>
                 </div>
@@ -257,6 +310,7 @@ async function saveInfo() {
             phone:         document.getElementById('infoPhone').value.trim(),
             address:       document.getElementById('infoAddress').value.trim(),
             contact_email: document.getElementById('infoEmail').value.trim(),
+            description:   document.getElementById('infoDescription').value.trim(),
         });
         json.success ? showToast('Información guardada.') : showToast(json.message, 'error');
     } catch { showToast('Error de conexión.', 'error'); }

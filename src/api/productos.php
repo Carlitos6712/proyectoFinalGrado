@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/../includes/AppException.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../includes/Producto.php';
 
 /**
@@ -391,6 +392,12 @@ function requireAdmin(): void
 function handleImport(): void
 {
     requireAdmin();
+
+    $csrfToken = $_POST['csrf_token'] ?? '';
+    if (!validateCsrfToken('importar_productos', $csrfToken)) {
+        jsonResponse(false, null, 'Token CSRF inválido.', 403);
+    }
+
     require_once __DIR__ . '/../includes/ImportadorProductos.php';
 
     if (empty($_FILES['csv'])) {

@@ -36,13 +36,9 @@ try {
     $error = 'Error al cargar los usuarios: ' . $e->getMessage();
 }
 
-// Iniciales del usuario de sesión para el avatar
-$nombreSesion = $_SESSION['usuario_nombre'] ?? 'Usuario';
-$iniciales    = implode('', array_map(
-    fn($p) => mb_strtoupper(mb_substr($p, 0, 1)),
-    array_filter(explode(' ', $nombreSesion))
-));
-$iniciales = mb_substr($iniciales, 0, 2);
+// Iniciales del usuario de sesión para el avatar — compatible con sesiones locales y multi-tenant
+$nombreSesion = $_SESSION['user_name'] ?? $_SESSION['usuario_nombre'] ?? 'Usuario';
+$iniciales    = mb_strtoupper(mb_substr($nombreSesion, 0, 2)) ?: 'U';
 ?>
 <!DOCTYPE html>
 <html lang="es">

@@ -221,10 +221,10 @@ if ($provSelId) {
 
     <div class="sidebar-footer">
         <div class="sidebar-user">
-            <div class="user-avatar-sm">CV</div>
+            <div class="user-avatar-sm"><?= mb_strtoupper(mb_substr($_SESSION['user_name'] ?? $_SESSION['usuario_nombre'] ?? 'U', 0, 2)) ?></div>
             <div class="sidebar-user-info">
-                <span class="user-name-sm">Carlos Vico</span>
-                <span class="user-role">Administrador</span>
+                <span class="user-name-sm"><?= htmlspecialchars($_SESSION['user_name'] ?? $_SESSION['usuario_nombre'] ?? 'Usuario', ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="user-role"><?= match($_SESSION['user_role'] ?? $_SESSION['rol'] ?? 'employee') { 'superadmin' => 'Super Admin', 'admin' => 'Administrador', default => 'Empleado' } ?></span>
             </div>
         </div>
     </div>

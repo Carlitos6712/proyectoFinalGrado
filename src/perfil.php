@@ -101,11 +101,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try { $usuario = $model->obtenerPorId($userId); } catch (\Throwable $e) {}
 }
 
-// Iniciales para el avatar
-$nombreSesion = $_SESSION['usuario_nombre'] ?? 'Usuario';
-$iniciales    = mb_strtoupper(mb_substr($nombreSesion, 0, 2));
-$rolSesion    = $_SESSION['rol'] ?? 'operario';
-$rolLabel     = $rolSesion === 'admin' ? 'Administrador' : 'Operario';
+// Iniciales para el avatar — compatible con sesiones locales y multi-tenant
+$nombreSesion = $_SESSION['user_name'] ?? $_SESSION['usuario_nombre'] ?? 'Usuario';
+$iniciales    = mb_strtoupper(mb_substr($nombreSesion, 0, 2)) ?: 'U';
+$rolSesion    = $_SESSION['user_role'] ?? $_SESSION['rol'] ?? 'employee';
+$rolLabel     = match ($rolSesion) {
+    'admin'      => 'Administrador',
+    'superadmin' => 'Super Admin',
+    default      => 'Empleado',
+};
 ?>
 <!DOCTYPE html>
 <html lang="es">

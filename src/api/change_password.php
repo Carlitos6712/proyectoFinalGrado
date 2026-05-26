@@ -18,6 +18,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../includes/AppException.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../includes/Usuario.php';
 require_once __DIR__ . '/../includes/Auditoria.php';
 
@@ -35,10 +36,14 @@ function jsonResp(bool $success, mixed $data, string $message, int $status = 200
     exit;
 }
 
-// Solo usuarios autenticados
-if (empty($_SESSION['usuario_id'])) {
+// ── Control de acceso — soporta sesiones locales y multi-tenant ───────────────
+$userId         = (int) ($_SESSION['usuario_id'] ?? 0);
+$businessUserId = (int) ($_SESSION['user_id']    ?? 0);
+$isAuth         = $userId > 0 || ($businessUserId > 0 && !empty($_SESSION['business_id']));
+if (!$isAuth) {
     jsonResp(false, null, 'No autenticado.', 401);
 }
+$resolvedId = $userId > 0 ? $userId : $businessUserId;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     jsonResp(false, null, 'Método no permitido.', 405);
@@ -46,6 +51,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 try {
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $csrfToken = $body['csrf_token'] ?? '';
+    if (!validateCsrfToken('cambiar_password_topbar', $csrfToken)) {
+        jsonResp(false, null, 'Token CSRF inválido.', 403);
+    }
 
     $passwordActual = $body['password_actual'] ?? '';
     $passwordNueva  = $body['password_nueva']  ?? '';
@@ -56,7 +66,7 @@ try {
 
     $model = new Usuario();
     $model->cambiarPassword(
-        (int) $_SESSION['usuario_id'],
+        $resolvedId,
         $passwordActual,
         $passwordNueva,
         Auditoria::instancia()

@@ -41,6 +41,7 @@ $_tbPlanMeta = match ($_tbBizPlan) {
 };
 
 $_tbCsrfReturn = $_tbImperson ? generateCsrfToken('sa_return') : '';
+$csrfPwd       = generateCsrfToken('cambiar_password_topbar');
 ?>
 <?php if ($_tbImperson): ?>
 <style>
@@ -209,6 +210,7 @@ $_tbCsrfReturn = $_tbImperson ? generateCsrfToken('sa_return') : '';
         <div id="pwdMsg" style="display:none;padding:.75rem 1rem;border-radius:.5rem;font-size:.85rem;margin-bottom:1rem;"></div>
 
         <form id="formCambiarPassword" onsubmit="submitCambiarPassword(event)">
+            <input type="hidden" id="csrfPwd" value="<?= htmlspecialchars($csrfPwd, ENT_QUOTES, 'UTF-8') ?>">
             <div class="form-field" style="margin-bottom:.9rem;">
                 <label class="field-label">Contraseña actual</label>
                 <input type="password" id="pwdActual" name="password_actual" class="field-input" required>
@@ -298,10 +300,14 @@ async function submitCambiarPassword(e) {
     btn.textContent  = 'Cambiando…';
 
     try {
-        const res  = await fetch('api/change_password.php', {
+        const res  = await fetch('/api/change_password.php', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ password_actual: actual, password_nueva: nueva }),
+            body:    JSON.stringify({
+                password_actual: actual,
+                password_nueva:  nueva,
+                csrf_token:      document.getElementById('csrfPwd').value,
+            }),
         });
         const json = await res.json();
 

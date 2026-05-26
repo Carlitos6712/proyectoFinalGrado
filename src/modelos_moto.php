@@ -10,6 +10,7 @@
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
+require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/ModeloMoto.php';
 
@@ -19,8 +20,9 @@ if (!isAdmin()) {
     exit;
 }
 
-$error          = '';
-$stockBajoCount = 0;
+$error            = '';
+$stockBajoCount   = 0;
+$csrfTokenModelos = generateCsrfToken('gestionar_modelos');
 
 $modeloMotoModel = new ModeloMoto();
 try { $stockBajoCount = count((new Producto())->filtrarStockBajo()); } catch (\Throwable $e) {}
@@ -77,6 +79,8 @@ try {
 <body class="layout">
 
 <?php require_once __DIR__ . '/includes/_sidebar.php'; ?>
+
+<input type="hidden" id="csrfTokenModelos" value="<?= htmlspecialchars($csrfTokenModelos, ENT_QUOTES, 'UTF-8') ?>">
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -275,7 +279,11 @@ try {
 function confirmarEliminar(id) {
     if (!confirm('¿Seguro que quieres eliminar este modelo de moto?')) return;
 
-    fetch('api/modelos_moto.php?id=' + id, { method: 'DELETE' })
+    fetch('api/modelos_moto.php?id=' + id, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csrf_token: document.getElementById('csrfTokenModelos').value }),
+    })
         .then(function(r) { return r.json(); })
         .then(function(json) {
             if (json.success) {

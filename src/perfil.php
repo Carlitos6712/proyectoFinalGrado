@@ -251,6 +251,19 @@ $rolLabel     = match ($rolSesion) {
                 <span class="nav-label">Usuarios</span>
             </a>
             <?php endif; ?>
+            <?php if ((($_SESSION['user_role'] ?? '') === 'admin')): ?>
+            <a href="perfil_empresa.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'perfil_empresa.php' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
+                <span class="nav-label">Perfil de empresa</span>
+            </a>
+            <?php endif; ?>
+        </div>
+        <div class="nav-section">
+            <span class="nav-section-label">Ayuda</span>
+            <a href="soporte/mis-tickets.php" class="nav-item <?= str_contains($_SERVER['PHP_SELF'] ?? '', '/soporte/') ? 'active' : '' ?>">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+                <span class="nav-label">Soporte</span>
+            </a>
         </div>
     </nav>
 

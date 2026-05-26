@@ -96,6 +96,11 @@ try {
         case 'POST':
             $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
+            $csrfToken = $body['csrf_token'] ?? '';
+            if (!validateCsrfToken('gestionar_empleados', $csrfToken)) {
+                jsonOut(false, null, 'Token CSRF inválido.', 403);
+            }
+
             $name  = trim($body['name']  ?? '');
             $email = trim($body['email'] ?? '');
             $role  = $body['role']  ?? 'employee';
@@ -129,6 +134,12 @@ try {
             fetchEmployee($pdo, $id, $businessId);
 
             $body  = json_decode(file_get_contents('php://input'), true) ?? [];
+
+            $csrfToken = $body['csrf_token'] ?? '';
+            if (!validateCsrfToken('gestionar_empleados', $csrfToken)) {
+                jsonOut(false, null, 'Token CSRF inválido.', 403);
+            }
+
             $name  = trim($body['name']  ?? '');
             $email = trim($body['email'] ?? '');
             $role  = $body['role'] ?? 'employee';

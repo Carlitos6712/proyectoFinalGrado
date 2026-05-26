@@ -15,6 +15,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../includes/Database.php';
 require_once __DIR__ . '/../includes/AppException.php';
+require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../core/Settings.php';
 
 if (empty($_SESSION['business_id']) || empty($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'admin') {
@@ -28,12 +29,22 @@ $businessId = (int)$_SESSION['business_id'];
 try {
     $pdo = Database::getInstance();
 
-    // ── Eliminar logo ───────────────────────────────────────────
-    $isDelete = false;
-    if ($_SERVER['CONTENT_TYPE'] && str_contains($_SERVER['CONTENT_TYPE'], 'application/json')) {
-        $body     = json_decode(file_get_contents('php://input'), true) ?? [];
-        $isDelete = ($body['action'] ?? '') === 'delete';
+    // ── Leer body una sola vez y validar CSRF ───────────────────
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    $jsonBody    = [];
+    if (str_contains($contentType, 'application/json')) {
+        $jsonBody = json_decode(file_get_contents('php://input'), true) ?? [];
     }
+    // FormData envía el token en $_POST; JSON lo envía en el body
+    $csrfToken = $_POST['csrf_token'] ?? $jsonBody['csrf_token'] ?? '';
+    if (!validateCsrfToken('perfil_empresa', $csrfToken)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Token CSRF inválido.']);
+        exit;
+    }
+
+    // ── Eliminar logo ───────────────────────────────────────────
+    $isDelete = ($jsonBody['action'] ?? '') === 'delete';
 
     if ($isDelete) {
         $row = $pdo->prepare('SELECT logo_path FROM businesses WHERE id = ?');

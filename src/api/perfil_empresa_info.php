@@ -36,10 +36,11 @@ try {
 
     $pdo   = Database::getInstance();
 
-    $name    = trim($data['name'] ?? '');
-    $phone   = trim($data['phone'] ?? '');
-    $address = trim($data['address'] ?? '');
-    $email   = trim($data['contact_email'] ?? '');
+    $name        = trim($data['name']          ?? '');
+    $phone       = trim($data['phone']         ?? '');
+    $address     = trim($data['address']       ?? '');
+    $email       = trim($data['contact_email'] ?? '');
+    $description = trim($data['description']   ?? '');
 
     if (!$name) throw new AppException('El nombre es obligatorio.', 400);
     if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -47,8 +48,8 @@ try {
     }
 
     $pdo->prepare(
-        'UPDATE businesses SET name = ?, phone = ?, address = ?, contact_email = ? WHERE id = ?'
-    )->execute([$name, $phone ?: null, $address ?: null, $email ?: null, $businessId]);
+        'UPDATE businesses SET name = ?, phone = ?, address = ?, contact_email = ?, description = ? WHERE id = ?'
+    )->execute([$name, $phone ?: null, $address ?: null, $email ?: null, $description ?: null, $businessId]);
 
     $_SESSION['business_name'] = $name;
 

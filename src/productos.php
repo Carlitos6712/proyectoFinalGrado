@@ -10,6 +10,7 @@
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
+require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Categoria.php';
 require_once __DIR__ . '/includes/Marca.php';
@@ -17,6 +18,8 @@ require_once __DIR__ . '/includes/Marca.php';
 $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+
+$csrfImport = generateCsrfToken('importar_productos');
 
 $productos      = [];
 $categorias     = [];
@@ -429,6 +432,7 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
                     <span>Modo actualización (actualizar si la Ref ya existe)</span>
                 </label>
             </div>
+            <input type="hidden" id="csrfImport" value="<?= htmlspecialchars($csrfImport, ENT_QUOTES, 'UTF-8') ?>">
             <!-- Preview primeras 5 filas -->
             <div id="import-preview" style="display:none;margin-top:16px">
                 <h4 style="margin-bottom:8px">Vista previa (primeras 5 filas)</h4>
@@ -503,6 +507,7 @@ function importarCSV() {
     const formData = new FormData();
     formData.append('csv', file);
     formData.append('modo', modo);
+    formData.append('csrf_token', document.getElementById('csrfImport').value);
     const btn = document.getElementById('btn-importar');
     btn.disabled = true;
     btn.textContent = 'Importando…';

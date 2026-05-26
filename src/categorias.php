@@ -10,6 +10,7 @@
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
+require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Categoria.php';
 
@@ -26,34 +27,40 @@ $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        $postAccion = $_POST['accion'] ?? '';
+$csrfToken = generateCsrfToken('gestionar_categorias');
 
-        if ($postAccion === 'crear') {
-            $nombre      = trim($_POST['nombre']      ?? '');
-            $descripcion = trim($_POST['descripcion'] ?? '');
-            if ($nombre === '') throw new AppException('El nombre es obligatorio.', 400);
-            $categoriaModel->crear($nombre, $descripcion);
-            $_SESSION['flash_success'] = 'Categoría creada correctamente.';
-        } elseif ($postAccion === 'actualizar') {
-            $id          = (int) ($_POST['id'] ?? 0);
-            $nombre      = trim($_POST['nombre']      ?? '');
-            $descripcion = trim($_POST['descripcion'] ?? '');
-            if (!$id || $nombre === '') throw new AppException('Datos inválidos.', 400);
-            $categoriaModel->actualizar($id, $nombre, $descripcion);
-            $_SESSION['flash_success'] = 'Categoría actualizada correctamente.';
-        } elseif ($postAccion === 'eliminar') {
-            $id = (int) ($_POST['id'] ?? 0);
-            $categoriaModel->eliminar($id);
-            $_SESSION['flash_success'] = 'Categoría eliminada correctamente.';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!validateCsrfToken('gestionar_categorias', $_POST['csrf_token'] ?? '')) {
+        $flashError = 'Token de seguridad inválido. Recarga la página.';
+    } else {
+        try {
+            $postAccion = $_POST['accion'] ?? '';
+
+            if ($postAccion === 'crear') {
+                $nombre      = trim($_POST['nombre']      ?? '');
+                $descripcion = trim($_POST['descripcion'] ?? '');
+                if ($nombre === '') throw new AppException('El nombre es obligatorio.', 400);
+                $categoriaModel->crear($nombre, $descripcion);
+                $_SESSION['flash_success'] = 'Categoría creada correctamente.';
+            } elseif ($postAccion === 'actualizar') {
+                $id          = (int) ($_POST['id'] ?? 0);
+                $nombre      = trim($_POST['nombre']      ?? '');
+                $descripcion = trim($_POST['descripcion'] ?? '');
+                if (!$id || $nombre === '') throw new AppException('Datos inválidos.', 400);
+                $categoriaModel->actualizar($id, $nombre, $descripcion);
+                $_SESSION['flash_success'] = 'Categoría actualizada correctamente.';
+            } elseif ($postAccion === 'eliminar') {
+                $id = (int) ($_POST['id'] ?? 0);
+                $categoriaModel->eliminar($id);
+                $_SESSION['flash_success'] = 'Categoría eliminada correctamente.';
+            }
+            header('Location: categorias.php');
+            exit;
+        } catch (AppException $e) {
+            $error = $e->getMessage();
+        } catch (\Throwable $e) {
+            $error = 'Error inesperado: ' . $e->getMessage();
         }
-        header('Location: categorias.php');
-        exit;
-    } catch (AppException $e) {
-        $error = $e->getMessage();
-    } catch (\Throwable $e) {
-        $error = 'Error inesperado: ' . $e->getMessage();
     }
 }
 
@@ -172,6 +179,7 @@ try {
                     </div>
                     <div class="card-body">
                         <form method="POST">
+                            <input type="hidden" name="csrf_token" value="<?= generateCsrfToken('gestionar_categorias') ?>">
                             <input type="hidden" name="accion" value="<?= $editCat ? 'actualizar' : 'crear' ?>">
                             <?php if ($editCat): ?>
                                 <input type="hidden" name="id" value="<?= (int)$editCat['id'] ?>">
@@ -245,6 +253,7 @@ try {
                                         </a>
                                         <?php if ((int)$cat['total_productos'] === 0): ?>
                                         <form method="POST" style="display:inline;">
+                                            <input type="hidden" name="csrf_token" value="<?= generateCsrfToken('gestionar_categorias') ?>">
                                             <input type="hidden" name="accion" value="eliminar">
                                             <input type="hidden" name="id" value="<?= (int)$cat['id'] ?>">
                                             <button type="submit" class="action-btn action-btn-red" title="Eliminar categoría"

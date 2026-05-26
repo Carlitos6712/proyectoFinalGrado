@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Formulario de creación de un nuevo producto.
  *

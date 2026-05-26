@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Historial de auditoría de cambios en el inventario.
  *

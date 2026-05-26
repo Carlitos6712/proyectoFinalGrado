@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Listado y gestión de pedidos de reposición de inventario.
  *

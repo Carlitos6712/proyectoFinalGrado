@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Dashboard principal del sistema de inventario.
  *

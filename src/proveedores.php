@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Gestión CRUD de proveedores del inventario.
  *

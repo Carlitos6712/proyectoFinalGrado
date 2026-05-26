@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Panel de gestión de usuarios del sistema.
  *

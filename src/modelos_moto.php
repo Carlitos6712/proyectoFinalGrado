@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Gestión CRUD de modelos de moto para compatibilidades de productos.
  * Solo accesible para administradores.

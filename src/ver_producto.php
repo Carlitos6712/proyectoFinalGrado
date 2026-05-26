@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Página de detalle de un producto.
  *

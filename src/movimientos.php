@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Historial y registro de movimientos de stock.
  * Modo global (sin producto_id) o por producto (con ?producto_id=X).

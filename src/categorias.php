@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Gestión CRUD de categorías del inventario.
  *

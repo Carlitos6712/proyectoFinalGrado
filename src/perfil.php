@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Página de perfil del usuario autenticado.
  *

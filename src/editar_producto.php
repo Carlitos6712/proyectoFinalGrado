@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Formulario de edición de un producto existente.
  *

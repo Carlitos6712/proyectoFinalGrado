@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Formulario para crear un nuevo pedido de reposición de inventario.
  *

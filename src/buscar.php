@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Búsqueda avanzada de productos del inventario.
  *

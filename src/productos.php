@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Listado principal de productos del inventario.
  *

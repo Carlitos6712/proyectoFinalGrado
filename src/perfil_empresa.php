@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Perfil y configuración del negocio.
  *

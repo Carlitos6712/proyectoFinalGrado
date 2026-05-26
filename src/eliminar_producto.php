@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Eliminación (soft-delete) de un producto del inventario.
  *

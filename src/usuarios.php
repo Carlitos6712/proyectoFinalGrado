@@ -18,6 +18,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Usuario.php';
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/middleware/RoleMiddleware.php';
+require_once __DIR__ . '/includes/csrf.php';
 
 // Solo administradores pueden gestionar usuarios
 RoleMiddleware::requireAdmin();
@@ -39,6 +40,9 @@ try {
 // Iniciales del usuario de sesión para el avatar — compatible con sesiones locales y multi-tenant
 $nombreSesion = $_SESSION['user_name'] ?? $_SESSION['usuario_nombre'] ?? 'Usuario';
 $iniciales    = mb_strtoupper(mb_substr($nombreSesion, 0, 2)) ?: 'U';
+
+// Token CSRF para las operaciones AJAX del formulario de usuarios
+$csrfTokenUsuarios = generateCsrfToken('gestionar_usuarios');
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -380,6 +384,8 @@ $iniciales    = mb_strtoupper(mb_substr($nombreSesion, 0, 2)) ?: 'U';
 
         <form id="formUsuario" novalidate>
             <input type="hidden" id="usuarioId" name="id" value="">
+            <input type="hidden" id="csrfTokenUsuarios" name="csrf_token"
+                   value="<?= htmlspecialchars($csrfTokenUsuarios, ENT_QUOTES, 'UTF-8') ?>">
 
             <div class="form-field" style="margin-bottom:1rem;">
                 <label class="field-label" for="inputUsername">Username <span style="color:#ef4444;">*</span></label>
@@ -515,7 +521,8 @@ document.getElementById('formUsuario').addEventListener('submit', async function
     const rol           = document.getElementById('inputRol').value;
     const password      = document.getElementById('inputPassword').value;
 
-    const body = { username, nombre_completo: nombreCompleto, email, rol };
+    const csrfToken = document.getElementById('csrfTokenUsuarios').value;
+    const body = { username, nombre_completo: nombreCompleto, email, rol, csrf_token: csrfToken };
     if (!modoEdicion) body.password = password;
 
     const url    = modoEdicion ? `api/usuarios.php?id=${id}` : 'api/usuarios.php';
@@ -562,8 +569,13 @@ async function toggleUsuario(id, activo, btn) {
 
     btn.disabled = true;
 
+    const csrfToken = document.getElementById('csrfTokenUsuarios').value;
     try {
-        const res  = await fetch(`api/usuarios.php?id=${id}&accion=toggle`, { method: 'PATCH' });
+        const res  = await fetch(`api/usuarios.php?id=${id}&accion=toggle`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ csrf_token: csrfToken }),
+        });
         const json = await res.json();
 
         if (!json.success) {
@@ -588,8 +600,13 @@ async function toggleUsuario(id, activo, btn) {
 async function resetPassword(id, username) {
     if (!confirm(`¿Resetear la contraseña de "${username}"? Se generará una contraseña aleatoria.`)) return;
 
+    const csrfToken = document.getElementById('csrfTokenUsuarios').value;
     try {
-        const res  = await fetch(`api/usuarios.php?id=${id}&accion=reset-password`, { method: 'PATCH' });
+        const res  = await fetch(`api/usuarios.php?id=${id}&accion=reset-password`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ csrf_token: csrfToken }),
+        });
         const json = await res.json();
 
         if (!json.success) {

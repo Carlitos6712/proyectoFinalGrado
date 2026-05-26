@@ -12,6 +12,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Proveedor.php';
 require_once __DIR__ . '/includes/Pedido.php';
+require_once __DIR__ . '/includes/csrf.php';
 
 $pedidoModel    = new Pedido();
 $stockBajoCount = 0;
@@ -25,6 +26,10 @@ unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accion = $_POST['accion'] ?? '';
     try {
+        if (!validateCsrfToken('cambiar_estado_pedido', $_POST['csrf_token'] ?? '')) {
+            throw new AppException('Token CSRF inválido.', 403);
+        }
+
         if ($accion === 'cambiar_estado') {
             $pedidoId   = (int) ($_POST['pedido_id'] ?? 0);
             $nuevoEstado = trim($_POST['nuevo_estado'] ?? '');
@@ -350,6 +355,7 @@ $esAdmin = isAdmin();
                             <td class="td-actions" style="white-space:nowrap;">
                                 <?php if ($esAdmin && $ped['estado'] === 'borrador'): ?>
                                 <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="csrf_token"   value="<?= generateCsrfToken('cambiar_estado_pedido') ?>">
                                     <input type="hidden" name="accion"       value="cambiar_estado">
                                     <input type="hidden" name="pedido_id"    value="<?= (int)$ped['id'] ?>">
                                     <input type="hidden" name="nuevo_estado" value="enviado">
@@ -359,6 +365,7 @@ $esAdmin = isAdmin();
                                     </button>
                                 </form>
                                 <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="csrf_token"   value="<?= generateCsrfToken('cambiar_estado_pedido') ?>">
                                     <input type="hidden" name="accion"       value="cambiar_estado">
                                     <input type="hidden" name="pedido_id"    value="<?= (int)$ped['id'] ?>">
                                     <input type="hidden" name="nuevo_estado" value="cancelado">
@@ -370,6 +377,7 @@ $esAdmin = isAdmin();
                                 <?php endif; ?>
                                 <?php if ($esAdmin && $ped['estado'] === 'enviado'): ?>
                                 <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="csrf_token"   value="<?= generateCsrfToken('cambiar_estado_pedido') ?>">
                                     <input type="hidden" name="accion"       value="cambiar_estado">
                                     <input type="hidden" name="pedido_id"    value="<?= (int)$ped['id'] ?>">
                                     <input type="hidden" name="nuevo_estado" value="recibido">
@@ -379,6 +387,7 @@ $esAdmin = isAdmin();
                                     </button>
                                 </form>
                                 <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="csrf_token"   value="<?= generateCsrfToken('cambiar_estado_pedido') ?>">
                                     <input type="hidden" name="accion"       value="cambiar_estado">
                                     <input type="hidden" name="pedido_id"    value="<?= (int)$ped['id'] ?>">
                                     <input type="hidden" name="nuevo_estado" value="cancelado">

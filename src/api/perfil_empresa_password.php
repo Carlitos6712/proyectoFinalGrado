@@ -14,6 +14,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../includes/Database.php';
 require_once __DIR__ . '/../includes/AppException.php';
+require_once __DIR__ . '/../includes/csrf.php';
 
 if (empty($_SESSION['business_id']) || empty($_SESSION['user_id'])) {
     http_response_code(401);
@@ -25,6 +26,14 @@ $employeeId = (int)$_SESSION['user_id'];
 
 try {
     $data    = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+
+    $csrfToken = $data['csrf_token'] ?? '';
+    if (!validateCsrfToken('perfil_empresa', $csrfToken)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Token CSRF inválido.']);
+        exit;
+    }
+
     $current = $data['current_password'] ?? '';
     $new     = $data['new_password']     ?? '';
 

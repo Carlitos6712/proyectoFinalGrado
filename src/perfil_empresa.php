@@ -22,6 +22,7 @@ if (($_SESSION['user_role'] ?? '') !== 'admin') {
 }
 
 require_once __DIR__ . '/includes/Database.php';
+require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/includes/Producto.php';
 
 $businessId = (int)$_SESSION['business_id'];
@@ -43,6 +44,7 @@ if (!$business) {
 $themeColor  = $business['theme_color'] ?? '#4F46E5';
 $logoPath    = $business['logo_path']   ?? '';
 $maxUploadMb = 5;
+$csrfPerfil  = generateCsrfToken('perfil_empresa');
 try {
     require_once __DIR__ . '/core/Settings.php';
     $maxUploadMb = (int)\Settings::get('max_file_upload_mb', '5');
@@ -60,6 +62,8 @@ try {
 <body class="layout">
 
 <?php require_once __DIR__ . '/includes/_sidebar.php'; ?>
+
+<input type="hidden" id="csrfPerfil" value="<?= htmlspecialchars($csrfPerfil, ENT_QUOTES, 'UTF-8') ?>">
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -239,7 +243,7 @@ async function apiPost(url, body, isFormData = false) {
         opts.body = body;
     } else {
         opts.headers = { 'Content-Type': 'application/json' };
-        opts.body    = JSON.stringify(body);
+        opts.body    = JSON.stringify({ ...body, csrf_token: document.getElementById('csrfPerfil').value });
     }
     const res  = await fetch(url, opts);
     return res.json();
@@ -280,6 +284,7 @@ async function uploadLogo() {
 
     const fd = new FormData();
     fd.append('logo', input.files[0]);
+    fd.append('csrf_token', document.getElementById('csrfPerfil').value);
 
     try {
         const json = await apiPost('api/perfil_empresa_logo.php', fd, true);

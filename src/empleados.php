@@ -349,9 +349,10 @@ document.getElementById('formEmpleado').addEventListener('submit', async functio
 
     const id    = document.getElementById('empleadoId').value;
     const body  = {
-        name:     document.getElementById('inputNombre').value.trim(),
-        email:    document.getElementById('inputEmail').value.trim(),
-        role:     document.getElementById('inputRol').value,
+        name:       document.getElementById('inputNombre').value.trim(),
+        email:      document.getElementById('inputEmail').value.trim(),
+        role:       document.getElementById('inputRol').value,
+        csrf_token: document.getElementById('csrfTokenEmpleados').value,
     };
     if (!modoEdicion) body.password = document.getElementById('inputPassword').value;
 

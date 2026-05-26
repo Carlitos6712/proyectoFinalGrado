@@ -19,6 +19,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Auditoria.php';
 require_once __DIR__ . '/includes/Usuario.php';
 require_once __DIR__ . '/includes/Producto.php';
+require_once __DIR__ . '/includes/csrf.php';
 
 $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
@@ -51,6 +52,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($accionPost === 'perfil') {
         // ── Actualizar nombre y email ─────────────────────────────────────────
         try {
+            if (!validateCsrfToken('actualizar_perfil', $_POST['csrf_token'] ?? '')) {
+                throw new AppException('Token CSRF inválido.', 403);
+            }
+
             $nombreCompleto = trim($_POST['nombre_completo'] ?? '');
             $email          = trim($_POST['email']           ?? '');
 
@@ -76,6 +81,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($accionPost === 'password') {
         // ── Cambiar contraseña ────────────────────────────────────────────────
         try {
+            if (!validateCsrfToken('cambiar_password_perfil', $_POST['csrf_token'] ?? '')) {
+                throw new AppException('Token CSRF inválido.', 403);
+            }
+
             $passwordActual   = $_POST['password_actual']    ?? '';
             $passwordNueva    = $_POST['password_nueva']     ?? '';
             $passwordConfirma = $_POST['password_confirmar'] ?? '';
@@ -351,6 +360,7 @@ $rolLabel     = match ($rolSesion) {
 
                     <form method="POST" novalidate>
                         <input type="hidden" name="accion" value="perfil">
+                        <input type="hidden" name="csrf_token" value="<?= generateCsrfToken('actualizar_perfil') ?>">
 
                         <div class="form-field" style="margin-bottom:1rem;">
                             <label class="field-label" for="nombre_completo">
@@ -389,6 +399,7 @@ $rolLabel     = match ($rolSesion) {
                 <div class="card-body">
                     <form method="POST" id="formPassword" novalidate>
                         <input type="hidden" name="accion" value="password">
+                        <input type="hidden" name="csrf_token" value="<?= generateCsrfToken('cambiar_password_perfil') ?>">
 
                         <div class="form-field" style="margin-bottom:1rem;">
                             <label class="field-label" for="password_actual">

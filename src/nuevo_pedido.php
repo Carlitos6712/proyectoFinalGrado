@@ -12,6 +12,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Proveedor.php';
 require_once __DIR__ . '/includes/Pedido.php';
+require_once __DIR__ . '/includes/csrf.php';
 
 // Solo admin puede crear pedidos
 if (!isAdmin()) {
@@ -59,6 +60,10 @@ if (empty($lineasIniciales)) {
 // ── Manejar POST ──────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        if (!validateCsrfToken('crear_pedido', $_POST['csrf_token'] ?? '')) {
+            throw new AppException('Token CSRF inválido.', 403);
+        }
+
         $datos = [
             'proveedor_id' => filter_input(INPUT_POST, 'proveedor_id', FILTER_VALIDATE_INT) ?: null,
             'notas'        => trim($_POST['notas'] ?? '') ?: null,
@@ -239,6 +244,7 @@ try { $stockBajoCount = count($productoModel->filtrarStockBajo()); } catch (\Thr
         <div class="card">
             <div class="card-body">
                 <form method="POST" id="formPedido">
+                    <input type="hidden" name="csrf_token" value="<?= generateCsrfToken('crear_pedido') ?>">
 
                     <!-- Proveedor -->
                     <div class="form-field" style="margin-bottom:1rem;">

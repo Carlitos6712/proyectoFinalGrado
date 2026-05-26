@@ -11,6 +11,7 @@ require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Proveedor.php';
+require_once __DIR__ . '/includes/csrf.php';
 
 if (!isAdmin()) {
     header('Location: index.php');
@@ -34,6 +35,11 @@ unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $postAccion = $_POST['accion'] ?? '';
+
+        $csrfAccion = $postAccion === 'desactivar' ? 'desactivar_proveedor' : 'guardar_proveedor';
+        if (!validateCsrfToken($csrfAccion, $_POST['csrf_token'] ?? '')) {
+            throw new AppException('Token CSRF inválido.', 403);
+        }
 
         if ($postAccion === 'crear') {
             $datos = [
@@ -317,6 +323,7 @@ if ($provSelId) {
                     </div>
                     <div class="card-body">
                         <form method="POST">
+                            <input type="hidden" name="csrf_token" value="<?= generateCsrfToken('guardar_proveedor') ?>">
                             <input type="hidden" name="accion" value="<?= $editProv ? 'editar' : 'crear' ?>">
                             <?php if ($editProv): ?>
                                 <input type="hidden" name="id" value="<?= (int)$editProv['id'] ?>">
@@ -439,6 +446,7 @@ if ($provSelId) {
                                         </a>
                                         <?php if ((int)$prov['activo'] === 1): ?>
                                         <form method="POST" style="display:inline;">
+                                            <input type="hidden" name="csrf_token" value="<?= generateCsrfToken('desactivar_proveedor') ?>">
                                             <input type="hidden" name="accion" value="desactivar">
                                             <input type="hidden" name="id" value="<?= (int)$prov['id'] ?>">
                                             <button type="submit" class="action-btn action-btn-red" title="Desactivar proveedor"

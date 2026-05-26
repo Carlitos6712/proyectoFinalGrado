@@ -21,6 +21,7 @@ if (($_SESSION['user_role'] ?? '') !== 'admin') {
     exit;
 }
 
+require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/includes/Producto.php';

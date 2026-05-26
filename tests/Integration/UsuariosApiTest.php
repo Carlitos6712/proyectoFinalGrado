@@ -58,7 +58,7 @@ class UsuariosApiTest extends TestCase
             'password'        => 'Password123!',
             'nombre_completo' => "Test User {$suffix}",
             'email'           => "inttest{$suffix}@test.local",
-            'rol'             => 'operario',
+            'rol'             => 'employee',
         ];
         $d = array_merge($defaults, $overrides);
 
@@ -104,7 +104,7 @@ class UsuariosApiTest extends TestCase
         $this->expectExceptionCode(409);
 
         // intentamos crear el mismo username de nuevo
-        $dupId = $this->model->crear('INTTEST_dup', 'Password123!', 'Dup Test', '', 'operario');
+        $dupId = $this->model->crear('INTTEST_dup', 'Password123!', 'Dup Test', '', 'employee');
         $this->createdIds[] = $dupId; // por si no lanza
     }
 
@@ -114,7 +114,7 @@ class UsuariosApiTest extends TestCase
         $this->expectException(AppException::class);
         $this->expectExceptionCode(400);
 
-        $id = $this->model->crear('INTTEST_shortpw', '1234567', 'Short', '', 'operario');
+        $id = $this->model->crear('INTTEST_shortpw', '1234567', 'Short', '', 'employee');
         $this->createdIds[] = $id;
     }
 
@@ -184,15 +184,15 @@ class UsuariosApiTest extends TestCase
         $this->expectException(AppException::class);
         $this->expectExceptionCode(409);
 
-        $this->model->actualizar($id, 'INTTEST_taken', 'Name', '', 'operario');
+        $this->model->actualizar($id, 'INTTEST_taken', 'Name', '', 'employee');
     }
 
     // ── Tests: toggleActivo ───────────────────────────────────────────────────
 
     #[Test]
-    public function it_deactivates_operario_and_returns_false(): void
+    public function it_deactivates_employee_and_returns_false(): void
     {
-        $id    = $this->crearUsuario(['username' => 'INTTEST_tgl', 'rol' => 'operario']);
+        $id    = $this->crearUsuario(['username' => 'INTTEST_tgl', 'rol' => 'employee']);
         $nuevo = $this->model->toggleActivo($id);
 
         $this->assertFalse($nuevo);
@@ -203,7 +203,7 @@ class UsuariosApiTest extends TestCase
     #[Test]
     public function it_reactivates_inactive_user_and_returns_true(): void
     {
-        $id = $this->crearUsuario(['username' => 'INTTEST_react', 'rol' => 'operario']);
+        $id = $this->crearUsuario(['username' => 'INTTEST_react', 'rol' => 'employee']);
         $this->pdo->exec("UPDATE usuarios SET activo = 0 WHERE id = {$id}");
 
         $nuevo = $this->model->toggleActivo($id);

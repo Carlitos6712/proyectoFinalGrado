@@ -269,7 +269,7 @@ class UsuarioTest extends TestCase
     // ── Tests: toggleActivo ───────────────────────────────────────────────────
 
     #[Test]
-    public function it_deactivates_an_active_operario(): void
+    public function it_deactivates_an_active_employee(): void
     {
         $id     = $this->crearUsuario(['username' => 'opuser', 'rol' => 'employee']);
         $nuevo  = $this->model->toggleActivo($id);

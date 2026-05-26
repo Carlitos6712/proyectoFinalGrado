@@ -61,10 +61,17 @@ function jsonResponse(bool $success, mixed $data, string $message, int $status =
  */
 function requireAdmin(): void
 {
-    if (empty($_SESSION['usuario_id'])) {
+    // Sesión local (login directo)
+    $isLocalUser    = !empty($_SESSION['usuario_id']);
+    // Sesión multi-tenant (login de empresa)
+    $isBusinessUser = !empty($_SESSION['user_id']) && !empty($_SESSION['business_id']);
+
+    if (!$isLocalUser && !$isBusinessUser) {
         jsonResponse(false, null, 'No autenticado.', 401);
     }
-    if (!in_array($_SESSION['rol'] ?? '', ['admin', 'superadmin'], true)) {
+
+    $rol = $_SESSION['user_role'] ?? $_SESSION['rol'] ?? '';
+    if (!in_array($rol, ['admin', 'superadmin'], true)) {
         jsonResponse(false, null, 'Acceso denegado: se requiere rol admin.', 403);
     }
 }

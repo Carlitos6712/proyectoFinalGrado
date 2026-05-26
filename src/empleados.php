@@ -16,6 +16,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/auth_check.php';
+require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/middleware/RoleMiddleware.php';
 require_once __DIR__ . '/core/Session.php';
 
@@ -43,7 +44,8 @@ try {
     $error = 'Error al cargar los empleados.';
 }
 
-$sessionUserId = (int)($_SESSION['user_id'] ?? 0);
+$sessionUserId       = (int)($_SESSION['user_id'] ?? 0);
+$csrfTokenEmpleados  = generateCsrfToken('gestionar_empleados');
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -86,6 +88,8 @@ $sessionUserId = (int)($_SESSION['user_id'] ?? 0);
 <body class="layout">
 
 <?php require_once __DIR__ . '/includes/_sidebar.php'; ?>
+
+<input type="hidden" id="csrfTokenEmpleados" value="<?= htmlspecialchars($csrfTokenEmpleados, ENT_QUOTES, 'UTF-8') ?>">
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -392,7 +396,11 @@ async function toggleEmpleado(id, activo, btn) {
     if (!confirm(`¿${activo ? 'Desactivar' : 'Activar'} este empleado?`)) return;
     btn.disabled = true;
     try {
-        const res  = await fetch(`api/empleados.php?id=${id}&accion=toggle`, { method: 'PATCH' });
+        const res  = await fetch(`api/empleados.php?id=${id}&accion=toggle`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ csrf_token: document.getElementById('csrfTokenEmpleados').value }),
+        });
         const json = await res.json();
         if (!json.success) {
             mostrarAlerta(json.message, 'danger');
@@ -415,7 +423,11 @@ async function toggleEmpleado(id, activo, btn) {
 async function resetPassword(id, name) {
     if (!confirm(`¿Resetear la contraseña de "${name}"? Se generará una contraseña aleatoria.`)) return;
     try {
-        const res  = await fetch(`api/empleados.php?id=${id}&accion=reset-password`, { method: 'PATCH' });
+        const res  = await fetch(`api/empleados.php?id=${id}&accion=reset-password`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ csrf_token: document.getElementById('csrfTokenEmpleados').value }),
+        });
         const json = await res.json();
         if (!json.success) {
             mostrarAlerta(json.message, 'danger');

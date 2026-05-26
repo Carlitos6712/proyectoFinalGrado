@@ -116,7 +116,7 @@ class TicketController
     public function view(int $id): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT st.*, b.name AS business_name, b.email AS business_email
+            'SELECT st.*, b.name AS business_name, b.contact_email AS business_email
              FROM support_tickets st
              LEFT JOIN businesses b ON b.id = st.business_id
              WHERE st.id = ?'

@@ -231,7 +231,6 @@ CREATE TABLE IF NOT EXISTS businesses (
     contact_email   VARCHAR(150),
     phone           VARCHAR(30),
     address         TEXT,
-    email           VARCHAR(150),
     plan            ENUM('free','basic','pro') DEFAULT 'free',
     plan_expires_at DATE,
     is_active       TINYINT(1)    DEFAULT 1,

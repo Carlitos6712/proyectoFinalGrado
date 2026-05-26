@@ -24,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/../includes/AppException.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../includes/ModeloMoto.php';
 require_once __DIR__ . '/../includes/auth_check.php';
 
@@ -151,6 +152,12 @@ function handlePost(ModeloMoto $modelo): void
  */
 function handleDelete(ModeloMoto $modelo): void
 {
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $csrfToken = $body['csrf_token'] ?? '';
+    if (!validateCsrfToken('gestionar_modelos', $csrfToken)) {
+        jsonResponse(false, null, 'Token CSRF inválido.', 403);
+    }
+
     $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
     if (!$id) {
         throw new AppException('Se requiere el parámetro id.', 400);

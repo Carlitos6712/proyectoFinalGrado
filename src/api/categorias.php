@@ -25,6 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/../includes/AppException.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/auth_check.php';
+require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../includes/Categoria.php';
 
 /**
@@ -41,6 +43,17 @@ function jsonResponse(bool $success, mixed $data, string $message = '', int $cod
     http_response_code($code);
     echo json_encode(['success' => $success, 'data' => $data, 'message' => $message], JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+// ── Control de acceso ─────────────────────────────────────────────────────────
+$isAuth = !empty($_SESSION['usuario_id']) || (!empty($_SESSION['user_id']) && !empty($_SESSION['business_id']));
+if (!$isAuth) {
+    jsonResponse(false, null, 'No autenticado.', 401);
+}
+
+$writeMethod = in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE'], true);
+if ($writeMethod && !isAdmin()) {
+    jsonResponse(false, null, 'Acceso restringido a administradores.', 403);
 }
 
 try {
@@ -91,7 +104,11 @@ function handleGet(Categoria $modelo): void
  */
 function handlePost(Categoria $modelo): void
 {
-    $body        = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $csrfToken = $body['csrf_token'] ?? '';
+    if (!validateCsrfToken('gestionar_categorias', $csrfToken)) {
+        jsonResponse(false, null, 'Token CSRF inválido.', 403);
+    }
     $nombre      = trim($body['nombre']      ?? '');
     $descripcion = trim($body['descripcion'] ?? '');
 
@@ -112,7 +129,11 @@ function handlePost(Categoria $modelo): void
  */
 function handlePut(Categoria $modelo): void
 {
-    $body        = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $csrfToken = $body['csrf_token'] ?? '';
+    if (!validateCsrfToken('gestionar_categorias', $csrfToken)) {
+        jsonResponse(false, null, 'Token CSRF inválido.', 403);
+    }
     $id          = (int)($body['id']          ?? 0);
     $nombre      = trim($body['nombre']      ?? '');
     $descripcion = trim($body['descripcion'] ?? '');
@@ -139,6 +160,11 @@ function handlePut(Categoria $modelo): void
  */
 function handleDelete(Categoria $modelo): void
 {
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $csrfToken = $body['csrf_token'] ?? '';
+    if (!validateCsrfToken('gestionar_categorias', $csrfToken)) {
+        jsonResponse(false, null, 'Token CSRF inválido.', 403);
+    }
     $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
     if (!$id) {
         throw new AppException('Se requiere el parámetro id.', 400);

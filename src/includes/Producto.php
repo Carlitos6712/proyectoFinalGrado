@@ -234,7 +234,7 @@ class Producto
                  url_proveedor = :url_proveedor, proveedor = :proveedor, ubicacion = :ubicacion,
                  peso = :peso, capacidad = :capacidad, longitud = :longitud,
                  anchura = :anchura, diametro = :diametro, proveedor_id = :proveedor_id
-             WHERE id = :id AND deleted_at IS NULL" . $this->bizWhere('')
+             WHERE id = :id AND deleted_at IS NULL" . $this->bizWhere('productos')
         );
         $resultado = $stmt->execute(array_merge([
             ':id'                => $id,
@@ -286,7 +286,7 @@ class Producto
         // Use a raw query that bypasses bizWhere so soft-deleted rows are invisible
         // to obtener() but we still capture data for auditing.
         $stmtAntes = $this->pdo->prepare(
-            "SELECT * FROM productos WHERE id = :id AND deleted_at IS NULL" . $this->bizWhere('')
+            "SELECT * FROM productos WHERE id = :id AND deleted_at IS NULL" . $this->bizWhere('productos')
         );
         $stmtAntes->execute(array_merge([':id' => $id], $this->bizParam()));
         $anterior = $stmtAntes->fetch() ?: null;
@@ -298,7 +298,7 @@ class Producto
 
         $stmt = $this->pdo->prepare(
             "UPDATE productos SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL"
-            . $this->bizWhere('')
+            . $this->bizWhere('productos')
         );
         $stmt->execute(array_merge([':id' => $id], $this->bizParam()));
         $afectado = $stmt->rowCount() > 0;

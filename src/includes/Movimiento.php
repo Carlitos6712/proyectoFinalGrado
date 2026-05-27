@@ -247,106 +247,6 @@ class Movimiento
     }
 
     /**
-     * Cuenta movimientos globales con filtros opcionales.
-     *
-     * @param int|null    $productoId Filtro por producto.
-     * @param string|null $tipo       'entrada' | 'salida' | null = todos.
-     * @param string|null $desde      Fecha inicio Y-m-d.
-     * @param string|null $hasta      Fecha fin Y-m-d.
-     * @return int
-     * @author Carlitos6712
-     */
-    public function contarGlobal(
-        ?int $productoId = null,
-        ?string $tipo    = null,
-        ?string $desde   = null,
-        ?string $hasta   = null
-    ): int {
-        [$where, $params] = $this->buildGlobalWhere($productoId, $tipo, $desde, $hasta);
-        $stmt = $this->pdo->prepare(
-            "SELECT COUNT(*) FROM movimientos m JOIN productos p ON m.producto_id = p.id WHERE 1=1 {$where}"
-        );
-        $stmt->execute($params);
-        return (int) $stmt->fetchColumn();
-    }
-
-    /**
-     * Lista movimientos globales paginados con filtros opcionales.
-     *
-     * @param int         $pagina
-     * @param int         $porPagina
-     * @param int|null    $productoId
-     * @param string|null $tipo
-     * @param string|null $desde
-     * @param string|null $hasta
-     * @return array<int, array<string, mixed>>
-     * @author Carlitos6712
-     */
-    public function listarGlobalPaginado(
-        int $pagina,
-        int $porPagina,
-        ?int $productoId = null,
-        ?string $tipo    = null,
-        ?string $desde   = null,
-        ?string $hasta   = null
-    ): array {
-        [$where, $params] = $this->buildGlobalWhere($productoId, $tipo, $desde, $hasta);
-        $offset = ($pagina - 1) * $porPagina;
-        $sql    = "SELECT m.*, p.nombre AS producto_nombre, p.codigo_ref, c.nombre AS categoria_nombre
-                   FROM movimientos m
-                   JOIN productos p ON m.producto_id = p.id
-                   LEFT JOIN categorias c ON p.categoria_id = c.id
-                   WHERE 1=1 {$where}
-                   ORDER BY m.fecha DESC
-                   LIMIT :limite OFFSET :offset";
-        $stmt = $this->pdo->prepare($sql);
-        foreach ($params as $k => $v) {
-            $stmt->bindValue($k, $v);
-        }
-        $stmt->bindValue(':limite', $porPagina, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset,    PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll();
-    }
-
-    /**
-     * Construye cláusula WHERE y parámetros para filtros globales.
-     *
-     * @return array{0: string, 1: array<string, mixed>}
-     */
-    private function buildGlobalWhere(
-        ?int $productoId,
-        ?string $tipo,
-        ?string $desde,
-        ?string $hasta
-    ): array {
-        $where  = '';
-        $params = [];
-
-        if ($this->businessId !== null) {
-            $where .= " AND m.business_id = :biz_id";
-            $params[':biz_id'] = $this->businessId;
-        }
-        if ($productoId !== null) {
-            $where .= " AND m.producto_id = :producto_id";
-            $params[':producto_id'] = $productoId;
-        }
-        if ($tipo !== null && in_array($tipo, ['entrada', 'salida'], true)) {
-            $where .= " AND m.tipo = :tipo";
-            $params[':tipo'] = $tipo;
-        }
-        if ($desde !== null) {
-            $where .= " AND DATE(m.fecha) >= :desde";
-            $params[':desde'] = $desde;
-        }
-        if ($hasta !== null) {
-            $where .= " AND DATE(m.fecha) <= :hasta";
-            $params[':hasta'] = $hasta;
-        }
-        return [$where, $params];
-    }
-
-    /**
      * Lista movimientos filtrados para exportación CSV.
      *
      * Sin fechas, exporta los últimos 30 días por defecto.
@@ -387,6 +287,83 @@ class Movimiento
         $sql .= " ORDER BY m.fecha DESC";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Devuelve los productos con más salidas en los últimos N días.
+     *
+     * Útil para el dashboard analítico — bloque "Top más vendidos".
+     * Usa substr(fecha,1,10) para compatibilidad SQLite+MySQL.
+     *
+     * @param  int $limit Número máximo de productos a devolver (default 10).
+     * @param  int $dias  Período de análisis en días hacia atrás (default 30).
+     * @return array<int, array{producto_id: int, nombre: string, total_salidas: int}>
+     * @author Carlitos6712
+     */
+    public function topProductosVendidos(int $limit = 10, int $dias = 30): array
+    {
+        $desde  = date('Y-m-d', strtotime("-{$dias} days"));
+        $params = array_merge([':desde' => $desde, ':tipo' => 'salida'], $this->bizParam());
+
+        $sql  = "SELECT m.producto_id, p.nombre,
+                        SUM(m.cantidad) AS total_salidas
+                 FROM movimientos m
+                 JOIN productos p ON p.id = m.producto_id
+                 WHERE m.tipo = :tipo
+                   AND substr(m.fecha, 1, 10) >= :desde
+                   AND p.deleted_at IS NULL"
+              . $this->bizWhere('m')
+              . " GROUP BY m.producto_id, p.nombre
+                 ORDER BY total_salidas DESC
+                 LIMIT :limite";
+
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        $stmt->bindValue(':limite', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Devuelve productos con stock > 0 que no han tenido ningún movimiento en los últimos N días.
+     *
+     * Útil para el dashboard analítico — bloque "Stock muerto".
+     *
+     * @param  int $dias Umbral de inactividad en días (default 90).
+     * @return array<int, array{producto_id: int, nombre: string, stock: int, ultimo_movimiento: string|null}>
+     * @author Carlitos6712
+     */
+    public function productosSinMovimiento(int $dias = 90): array
+    {
+        $cutoff = date('Y-m-d', strtotime("-{$dias} days"));
+        $params = array_merge([':cutoff' => $cutoff], $this->bizParam());
+
+        $sql  = "SELECT p.id AS producto_id, p.nombre, p.stock, p.precio,
+                        COALESCE(c.nombre, 'Sin categoría') AS categoria_nombre,
+                        MAX(substr(m.fecha, 1, 10)) AS ultimo_movimiento
+                 FROM productos p
+                 LEFT JOIN movimientos m ON m.producto_id = p.id"
+              . ($this->businessId !== null ? " AND m.business_id = :biz_id2" : "")
+              . " LEFT JOIN categorias c ON c.id = p.categoria_id
+                 WHERE p.deleted_at IS NULL
+                   AND p.stock > 0"
+              . $this->bizWhere('p')
+              . " GROUP BY p.id, p.nombre, p.stock, p.precio, c.nombre
+                 HAVING MAX(substr(m.fecha, 1, 10)) < :cutoff
+                     OR MAX(substr(m.fecha, 1, 10)) IS NULL
+                 ORDER BY (p.precio * p.stock) DESC";
+
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        if ($this->businessId !== null) {
+            $stmt->bindValue(':biz_id2', $this->businessId, PDO::PARAM_INT);
+        }
+        $stmt->execute();
         return $stmt->fetchAll();
     }
 }

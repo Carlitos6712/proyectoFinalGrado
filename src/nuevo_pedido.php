@@ -12,10 +12,9 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Proveedor.php';
 require_once __DIR__ . '/includes/Pedido.php';
-require_once __DIR__ . '/includes/csrf.php';
 
 // Solo admin puede crear pedidos
-if (!isAdmin()) {
+if (($_SESSION['rol'] ?? '') !== 'admin') {
     header('Location: index.php');
     exit;
 }
@@ -60,10 +59,6 @@ if (empty($lineasIniciales)) {
 // ── Manejar POST ──────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        if (!validateCsrfToken('crear_pedido', $_POST['csrf_token'] ?? '')) {
-            throw new AppException('Token CSRF inválido.', 403);
-        }
-
         $datos = [
             'proveedor_id' => filter_input(INPUT_POST, 'proveedor_id', FILTER_VALIDATE_INT) ?: null,
             'notas'        => trim($_POST['notas'] ?? '') ?: null,
@@ -132,7 +127,65 @@ try { $stockBajoCount = count($productoModel->filtrarStockBajo()); } catch (\Thr
 </head>
 <body class="layout">
 
-<?php require_once __DIR__ . '/includes/_sidebar.php'; ?>
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-logo">
+            <svg class="logo-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+            </svg>
+            <span class="logo-text">es21<strong>plus</strong></span>
+        </div>
+        <button class="sidebar-close" id="sidebarClose" aria-label="Cerrar menú">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <span class="nav-section-label">Principal</span>
+            <a href="index.php" class="nav-item">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+                <span class="nav-label">Dashboard</span>
+            </a>
+            <a href="productos.php" class="nav-item">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>
+                <span class="nav-label">Productos</span>
+            </a>
+            <a href="proveedores.php" class="nav-item">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
+                <span class="nav-label">Proveedores</span>
+            </a>
+            <a href="pedidos.php" class="nav-item active">
+                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
+                <span class="nav-label">Pedidos</span>
+            </a>
+        </div>
+        <div class="nav-section">
+            <span class="nav-section-label">Operaciones</span>
+            <a href="movimientos.php" class="nav-item">
+                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
+                <span class="nav-label">Movimientos</span>
+            </a>
+            <a href="kits.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'kits.php' ? 'active' : '' ?>">
+                <span class="nav-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+                </span>
+                <span class="nav-label">Kits</span>
+            </a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="user-avatar-sm">CV</div>
+            <div class="sidebar-user-info">
+                <span class="user-name-sm">Carlos Vico</span>
+                <span class="user-role">Administrador</span>
+            </div>
+        </div>
+    </div>
+</aside>
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -192,7 +245,6 @@ try { $stockBajoCount = count($productoModel->filtrarStockBajo()); } catch (\Thr
         <div class="card">
             <div class="card-body">
                 <form method="POST" id="formPedido">
-                    <input type="hidden" name="csrf_token" value="<?= generateCsrfToken('crear_pedido') ?>">
 
                     <!-- Proveedor -->
                     <div class="form-field" style="margin-bottom:1rem;">

@@ -787,4 +787,75 @@ class Producto
         $stmt->execute();
         return $stmt->fetchAll();
     }
+
+    /**
+     * Devuelve el valor total del inventario (precio × stock) agrupado por categoría.
+     *
+     * Solo incluye productos activos con stock > 0.
+     * Útil para el dashboard analítico — bloque "Valor por categoría".
+     *
+     * @return array<int, array{categoria: string, valor_total: float, num_productos: int}>
+     * @author Carlitos6712
+     */
+    public function valorInventarioPorCategoria(): array
+    {
+        $sql  = "SELECT COALESCE(c.nombre, 'Sin categoría') AS categoria,
+                        SUM(p.precio * p.stock)              AS valor_total,
+                        COUNT(p.id)                          AS num_productos
+                 FROM productos p
+                 LEFT JOIN categorias c ON c.id = p.categoria_id
+                 WHERE p.deleted_at IS NULL
+                   AND p.stock > 0"
+              . $this->bizWhere()
+              . " GROUP BY c.id, c.nombre
+                 ORDER BY valor_total DESC";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->bizParam());
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Calcula el índice de rotación de stock para cada producto con stock > 0.
+     *
+     * Rotación = total_salidas / stock_actual en los últimos N días.
+     * Útil para el dashboard analítico — bloque "Rotación de stock".
+     * Usa substr(fecha,1,10) para compatibilidad SQLite+MySQL.
+     *
+     * @param  int $dias Período de análisis en días (default 30).
+     * @return array<int, array{producto_id: int, nombre: string, stock: int, total_salidas: int, rotacion: float}>
+     * @author Carlitos6712
+     */
+    public function rotacionStock(int $dias = 30): array
+    {
+        $desde  = date('Y-m-d', strtotime("-{$dias} days"));
+        $params = array_merge([':desde' => $desde], $this->bizParam());
+
+        $bizMovJoin = $this->businessId !== null ? " AND m.business_id = :biz_id2" : "";
+
+        $sql  = "SELECT p.id AS producto_id, p.nombre, p.stock,
+                        COALESCE(SUM(CASE WHEN m.tipo = 'salida' THEN m.cantidad ELSE 0 END), 0)
+                            AS total_salidas,
+                        COALESCE(SUM(CASE WHEN m.tipo = 'salida' THEN m.cantidad ELSE 0 END), 0)
+                            * 1.0 / p.stock AS rotacion
+                 FROM productos p
+                 LEFT JOIN movimientos m
+                    ON m.producto_id = p.id
+                   AND substr(m.fecha, 1, 10) >= :desde"
+              . $bizMovJoin
+              . " WHERE p.deleted_at IS NULL AND p.stock > 0"
+              . $this->bizWhere()
+              . " GROUP BY p.id, p.nombre, p.stock
+                 ORDER BY rotacion DESC";
+
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        if ($this->businessId !== null) {
+            $stmt->bindValue(':biz_id2', $this->businessId, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
 }

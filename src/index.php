@@ -441,6 +441,129 @@ try {
 
         </div>
 
+        <!-- ══════════════════════════════════════════════════════
+             ANALYTICS SECTION — Fase 17
+             ══════════════════════════════════════════════════════ -->
+
+        <!-- 17.3 Top 10 más vendidos -->
+        <div class="page-header" style="margin-top:2.5rem;">
+            <div class="page-header-info">
+                <h2 class="page-title" style="font-size:1.1rem;">Top 10 — Productos más vendidos</h2>
+                <p class="page-subtitle">Unidades con más salidas en el período seleccionado</p>
+            </div>
+            <div class="page-actions">
+                <select id="top-ventas-dias" class="field-input field-select" style="width:140px;"
+                        onchange="cargarTopVentas()">
+                    <option value="7">Últimos 7 días</option>
+                    <option value="30" selected>Últimos 30 días</option>
+                    <option value="90">Últimos 90 días</option>
+                </select>
+            </div>
+        </div>
+        <div class="card" style="margin-bottom:2rem;">
+            <div class="card-body" style="padding:1.25rem;">
+                <div id="top-ventas-wrapper" style="position:relative;min-height:200px;">
+                    <canvas id="chart-top-ventas" style="max-height:320px;"></canvas>
+                    <div id="top-ventas-empty" style="display:none;text-align:center;padding:3rem;color:#94a3b8;">
+                        Sin datos de ventas en este período.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 17.4 Valor del inventario por categoría -->
+        <div class="page-header">
+            <div class="page-header-info">
+                <h2 class="page-title" style="font-size:1.1rem;">Valor del inventario por categoría</h2>
+                <p class="page-subtitle">Distribución del valor (precio × stock) por categoría</p>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:1.5rem;align-items:start;margin-bottom:2rem;">
+            <div class="card">
+                <div class="card-body" style="padding:1.25rem;">
+                    <canvas id="chart-valor-categoria" style="max-height:300px;"></canvas>
+                    <div id="valor-categoria-empty" style="display:none;text-align:center;padding:3rem;color:#94a3b8;">
+                        Sin productos con stock.
+                    </div>
+                </div>
+            </div>
+            <div class="stat-card" style="min-width:180px;align-self:center;">
+                <div class="stat-card-icon stat-icon-blue">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </div>
+                <div class="stat-card-body">
+                    <span id="valor-total-global" class="stat-value stat-value-blue">–</span>
+                    <span class="stat-label">Valor total inventario</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 17.5 Rotación de stock -->
+        <div class="page-header">
+            <div class="page-header-info">
+                <h2 class="page-title" style="font-size:1.1rem;">Rotación de stock</h2>
+                <p class="page-subtitle">Índice = unidades salidas / stock actual — top 10 productos</p>
+            </div>
+            <div class="page-actions">
+                <select id="rotacion-dias" class="field-input field-select" style="width:140px;"
+                        onchange="cargarRotacion()">
+                    <option value="7">Últimos 7 días</option>
+                    <option value="30" selected>Últimos 30 días</option>
+                    <option value="90">Últimos 90 días</option>
+                </select>
+            </div>
+        </div>
+        <div class="data-table-wrapper" style="margin-bottom:2rem;">
+            <table class="data-table" id="tabla-rotacion">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Producto</th>
+                        <th>Stock actual</th>
+                        <th>Uds. salidas</th>
+                        <th>Índice rotación</th>
+                    </tr>
+                </thead>
+                <tbody id="rotacion-body">
+                    <tr><td colspan="5" style="text-align:center;padding:2rem;color:#94a3b8;">Cargando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 17.6 Stock muerto -->
+        <div class="page-header">
+            <div class="page-header-info">
+                <h2 class="page-title" style="font-size:1.1rem;">Stock muerto</h2>
+                <p class="page-subtitle">Productos con stock sin movimiento en el umbral seleccionado</p>
+            </div>
+            <div class="page-actions">
+                <select id="stock-muerto-umbral" class="field-input field-select" style="width:140px;"
+                        onchange="cargarStockMuerto()">
+                    <option value="30">30 días</option>
+                    <option value="60">60 días</option>
+                    <option value="90" selected>90 días</option>
+                </select>
+            </div>
+        </div>
+        <div class="data-table-wrapper" style="margin-bottom:2rem;">
+            <table class="data-table" id="tabla-stock-muerto">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Categoría</th>
+                        <th>Stock</th>
+                        <th>Valor inmovilizado</th>
+                        <th>Último movimiento</th>
+                    </tr>
+                </thead>
+                <tbody id="stock-muerto-body">
+                    <tr><td colspan="5" style="text-align:center;padding:2rem;color:#94a3b8;">Cargando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
     </main>
 </div>
 
@@ -522,5 +645,256 @@ try {
 }());
 </script>
 <script src="js/app.js"></script>
+<script>
+/* ===================================================================
+ * Dashboard analítico — Fase 17
+ * @author Carlitos6712
+ * =================================================================== */
+
+let chartTopVentas      = null;
+let chartValorCategoria = null;
+
+/** Paleta de colores para el gráfico de tarta */
+const PALETA = [
+    '#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6',
+    '#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'
+];
+
+/** Formatea un número como euros */
+function formatEuro(v) {
+    return parseFloat(v).toLocaleString('es-ES', { style:'currency', currency:'EUR', minimumFractionDigits:2 });
+}
+
+/** Escapa HTML para prevenir XSS */
+function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── 17.3 Top 10 más vendidos ───────────────────────────────────── */
+
+/**
+ * Carga y renderiza el gráfico de barras horizontal de top ventas.
+ * @returns {Promise<void>}
+ */
+async function cargarTopVentas() {
+    const dias = document.getElementById('top-ventas-dias').value;
+    try {
+        const res  = await fetch(`api/dashboard.php?seccion=top_ventas&dias=${dias}&limit=10`);
+        const json = await res.json();
+        const datos = json.data ?? [];
+
+        const canvas = document.getElementById('chart-top-ventas');
+        const empty  = document.getElementById('top-ventas-empty');
+
+        if (!datos.length) {
+            canvas.style.display = 'none';
+            empty.style.display  = '';
+            return;
+        }
+        canvas.style.display = '';
+        empty.style.display  = 'none';
+
+        const labels  = datos.map(r => escHtml(r.nombre));
+        const valores = datos.map(r => parseInt(r.total_salidas, 10));
+
+        if (chartTopVentas) chartTopVentas.destroy();
+        chartTopVentas = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Unidades vendidas',
+                    data: valores,
+                    backgroundColor: 'rgba(59,130,246,0.75)',
+                    borderColor:     'rgba(59,130,246,1)',
+                    borderWidth: 1,
+                    borderRadius: 5,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ` ${ctx.parsed.x} uds.`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: { precision: 0 },
+                        grid: { color: 'rgba(0,0,0,.06)' }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { font: { size: 12 } }
+                    }
+                }
+            }
+        });
+    } catch (e) {
+        console.error('Error top ventas:', e);
+    }
+}
+
+/* ── 17.4 Valor por categoría ───────────────────────────────────── */
+
+/**
+ * Carga y renderiza el gráfico doughnut de valor por categoría.
+ * @returns {Promise<void>}
+ */
+async function cargarValorCategoria() {
+    try {
+        const res   = await fetch('api/dashboard.php?seccion=valor_categorias');
+        const json  = await res.json();
+        const datos = json.data ?? [];
+
+        const canvas = document.getElementById('chart-valor-categoria');
+        const empty  = document.getElementById('valor-categoria-empty');
+        const totalEl = document.getElementById('valor-total-global');
+
+        if (!datos.length) {
+            canvas.style.display = 'none';
+            empty.style.display  = '';
+            totalEl.textContent  = '–';
+            return;
+        }
+        canvas.style.display = '';
+        empty.style.display  = 'none';
+
+        const labels  = datos.map(r => r.categoria);
+        const valores = datos.map(r => parseFloat(r.valor_total));
+        const total   = valores.reduce((a, b) => a + b, 0);
+        totalEl.textContent = formatEuro(total);
+
+        if (chartValorCategoria) chartValorCategoria.destroy();
+        chartValorCategoria = new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{
+                    data: valores,
+                    backgroundColor: PALETA.slice(0, datos.length),
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                cutout: '60%',
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { usePointStyle: true, padding: 12, font: { size: 12 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => {
+                                const v = ctx.parsed;
+                                const pct = ((v / total) * 100).toFixed(1);
+                                const num = datos[ctx.dataIndex].num_productos;
+                                return ` ${formatEuro(v)} (${pct}%) — ${num} producto(s)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (e) {
+        console.error('Error valor categoría:', e);
+    }
+}
+
+/* ── 17.5 Rotación de stock ─────────────────────────────────────── */
+
+/**
+ * Carga y renderiza la tabla de rotación de stock con código de color.
+ * @returns {Promise<void>}
+ */
+async function cargarRotacion() {
+    const dias  = document.getElementById('rotacion-dias').value;
+    const tbody = document.getElementById('rotacion-body');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:#94a3b8;">Cargando…</td></tr>';
+    try {
+        const res   = await fetch(`api/dashboard.php?seccion=rotacion&dias=${dias}`);
+        const json  = await res.json();
+        const datos = (json.data ?? []).slice(0, 10);
+
+        if (!datos.length) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:#94a3b8;">Sin productos con stock en este período.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = datos.map((r, i) => {
+            const rot = parseFloat(r.rotacion);
+            let color, pill;
+            if (rot >= 1) {
+                color = '#166534'; pill = 'background:#dcfce7;color:#166534';
+            } else if (rot >= 0.5) {
+                color = '#92400e'; pill = 'background:#fef3c7;color:#92400e';
+            } else {
+                color = '#991b1b'; pill = 'background:#fee2e2;color:#991b1b';
+            }
+            return `<tr>
+                <td><span class="ref-code">${i + 1}</span></td>
+                <td><a href="ver_producto.php?id=${r.producto_id}" style="color:inherit;text-decoration:none;font-weight:600;">${escHtml(r.nombre)}</a></td>
+                <td><strong>${parseInt(r.stock, 10)}</strong> uds.</td>
+                <td>${parseInt(r.total_salidas, 10)} uds.</td>
+                <td><span style="padding:3px 10px;border-radius:999px;font-size:.8rem;font-weight:600;${pill}">${rot.toFixed(2)}</span></td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:#ef4444">Error: ${e.message}</td></tr>`;
+    }
+}
+
+/* ── 17.6 Stock muerto ──────────────────────────────────────────── */
+
+/**
+ * Carga y renderiza la tabla de stock muerto ordenada por valor inmovilizado.
+ * @returns {Promise<void>}
+ */
+async function cargarStockMuerto() {
+    const umbral = document.getElementById('stock-muerto-umbral').value;
+    const tbody  = document.getElementById('stock-muerto-body');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:#94a3b8;">Cargando…</td></tr>';
+    try {
+        const res   = await fetch(`api/dashboard.php?seccion=stock_muerto&umbral=${umbral}`);
+        const json  = await res.json();
+        const datos = json.data ?? [];
+
+        if (!datos.length) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:#94a3b8;">No hay stock muerto en los últimos ${umbral} días. ¡Buen trabajo!</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = datos.map(r => {
+            const valorInm = parseFloat(r.precio ?? 0) * parseInt(r.stock, 10);
+            const ultimo   = r.ultimo_movimiento ?? 'Nunca';
+            return `<tr>
+                <td><a href="ver_producto.php?id=${r.producto_id}" style="color:inherit;text-decoration:none;font-weight:600;">${escHtml(r.nombre)}</a></td>
+                <td><span class="ref-code">${escHtml(r.categoria_nombre ?? '–')}</span></td>
+                <td><strong>${parseInt(r.stock, 10)}</strong> uds.</td>
+                <td style="font-weight:600;color:#dc2626;">${formatEuro(valorInm)}</td>
+                <td style="color:#94a3b8;">${escHtml(ultimo)}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:#ef4444">Error: ${e.message}</td></tr>`;
+    }
+}
+
+/* ── Inicialización ─────────────────────────────────────────────── */
+(function initAnalytics() {
+    cargarTopVentas();
+    cargarValorCategoria();
+    cargarRotacion();
+    cargarStockMuerto();
+}());
+</script>
 </body>
 </html>

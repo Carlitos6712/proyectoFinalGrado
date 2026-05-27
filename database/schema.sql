@@ -243,6 +243,42 @@ SET @sql_prov = IF(@col_prov = 0,
     'SELECT 1');
 PREPARE stmt_prov FROM @sql_prov; EXECUTE stmt_prov; DEALLOCATE PREPARE stmt_prov;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Fase 16: Kits / Packs de productos
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS kits (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    nombre      VARCHAR(150) NOT NULL,
+    descripcion TEXT,
+    activo      TINYINT(1)   DEFAULT 1,
+    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS kits_lineas (
+    id          INT  AUTO_INCREMENT PRIMARY KEY,
+    kit_id      INT  NOT NULL,
+    producto_id INT  NOT NULL,
+    cantidad    INT  NOT NULL DEFAULT 1,
+    UNIQUE KEY  uq_kit_producto (kit_id, producto_id),
+    FOREIGN KEY (kit_id)      REFERENCES kits(id)     ON DELETE CASCADE,
+    FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seed: 2 kits de ejemplo
+INSERT IGNORE INTO kits (id, nombre, descripcion) VALUES
+  (1, 'Kit Revisión Básica',      'Filtro de aceite + aceite motor 1L + filtro de aire. Mantenimiento estándar 6.000 km.'),
+  (2, 'Kit Frenos Completo',      'Pastillas delantera + pastillas trasera + líquido de frenos. Sustitución de frenos en taller.');
+
+-- Líneas del Kit 1 — se crean solo si los productos 1 y 2 existen
+INSERT IGNORE INTO kits_lineas (kit_id, producto_id, cantidad)
+SELECT 1, id, 1 FROM productos WHERE id IN (1, 2) AND deleted_at IS NULL;
+
+-- Líneas del Kit 2
+INSERT IGNORE INTO kits_lineas (kit_id, producto_id, cantidad)
+SELECT 2, id, 1 FROM productos WHERE id IN (3, 4) AND deleted_at IS NULL;
+
 -- -------------------------------------------------------------
 -- Tablas: pedidos y pedidos_lineas (Fase 13)
 -- -------------------------------------------------------------

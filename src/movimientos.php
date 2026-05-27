@@ -159,6 +159,12 @@ $balance  = $entradas - $salidas;
                 </span>
                 <span class="nav-label">Movimientos</span>
             </a>
+            <a href="kits.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'kits.php' ? 'active' : '' ?>">
+                <span class="nav-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+                </span>
+                <span class="nav-label">Kits</span>
+            </a>
         </div>
         <div class="nav-section">
             <span class="nav-section-label">Administración</span>
@@ -329,10 +335,20 @@ $balance  = $entradas - $salidas;
 
                     <div class="form-field" style="margin-bottom:1rem;">
                         <label class="field-label" for="tipo">Tipo <span class="field-required">*</span></label>
-                        <select class="field-input field-select" id="tipo" name="tipo" required>
+                        <select class="field-input field-select" id="tipo" name="tipo" required onchange="onTipoChange()">
                             <option value="entrada">Entrada (suma stock)</option>
                             <option value="salida">Salida (resta stock)</option>
                         </select>
+                    </div>
+
+                    <!-- Selector de kit (solo visible en salidas) -->
+                    <div class="form-field" id="kit-selector-wrapper" style="margin-bottom:1rem;display:none;">
+                        <label class="field-label" for="kit-selector">Aplicar kit <span class="field-hint" style="font-weight:400">(opcional)</span></label>
+                        <select class="field-input field-select" id="kit-selector" onchange="onKitChange()">
+                            <option value="">— Sin kit —</option>
+                        </select>
+                        <div id="kit-aviso-stock" style="margin-top:6px;display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:8px 10px;font-size:.82rem;color:#92400e;"></div>
+                        <div id="kit-lineas-preview" style="margin-top:8px;display:none;"></div>
                     </div>
 
                     <div class="form-field" style="margin-bottom:1rem;">
@@ -471,6 +487,112 @@ $balance  = $entradas - $salidas;
 
 <script src="js/app.js"></script>
 <script>
+/* ===================================================================
+ * Kit selector — Aplicar kit en movimiento de salida
+ * @author Carlitos6712
+ * =================================================================== */
+
+let kitsDisponibles = [];
+
+/**
+ * Muestra u oculta el selector de kit según el tipo de movimiento.
+ * @returns {void}
+ */
+function onTipoChange() {
+    const tipo    = document.getElementById('tipo').value;
+    const wrapper = document.getElementById('kit-selector-wrapper');
+    if (tipo === 'salida') {
+        wrapper.style.display = '';
+        if (!kitsDisponibles.length) cargarKits();
+    } else {
+        wrapper.style.display = 'none';
+        limpiarKitUI();
+    }
+}
+
+/**
+ * Carga los kits activos desde la API y puebla el selector.
+ * @returns {Promise<void>}
+ */
+async function cargarKits() {
+    try {
+        const res  = await fetch('api/kits.php');
+        const json = await res.json();
+        if (!json.success) return;
+        kitsDisponibles = json.data ?? [];
+        const sel = document.getElementById('kit-selector');
+        kitsDisponibles.forEach(k => {
+            const opt = document.createElement('option');
+            opt.value       = k.id;
+            opt.textContent = k.nombre + (k.total_lineas ? ` (${k.total_lineas} productos)` : '');
+            sel.appendChild(opt);
+        });
+    } catch (_) { /* silencioso */ }
+}
+
+/**
+ * Carga las líneas del kit seleccionado, muestra advertencias de stock
+ * y rellena automáticamente las observaciones.
+ * @returns {Promise<void>}
+ */
+async function onKitChange() {
+    const kitId = document.getElementById('kit-selector').value;
+    limpiarKitUI();
+    if (!kitId) return;
+
+    try {
+        const res  = await fetch(`api/kits.php?id=${kitId}&lineas`);
+        const json = await res.json();
+        if (!json.success) return;
+        const lineas = json.data ?? [];
+
+        // Advertencias de stock insuficiente (no bloqueantes)
+        const sinStock = lineas.filter(l => l.stock_actual < l.cantidad);
+        const avisoDiv = document.getElementById('kit-aviso-stock');
+        if (sinStock.length) {
+            avisoDiv.style.display = '';
+            avisoDiv.innerHTML = '⚠ Stock insuficiente para: <strong>'
+                + sinStock.map(l => escHtml(l.producto_nombre)).join(', ')
+                + '</strong>. El movimiento se registrará igualmente, pero el stock quedará negativo.';
+        }
+
+        // Preview de líneas
+        const previewDiv = document.getElementById('kit-lineas-preview');
+        if (lineas.length) {
+            let html = '<table style="width:100%;font-size:.82rem;border-collapse:collapse;">';
+            html += '<thead><tr><th style="text-align:left;padding:3px 6px;background:#f1f5f9">Producto</th><th style="padding:3px 6px;background:#f1f5f9">Cant.</th><th style="padding:3px 6px;background:#f1f5f9">Stock</th></tr></thead><tbody>';
+            lineas.forEach(l => {
+                const warn = l.stock_actual < l.cantidad ? ' style="color:#ef4444"' : '';
+                html += `<tr><td style="padding:2px 6px"${warn}>${escHtml(l.producto_nombre)}</td><td style="padding:2px 6px;text-align:center">${l.cantidad}</td><td style="padding:2px 6px;text-align:center"${warn}>${l.stock_actual}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            previewDiv.style.display = '';
+            previewDiv.innerHTML = html;
+        }
+
+        // Rellenar observaciones
+        const obs = document.getElementById('observaciones');
+        const kitNombre = kitsDisponibles.find(k => k.id == kitId)?.nombre ?? '';
+        if (!obs.value.trim()) {
+            obs.value = `Aplicar kit: ${kitNombre}`;
+        }
+
+    } catch (_) { /* silencioso */ }
+}
+
+/** Limpia la UI del kit selector. */
+function limpiarKitUI() {
+    document.getElementById('kit-aviso-stock').style.display   = 'none';
+    document.getElementById('kit-lineas-preview').style.display = 'none';
+    document.getElementById('kit-aviso-stock').innerHTML        = '';
+    document.getElementById('kit-lineas-preview').innerHTML     = '';
+}
+
+/** Escapa HTML para prevenir XSS. */
+function escHtml(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 /**
  * Descarga el CSV de movimientos respetando los filtros activos.
  * Pasa producto_id y tipo si están en la URL actual.

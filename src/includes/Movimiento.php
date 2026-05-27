@@ -247,6 +247,106 @@ class Movimiento
     }
 
     /**
+     * Cuenta movimientos globales con filtros opcionales.
+     *
+     * @param int|null    $productoId Filtro por producto.
+     * @param string|null $tipo       'entrada' | 'salida' | null = todos.
+     * @param string|null $desde      Fecha inicio Y-m-d.
+     * @param string|null $hasta      Fecha fin Y-m-d.
+     * @return int
+     * @author Carlitos6712
+     */
+    public function contarGlobal(
+        ?int $productoId = null,
+        ?string $tipo    = null,
+        ?string $desde   = null,
+        ?string $hasta   = null
+    ): int {
+        [$where, $params] = $this->buildGlobalWhere($productoId, $tipo, $desde, $hasta);
+        $stmt = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM movimientos m JOIN productos p ON m.producto_id = p.id WHERE 1=1 {$where}"
+        );
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Lista movimientos globales paginados con filtros opcionales.
+     *
+     * @param int         $pagina
+     * @param int         $porPagina
+     * @param int|null    $productoId
+     * @param string|null $tipo
+     * @param string|null $desde
+     * @param string|null $hasta
+     * @return array<int, array<string, mixed>>
+     * @author Carlitos6712
+     */
+    public function listarGlobalPaginado(
+        int $pagina,
+        int $porPagina,
+        ?int $productoId = null,
+        ?string $tipo    = null,
+        ?string $desde   = null,
+        ?string $hasta   = null
+    ): array {
+        [$where, $params] = $this->buildGlobalWhere($productoId, $tipo, $desde, $hasta);
+        $offset = ($pagina - 1) * $porPagina;
+        $sql    = "SELECT m.*, p.nombre AS producto_nombre, p.codigo_ref, c.nombre AS categoria_nombre
+                   FROM movimientos m
+                   JOIN productos p ON m.producto_id = p.id
+                   LEFT JOIN categorias c ON p.categoria_id = c.id
+                   WHERE 1=1 {$where}
+                   ORDER BY m.fecha DESC
+                   LIMIT :limite OFFSET :offset";
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        $stmt->bindValue(':limite', $porPagina, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset,    PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Construye cláusula WHERE y parámetros para filtros globales.
+     *
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private function buildGlobalWhere(
+        ?int $productoId,
+        ?string $tipo,
+        ?string $desde,
+        ?string $hasta
+    ): array {
+        $where  = '';
+        $params = [];
+
+        if ($this->businessId !== null) {
+            $where .= " AND m.business_id = :biz_id";
+            $params[':biz_id'] = $this->businessId;
+        }
+        if ($productoId !== null) {
+            $where .= " AND m.producto_id = :producto_id";
+            $params[':producto_id'] = $productoId;
+        }
+        if ($tipo !== null && in_array($tipo, ['entrada', 'salida'], true)) {
+            $where .= " AND m.tipo = :tipo";
+            $params[':tipo'] = $tipo;
+        }
+        if ($desde !== null) {
+            $where .= " AND DATE(m.fecha) >= :desde";
+            $params[':desde'] = $desde;
+        }
+        if ($hasta !== null) {
+            $where .= " AND DATE(m.fecha) <= :hasta";
+            $params[':hasta'] = $hasta;
+        }
+        return [$where, $params];
+    }
+
+    /**
      * Lista movimientos filtrados para exportación CSV.
      *
      * Sin fechas, exporta los últimos 30 días por defecto.

@@ -99,143 +99,22 @@ $badgeAccion = [
     <title>Auditoría – es21plus</title>
     <link rel="stylesheet" href="css/estilos.css">
     <style>
-        .audit-key    { font-weight: 600; color: var(--color-primary, #3b82f6); }
-        .audit-null   { color: var(--color-muted, #9ca3af); font-style: italic; }
-        .audit-diff   { font-size: .78rem; line-height: 1.6; font-family: monospace; }
-        .badge        { display: inline-block; padding: .2em .55em; border-radius: 9999px; font-size: .72rem; font-weight: 700; text-transform: uppercase; }
-        .badge-success{ background: #d1fae5; color: #065f46; }
-        .badge-warning{ background: #fef3c7; color: #92400e; }
-        .badge-danger { background: #fee2e2; color: #991b1b; }
-        .diff-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
-        .diff-col h4  { margin: 0 0 .25rem; font-size: .72rem; text-transform: uppercase; color: var(--color-muted, #9ca3af); }
-        .filters-bar  { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; margin-bottom: 1.25rem; }
-        .filters-bar label { display: flex; flex-direction: column; gap: .25rem; font-size: .82rem; font-weight: 600; }
-        .filters-bar input,
-        .filters-bar select { padding: .4rem .6rem; border: 1px solid var(--color-border,#e5e7eb); border-radius: .375rem; font-size: .85rem; }
+        .audit-key   { font-weight: 600; color: var(--accent, #2563eb); }
+        .audit-null  { color: var(--text-muted, #9ca3af); font-style: italic; }
+        .audit-diff  { font-size: .78rem; line-height: 1.6; font-family: monospace; }
+        .diff-grid   { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+        .diff-col h4 { margin: 0 0 .25rem; font-size: .72rem; text-transform: uppercase; color: var(--text-muted); }
     </style>
 </head>
 <body class="layout">
 
-<!-- ===== SIDEBAR ===== -->
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <div class="sidebar-logo">
-            <svg class="logo-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-            </svg>
-            <span class="logo-text">es21<strong>plus</strong></span>
-        </div>
-        <button class="sidebar-close" id="sidebarClose" aria-label="Cerrar menú">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-        </button>
-    </div>
-
-    <nav class="sidebar-nav">
-        <div class="nav-section">
-            <span class="nav-section-label">Principal</span>
-            <a href="index.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['index.php','dashboard.php']) ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Dashboard</span>
-            </a>
-            <a href="productos.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['productos.php','nuevo_producto.php','editar_producto.php','eliminar_producto.php']) ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Productos</span>
-            </a>
-            <a href="categorias.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'categorias.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Categorías</span>
-            </a>
-            <a href="marcas.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'marcas.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Marcas</span>
-            </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-            <a href="modelos_moto.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
-                <span class="nav-label">Modelos de Moto</span>
-            </a>
-            <a href="proveedores.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
-                <span class="nav-label">Proveedores</span>
-            </a>
-            <a href="pedidos.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'pedidos.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
-                <span class="nav-label">Pedidos</span>
-            </a>
-
-            <?php endif; ?>
-        </div>
-        <div class="nav-section">
-            <span class="nav-section-label">Operaciones</span>
-            <a href="movimientos.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'movimientos.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Movimientos</span>
-            </a>
-            <a href="kits.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'kits.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
-                </span>
-                <span class="nav-label">Kits</span>
-            </a>
-        </div>
-        <div class="nav-section">
-            <span class="nav-section-label">Administración</span>
-            <a href="auditoria.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'auditoria.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Auditoría</span>
-            </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-            <a href="usuarios.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'usuarios.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-                <span class="nav-label">Usuarios</span>
-            </a>
-            <?php endif; ?>
-        </div>
-    </nav>
-
-    <div class="sidebar-footer">
-        <div class="sidebar-user">
-            <div class="user-avatar-sm">CV</div>
-            <div class="sidebar-user-info">
-                <span class="user-name-sm">Carlos Vico</span>
-                <span class="user-role">Administrador</span>
-            </div>
-        </div>
-    </div>
-</aside>
+<?php require_once __DIR__ . '/includes/_sidebar.php'; ?>
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <div class="main-wrapper">
+
+    <!-- TOPBAR -->
     <header class="topbar">
         <div class="topbar-left">
             <button class="menu-toggle" id="menuToggle" aria-label="Abrir menú">
@@ -243,98 +122,128 @@ $badgeAccion = [
                     <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
                 </svg>
             </button>
-            <h1 class="topbar-title">Auditoría de cambios</h1>
+            <nav class="breadcrumb-nav">
+                <a href="index.php" class="breadcrumb-item">Inicio</a>
+                <span class="breadcrumb-sep">›</span>
+                <span class="breadcrumb-item active">Auditoría</span>
+            </nav>
         </div>
         <div class="topbar-right">
             <?php require_once __DIR__ . '/includes/topbar_user.php'; ?>
         </div>
     </header>
 
-    <main class="main-content">
+    <!-- CONTENT -->
+    <main class="content">
 
         <?php if ($error !== ''): ?>
-            <div class="alert alert-danger"><?= $error ?></div>
+        <div class="alert-banner alert-banner-error" style="margin-bottom:1.25rem;">
+            <svg class="alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <?= $error ?>
+        </div>
         <?php endif; ?>
 
         <?php if ($flashSuccess !== ''): ?>
-            <div class="alert alert-success"><?= htmlspecialchars($flashSuccess) ?></div>
+        <div class="alert-banner alert-banner-success" style="margin-bottom:1.25rem;">
+            <?= htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8') ?>
+        </div>
         <?php endif; ?>
 
-        <!-- ── Filtros ──────────────────────────────────────────────── -->
-        <section class="card" style="margin-bottom:1.5rem;">
-            <div class="card-body">
-                <form method="GET" action="auditoria.php" class="filters-bar">
-                    <label>
-                        Tabla
-                        <select name="tabla">
-                            <option value="">Todas</option>
-                            <option value="productos"  <?= $filtroTabla === 'productos'   ? 'selected' : '' ?>>Productos</option>
-                            <option value="categorias" <?= $filtroTabla === 'categorias'  ? 'selected' : '' ?>>Categorías</option>
-                        </select>
-                    </label>
-                    <label>
-                        Acción
-                        <select name="accion">
-                            <option value="">Todas</option>
-                            <option value="crear"      <?= $filtroAccion === 'crear'      ? 'selected' : '' ?>>Crear</option>
-                            <option value="actualizar" <?= $filtroAccion === 'actualizar' ? 'selected' : '' ?>>Actualizar</option>
-                            <option value="eliminar"   <?= $filtroAccion === 'eliminar'   ? 'selected' : '' ?>>Eliminar</option>
-                        </select>
-                    </label>
-                    <label>
-                        Desde
-                        <input type="date" name="fecha_desde" value="<?= htmlspecialchars($fechaDesde) ?>">
-                    </label>
-                    <label>
-                        Hasta
-                        <input type="date" name="fecha_hasta" value="<?= htmlspecialchars($fechaHasta) ?>">
-                    </label>
-                    <button type="submit" class="btn btn-primary" style="align-self:flex-end;">Filtrar</button>
-                    <a href="auditoria.php" class="btn btn-secondary" style="align-self:flex-end;">Limpiar</a>
-                </form>
+        <!-- Page header -->
+        <div class="page-header">
+            <div class="page-header-info">
+                <h1 class="page-title">Auditoría de cambios</h1>
+                <p class="page-subtitle">Registro inmutable de operaciones sobre el inventario · <?= number_format($total) ?> entradas</p>
             </div>
-        </section>
+        </div>
 
-        <!-- ── Tabla de registros ───────────────────────────────────── -->
-        <section class="card">
-            <div class="card-header">
-                <h2 class="card-title">
-                    Registros de auditoría
-                    <span style="font-size:.85rem;font-weight:400;color:var(--color-muted,#9ca3af);">(<?= number_format($total) ?> total)</span>
-                </h2>
-            </div>
-            <div class="card-body" style="overflow-x:auto;">
+        <!-- Filtros -->
+        <form method="GET" action="auditoria.php" class="data-toolbar" style="margin-bottom:1.25rem;flex-wrap:wrap;">
+            <select name="tabla" class="filter-select" onchange="this.form.submit()">
+                <option value="">Todas las tablas</option>
+                <option value="productos"  <?= $filtroTabla === 'productos'   ? 'selected' : '' ?>>Productos</option>
+                <option value="categorias" <?= $filtroTabla === 'categorias'  ? 'selected' : '' ?>>Categorías</option>
+                <option value="marcas"     <?= $filtroTabla === 'marcas'      ? 'selected' : '' ?>>Marcas</option>
+                <option value="movimientos"<?= $filtroTabla === 'movimientos' ? 'selected' : '' ?>>Movimientos</option>
+            </select>
+            <select name="accion" class="filter-select" onchange="this.form.submit()">
+                <option value="">Todas las acciones</option>
+                <option value="crear"      <?= $filtroAccion === 'crear'      ? 'selected' : '' ?>>Crear</option>
+                <option value="actualizar" <?= $filtroAccion === 'actualizar' ? 'selected' : '' ?>>Actualizar</option>
+                <option value="eliminar"   <?= $filtroAccion === 'eliminar'   ? 'selected' : '' ?>>Eliminar</option>
+            </select>
+            <input type="date" name="fecha_desde" class="filter-select" style="max-width:140px;"
+                   value="<?= htmlspecialchars($fechaDesde, ENT_QUOTES, 'UTF-8') ?>"
+                   title="Desde" placeholder="Desde">
+            <input type="date" name="fecha_hasta" class="filter-select" style="max-width:140px;"
+                   value="<?= htmlspecialchars($fechaHasta, ENT_QUOTES, 'UTF-8') ?>"
+                   title="Hasta" placeholder="Hasta">
+            <button type="submit" class="btn-primary" style="flex-shrink:0;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                Filtrar
+            </button>
+            <?php if ($filtroTabla !== '' || $filtroAccion !== '' || $fechaDesde !== '' || $fechaHasta !== ''): ?>
+            <a href="auditoria.php" class="btn-ghost" style="flex-shrink:0;">Limpiar</a>
+            <?php endif; ?>
+        </form>
+
+        <!-- Tabla de registros -->
+        <div class="card">
+            <div class="card-body" style="padding:0;overflow-x:auto;">
                 <?php if (empty($registros)): ?>
-                    <p style="text-align:center;color:var(--color-muted,#9ca3af);padding:2rem;">
-                        No hay registros de auditoría con los filtros seleccionados.
-                    </p>
+                <div class="td-empty" style="padding:3rem;text-align:center;">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-muted);margin:0 auto 1rem;display:block;">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <p style="color:var(--text-muted);">No hay registros con los filtros aplicados.</p>
+                </div>
                 <?php else: ?>
-                <table class="table">
+                <table class="data-table">
                     <thead>
                         <tr>
                             <th>#</th>
                             <th>Fecha</th>
                             <th>Tabla</th>
-                            <th>ID</th>
+                            <th>ID reg.</th>
                             <th>Acción</th>
-                            <th>Diff (anterior → nuevo)</th>
-                            <th>IP</th>
+                            <th>Antes → Después</th>
                             <th>Usuario</th>
+                            <th>IP</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($registros as $r): ?>
                         <tr>
-                            <td><?= (int) $r['id'] ?></td>
-                            <td style="white-space:nowrap;"><?= htmlspecialchars($r['fecha']) ?></td>
-                            <td><?= htmlspecialchars($r['tabla']) ?></td>
-                            <td><?= (int) $r['registro_id'] ?></td>
+                            <td style="color:var(--text-muted);font-size:.78rem;"><?= (int)$r['id'] ?></td>
+                            <td style="white-space:nowrap;font-size:.82rem;"><?= htmlspecialchars(date('d/m/Y H:i', strtotime($r['fecha'])), ENT_QUOTES, 'UTF-8') ?></td>
                             <td>
-                                <span class="badge <?= $badgeAccion[$r['accion']] ?? 'badge-secondary' ?>">
-                                    <?= htmlspecialchars($r['accion']) ?>
+                                <span style="display:inline-flex;align-items:center;padding:.2em .55em;background:var(--bg-hover);border-radius:4px;font-size:.75rem;font-weight:600;color:var(--text-secondary);">
+                                    <?= htmlspecialchars($r['tabla'], ENT_QUOTES, 'UTF-8') ?>
                                 </span>
                             </td>
-                            <td class="audit-diff">
+                            <td style="color:var(--text-muted);font-size:.82rem;"><?= (int)$r['registro_id'] ?></td>
+                            <td>
+                                <?php
+                                $accionClass = match($r['accion']) {
+                                    'crear'     => 'status-pill-success',
+                                    'actualizar'=> 'status-pill-warning',
+                                    'eliminar'  => 'status-pill-danger',
+                                    default     => ''
+                                };
+                                $accionLabel = match($r['accion']) {
+                                    'crear'     => 'Crear',
+                                    'actualizar'=> 'Actualizar',
+                                    'eliminar'  => 'Eliminar',
+                                    default     => htmlspecialchars($r['accion'], ENT_QUOTES, 'UTF-8')
+                                };
+                                ?>
+                                <span class="status-pill <?= $accionClass ?>"><?= $accionLabel ?></span>
+                            </td>
+                            <td class="audit-diff" style="min-width:220px;max-width:340px;">
                                 <div class="diff-grid">
                                     <div class="diff-col">
                                         <h4>Anterior</h4>
@@ -346,8 +255,8 @@ $badgeAccion = [
                                     </div>
                                 </div>
                             </td>
-                            <td><?= htmlspecialchars($r['ip'] ?? '') ?></td>
-                            <td><?= htmlspecialchars($r['usuario'] ?? 'admin') ?></td>
+                            <td style="font-size:.82rem;"><?= htmlspecialchars($r['usuario'] ?? 'admin', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td style="font-size:.78rem;color:var(--text-muted);"><?= htmlspecialchars($r['ip'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -355,21 +264,23 @@ $badgeAccion = [
                 <?php endif; ?>
             </div>
 
-            <!-- ── Paginación ──────────────────────────────────────── -->
+            <!-- Paginación -->
             <?php if ($totalPaginas > 1): ?>
-            <div class="card-footer" style="display:flex;justify-content:center;gap:.5rem;padding:1rem;">
-                <?php if ($pagina > 1): ?>
-                    <a href="<?= htmlspecialchars(urlFiltros(['pagina' => $pagina - 1])) ?>" class="btn btn-secondary btn-sm">← Anterior</a>
-                <?php endif; ?>
-                <span style="display:flex;align-items:center;font-size:.85rem;">
-                    Página <?= $pagina ?> de <?= $totalPaginas ?>
+            <div class="card-footer" style="display:flex;align-items:center;justify-content:space-between;padding:.875rem 1.25rem;">
+                <span style="font-size:.82rem;color:var(--text-muted);">
+                    Página <?= $pagina ?> de <?= $totalPaginas ?> · <?= number_format($total) ?> registros
                 </span>
-                <?php if ($pagina < $totalPaginas): ?>
-                    <a href="<?= htmlspecialchars(urlFiltros(['pagina' => $pagina + 1])) ?>" class="btn btn-secondary btn-sm">Siguiente →</a>
-                <?php endif; ?>
+                <div style="display:flex;gap:.5rem;">
+                    <?php if ($pagina > 1): ?>
+                        <a href="<?= htmlspecialchars(urlFiltros(['pagina' => $pagina - 1])) ?>" class="btn-ghost" style="padding:.3rem .75rem;font-size:.82rem;">← Anterior</a>
+                    <?php endif; ?>
+                    <?php if ($pagina < $totalPaginas): ?>
+                        <a href="<?= htmlspecialchars(urlFiltros(['pagina' => $pagina + 1])) ?>" class="btn-ghost" style="padding:.3rem .75rem;font-size:.82rem;">Siguiente →</a>
+                    <?php endif; ?>
+                </div>
             </div>
             <?php endif; ?>
-        </section>
+        </div>
 
     </main>
 </div>

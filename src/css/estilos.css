@@ -21,6 +21,10 @@
   --sidebar-section-label:  #475569;
   --sidebar-width:          260px;
 
+  /* Primary (sobreescrito por theme_inject.php en panel de empresa) */
+  --primary:                #6366f1;
+  --primary-dark:           #4f46e5;
+
   /* Accent */
   --accent:                 #6366f1;
   --accent-dark:            #4f46e5;
@@ -2090,6 +2094,10 @@ input[type="checkbox"] {
   gap: 16px;
 }
 
+.stat-cards-6 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .stat-cards-3 {
   grid-template-columns: repeat(3, 1fr);
 }
@@ -2131,6 +2139,22 @@ input[type="checkbox"] {
 
 .stat-link:hover {
   color: var(--accent-dark);
+}
+
+/* Stat card como enlace completo (todo el card es clickable) */
+a.stat-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  cursor: pointer;
+}
+a.stat-card-link:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+a.stat-card-link.stat-card-warning:hover {
+  border-color: var(--warning);
 }
 
 /* ---------- Toolbar de datos (buscar + filtros del index) ---------- */
@@ -2513,6 +2537,10 @@ input[type="checkbox"] {
     grid-template-columns: repeat(3, 1fr);
   }
 
+  .stat-cards-6 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .two-col-layout {
     grid-template-columns: 1fr;
   }
@@ -2569,11 +2597,40 @@ input[type="checkbox"] {
    Dashboard
    ========================================================================== */
 
+.pedido-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: 1.25rem;
+}
+
+.pedido-tabs a:hover {
+  opacity: .85;
+  transform: translateY(-1px);
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
   margin-top: 1.5rem;
+  align-items: stretch;
+}
+
+.dashboard-grid > .card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.dashboard-grid > .card > .card-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+.dashboard-grid > .card > .card-body .data-table {
+  min-width: 100%;
 }
 .chart-card {
   margin-top: 1.5rem;

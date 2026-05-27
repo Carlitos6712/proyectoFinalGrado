@@ -19,6 +19,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Auditoria.php';
 require_once __DIR__ . '/includes/Usuario.php';
 require_once __DIR__ . '/includes/Producto.php';
+require_once __DIR__ . '/includes/csrf.php';
 
 $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
@@ -51,6 +52,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($accionPost === 'perfil') {
         // ── Actualizar nombre y email ─────────────────────────────────────────
         try {
+            if (!validateCsrfToken('actualizar_perfil', $_POST['csrf_token'] ?? '')) {
+                throw new AppException('Token CSRF inválido.', 403);
+            }
+
             $nombreCompleto = trim($_POST['nombre_completo'] ?? '');
             $email          = trim($_POST['email']           ?? '');
 
@@ -76,6 +81,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($accionPost === 'password') {
         // ── Cambiar contraseña ────────────────────────────────────────────────
         try {
+            if (!validateCsrfToken('cambiar_password_perfil', $_POST['csrf_token'] ?? '')) {
+                throw new AppException('Token CSRF inválido.', 403);
+            }
+
             $passwordActual   = $_POST['password_actual']    ?? '';
             $passwordNueva    = $_POST['password_nueva']     ?? '';
             $passwordConfirma = $_POST['password_confirmar'] ?? '';
@@ -101,11 +110,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try { $usuario = $model->obtenerPorId($userId); } catch (\Throwable $e) {}
 }
 
-// Iniciales para el avatar
-$nombreSesion = $_SESSION['usuario_nombre'] ?? 'Usuario';
-$iniciales    = mb_strtoupper(mb_substr($nombreSesion, 0, 2));
-$rolSesion    = $_SESSION['rol'] ?? 'operario';
-$rolLabel     = $rolSesion === 'admin' ? 'Administrador' : 'Operario';
+// Iniciales para el avatar — compatible con sesiones locales y multi-tenant
+$nombreSesion = $_SESSION['user_name'] ?? $_SESSION['usuario_nombre'] ?? 'Usuario';
+$iniciales    = mb_strtoupper(mb_substr($nombreSesion, 0, 2)) ?: 'U';
+$rolSesion    = $_SESSION['user_role'] ?? $_SESSION['rol'] ?? 'employee';
+$rolLabel     = match ($rolSesion) {
+    'admin'      => 'Administrador',
+    'superadmin' => 'Super Admin',
+    default      => 'Empleado',
+};
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -141,122 +154,7 @@ $rolLabel     = $rolSesion === 'admin' ? 'Administrador' : 'Operario';
 </head>
 <body class="layout">
 
-<!-- ===== SIDEBAR ===== -->
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <div class="sidebar-logo">
-            <svg class="logo-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-            </svg>
-            <span class="logo-text">es21<strong>plus</strong></span>
-        </div>
-        <button class="sidebar-close" id="sidebarClose" aria-label="Cerrar menú">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-        </button>
-    </div>
-
-    <nav class="sidebar-nav">
-        <div class="nav-section">
-            <span class="nav-section-label">Principal</span>
-            <a href="index.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['index.php','dashboard.php']) ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Dashboard</span>
-            </a>
-            <a href="productos.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['productos.php','nuevo_producto.php','editar_producto.php','eliminar_producto.php']) ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Productos</span>
-            </a>
-            <a href="categorias.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'categorias.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Categorías</span>
-            </a>
-            <a href="marcas.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'marcas.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Marcas</span>
-            </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-            <a href="modelos_moto.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
-                <span class="nav-label">Modelos de Moto</span>
-            </a>
-            <a href="proveedores.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
-                <span class="nav-label">Proveedores</span>
-            </a>
-            <a href="pedidos.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'pedidos.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
-                <span class="nav-label">Pedidos</span>
-            </a>
-
-            <?php endif; ?>
-        </div>
-        <div class="nav-section">
-            <span class="nav-section-label">Operaciones</span>
-            <a href="movimientos.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'movimientos.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Movimientos</span>
-            </a>
-            <a href="kits.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'kits.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
-                </span>
-                <span class="nav-label">Kits</span>
-            </a>
-        </div>
-        <div class="nav-section">
-            <span class="nav-section-label">Administración</span>
-            <a href="auditoria.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'auditoria.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Auditoría</span>
-            </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-            <a href="usuarios.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'usuarios.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-                <span class="nav-label">Usuarios</span>
-            </a>
-            <?php endif; ?>
-        </div>
-    </nav>
-
-    <div class="sidebar-footer">
-        <div class="sidebar-user">
-            <div class="user-avatar-sm"><?= htmlspecialchars($iniciales, ENT_QUOTES, 'UTF-8') ?></div>
-            <div class="sidebar-user-info">
-                <span class="user-name-sm"><?= htmlspecialchars($nombreSesion, ENT_QUOTES, 'UTF-8') ?></span>
-                <span class="user-role"><?= htmlspecialchars($rolLabel, ENT_QUOTES, 'UTF-8') ?></span>
-            </div>
-        </div>
-    </div>
-</aside>
+<?php require_once __DIR__ . '/includes/_sidebar.php'; ?>
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -353,6 +251,7 @@ $rolLabel     = $rolSesion === 'admin' ? 'Administrador' : 'Operario';
 
                     <form method="POST" novalidate>
                         <input type="hidden" name="accion" value="perfil">
+                        <input type="hidden" name="csrf_token" value="<?= generateCsrfToken('actualizar_perfil') ?>">
 
                         <div class="form-field" style="margin-bottom:1rem;">
                             <label class="field-label" for="nombre_completo">
@@ -391,6 +290,7 @@ $rolLabel     = $rolSesion === 'admin' ? 'Administrador' : 'Operario';
                 <div class="card-body">
                     <form method="POST" id="formPassword" novalidate>
                         <input type="hidden" name="accion" value="password">
+                        <input type="hidden" name="csrf_token" value="<?= generateCsrfToken('cambiar_password_perfil') ?>">
 
                         <div class="form-field" style="margin-bottom:1rem;">
                             <label class="field-label" for="password_actual">

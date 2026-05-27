@@ -7,10 +7,11 @@
  *   2. Negocio activo en BD
  *   3. Plan no vencido
  *   4. Rol válido (admin | employee, nunca superadmin)
+ *   5. Modo mantenimiento (Settings::get) — bloquea a empleados, no al superadmin
  *
  * @package  Es21Plus\Middleware
  * @author   Carlos Vico
- * @version  2.0.0
+ * @version  2.1.0
  */
 
 require_once __DIR__ . '/../includes/Database.php';
@@ -21,9 +22,7 @@ class BusinessMiddleware
     /**
      * Aplica todas las verificaciones de acceso al panel de empresa.
      *
-     * Llama exit si el acceso no está permitido.
-     *
-     * @return array Datos del negocio verificado (para uso en la vista).
+     * @return array Datos del negocio verificado.
      */
     public static function require(): array
     {
@@ -81,6 +80,40 @@ class BusinessMiddleware
             http_response_code(402);
             include __DIR__ . '/../superadmin/views/plan_expired.php';
             exit;
+        }
+
+        // 6. Modo mantenimiento — bloquea a empleados; superadmin pasa siempre
+        if (!Session::isSuperadmin()) {
+            try {
+                if (!class_exists('Settings')) {
+                    require_once __DIR__ . '/../core/Settings.php';
+                }
+                if (Settings::get('maintenance_mode') === '1') {
+                    $maintenanceMessage = Settings::get('maintenance_message', '');
+                    http_response_code(503);
+                    include __DIR__ . '/../views/maintenance.php';
+                    exit;
+                }
+            } catch (\Throwable) {
+                // Si Settings no está disponible, no bloqueamos
+            }
+        }
+
+        // 7. Cargar límites de plan en sesión (con caché de 5 min)
+        if (empty($_SESSION['plan_features']) || (time() - ($_SESSION['plan_features_loaded_at'] ?? 0)) > 300) {
+            try {
+                $plan    = $business['plan'] ?? 'free';
+                $pdo2    = Database::getInstance();
+                $featRow = $pdo2->prepare('SELECT features FROM plan_prices WHERE plan = ?');
+                $featRow->execute([$plan]);
+                $row = $featRow->fetch();
+                if ($row && $row['features']) {
+                    $_SESSION['plan_features']           = json_decode($row['features'], true) ?? [];
+                    $_SESSION['plan_features_loaded_at'] = time();
+                }
+            } catch (\Throwable) {
+                // plan_prices puede no existir aún; no bloquear
+            }
         }
 
         return $business;

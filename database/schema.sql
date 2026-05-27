@@ -219,6 +219,241 @@ CREATE TABLE IF NOT EXISTS compatibilidades (
     FOREIGN KEY (modelo_id)   REFERENCES modelos_moto(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Multi-tenant: negocios, empleados, contacto, actividad, anuncios
+-- (originadas en database/migrations/superadmin_panel.sql)
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS businesses (
+    id              INT           AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(150)  NOT NULL,
+    slug            VARCHAR(100)  NOT NULL UNIQUE,
+    logo_path       VARCHAR(255),
+    contact_email   VARCHAR(150),
+    phone           VARCHAR(30),
+    address         TEXT,
+    plan            ENUM('free','basic','pro') DEFAULT 'free',
+    plan_expires_at DATE,
+    is_active       TINYINT(1)    DEFAULT 1,
+    created_at      TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS employees (
+    id          INT           AUTO_INCREMENT PRIMARY KEY,
+    business_id INT           NOT NULL,
+    name        VARCHAR(100)  NOT NULL,
+    email       VARCHAR(150)  NOT NULL,
+    password    VARCHAR(255)  NOT NULL,
+    role        ENUM('admin','employee') DEFAULT 'employee',
+    is_active   TINYINT(1)    DEFAULT 1,
+    created_at  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS contact_messages (
+    id           INT           AUTO_INCREMENT PRIMARY KEY,
+    business_id  INT,
+    sender_name  VARCHAR(100)  NOT NULL,
+    sender_email VARCHAR(150)  NOT NULL,
+    subject      VARCHAR(200),
+    message      TEXT          NOT NULL,
+    is_read      TINYINT(1)    DEFAULT 0,
+    replied_at   TIMESTAMP     NULL,
+    created_at   TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id          INT           AUTO_INCREMENT PRIMARY KEY,
+    business_id INT,
+    employee_id INT,
+    action      VARCHAR(200)  NOT NULL,
+    entity      VARCHAR(100),
+    entity_id   INT,
+    ip_address  VARCHAR(45),
+    metadata    JSON          NULL,
+    is_critical TINYINT(1)    DEFAULT 0,
+    created_at  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS announcements (
+    id         INT           AUTO_INCREMENT PRIMARY KEY,
+    title      VARCHAR(200)  NOT NULL,
+    body       TEXT          NOT NULL,
+    is_active  TINYINT(1)    DEFAULT 1,
+    created_at TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Seguridad: intentos de login, sesiones
+-- (database/migrations/security.sql)
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id           INT          AUTO_INCREMENT PRIMARY KEY,
+    ip_address   VARCHAR(45)  NOT NULL,
+    email        VARCHAR(150),
+    attempted_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ip   (ip_address),
+    INDEX idx_time (attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS session_logs (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    user_type   ENUM('superadmin','employee') NOT NULL,
+    user_id     INT          NOT NULL,
+    business_id INT          NULL,
+    ip_address  VARCHAR(45)  NULL,
+    user_agent  VARCHAR(500) NULL,
+    action      ENUM('login','logout','expired') NOT NULL,
+    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Notificaciones y configuración global
+-- (database/migrations/notifications.sql + settings.sql)
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS superadmin_notifications (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    type       VARCHAR(100) NOT NULL,
+    title      VARCHAR(200) NOT NULL,
+    body       TEXT,
+    link       VARCHAR(255),
+    is_read    TINYINT(1)   DEFAULT 0,
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_read    (is_read),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    setting_key VARCHAR(100) NOT NULL UNIQUE,
+    value       TEXT,
+    type        ENUM('string','integer','boolean','json') DEFAULT 'string',
+    description VARCHAR(255),
+    updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO system_settings (setting_key, value, type, description) VALUES
+('app_name',            'es21plus', 'string',  'Nombre de la aplicación'),
+('registration_open',   '1',        'boolean', 'Permitir registro público'),
+('maintenance_mode',    '0',        'boolean', 'Modo mantenimiento'),
+('maintenance_message', '',         'string',  'Mensaje de mantenimiento'),
+('default_plan',        'free',     'string',  'Plan por defecto en registro'),
+('trial_days',          '14',       'integer', 'Días de prueba al registrarse'),
+('max_file_upload_mb',  '5',        'integer', 'Tamaño máximo de subida en MB'),
+('superadmin_email',    '',         'string',  'Email de notificaciones'),
+('smtp_host',           '',         'string',  'Servidor SMTP'),
+('smtp_port',           '587',      'integer', 'Puerto SMTP'),
+('smtp_user',           '',         'string',  'Usuario SMTP'),
+('smtp_password',       '',         'string',  'Contraseña SMTP cifrada'),
+('smtp_from_name',      'es21plus', 'string',  'Nombre remitente de correos')
+ON DUPLICATE KEY UPDATE setting_key = setting_key;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Tickets de soporte, Facturación y Planes
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id             INT          AUTO_INCREMENT PRIMARY KEY,
+    business_id    INT          NOT NULL,
+    employee_id    INT          NULL,
+    ticket_number  VARCHAR(20)  NOT NULL UNIQUE,
+    subject        VARCHAR(255) NOT NULL,
+    status         ENUM('open','in_progress','resolved','closed') NOT NULL DEFAULT 'open',
+    priority       ENUM('low','normal','high','urgent')           NOT NULL DEFAULT 'normal',
+    created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    closed_at      TIMESTAMP    NULL DEFAULT NULL,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ticket_messages (
+    id           INT         AUTO_INCREMENT PRIMARY KEY,
+    ticket_id    INT         NOT NULL,
+    sender_type  ENUM('business','superadmin') NOT NULL,
+    sender_id    INT         NOT NULL,
+    message      TEXT        NOT NULL,
+    created_at   TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticket_id) REFERENCES support_tickets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ticket_attachments (
+    id            INT         AUTO_INCREMENT PRIMARY KEY,
+    message_id    INT         NOT NULL,
+    filename      VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    mime_type     VARCHAR(100) NOT NULL,
+    size          INT         NOT NULL DEFAULT 0,
+    uploaded_at   TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (message_id) REFERENCES ticket_messages(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS plan_prices (
+    id            INT              AUTO_INCREMENT PRIMARY KEY,
+    plan          ENUM('free','basic','pro') NOT NULL UNIQUE,
+    monthly_price DECIMAL(8,2)     NOT NULL DEFAULT 0.00,
+    annual_price  DECIMAL(8,2)     NOT NULL DEFAULT 0.00,
+    features      JSON,
+    updated_at    TIMESTAMP        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS invoices (
+    id             INT           AUTO_INCREMENT PRIMARY KEY,
+    business_id    INT           NOT NULL,
+    invoice_number VARCHAR(20)   NOT NULL UNIQUE,
+    amount         DECIMAL(10,2) NOT NULL,
+    status         ENUM('pending','paid','cancelled') NOT NULL DEFAULT 'pending',
+    period_start   DATE          NULL,
+    period_end     DATE          NULL,
+    notes          TEXT          NULL,
+    paid_at        TIMESTAMP     NULL DEFAULT NULL,
+    created_at     TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Fase: Onboarding, Campañas de email, Personalización por empresa
+-- @author Carlos Vico
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Columna onboarding_completed en businesses
+SET @col_onb = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'businesses' AND COLUMN_NAME = 'onboarding_completed');
+SET @sql_onb = IF(@col_onb = 0, 'ALTER TABLE businesses ADD COLUMN onboarding_completed TINYINT(1) DEFAULT 0 AFTER is_active', 'SELECT 1');
+PREPARE stmt FROM @sql_onb; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Columna theme_color en businesses
+SET @col_tc = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'businesses' AND COLUMN_NAME = 'theme_color');
+SET @sql_tc = IF(@col_tc = 0, "ALTER TABLE businesses ADD COLUMN theme_color VARCHAR(7) DEFAULT '#4F46E5' AFTER logo_path", 'SELECT 1');
+PREPARE stmt FROM @sql_tc; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Columna custom_domain en businesses
+SET @col_cd = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'businesses' AND COLUMN_NAME = 'custom_domain');
+SET @sql_cd = IF(@col_cd = 0, 'ALTER TABLE businesses ADD COLUMN custom_domain VARCHAR(255) NULL AFTER slug', 'SELECT 1');
+PREPARE stmt FROM @sql_cd; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Columna description en businesses
+SET @col_desc = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'businesses' AND COLUMN_NAME = 'description');
+SET @sql_desc = IF(@col_desc = 0, 'ALTER TABLE businesses ADD COLUMN description TEXT NULL AFTER address', 'SELECT 1');
+PREPARE stmt FROM @sql_desc; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Columna last_login en employees
+SET @col_ll = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'employees' AND COLUMN_NAME = 'last_login');
+SET @sql_ll = IF(@col_ll = 0, 'ALTER TABLE employees ADD COLUMN last_login TIMESTAMP NULL DEFAULT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql_ll; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Tabla campañas de email masivo
+CREATE TABLE IF NOT EXISTS email_campaigns (
+    id               INT          AUTO_INCREMENT PRIMARY KEY,
+    subject          VARCHAR(200) NOT NULL,
+    body_html        TEXT         NOT NULL,
+    target_plan      ENUM('all','free','basic','pro') DEFAULT 'all',
+    target_status    ENUM('all','active','inactive')  DEFAULT 'active',
+    status           ENUM('draft','scheduled','sent') DEFAULT 'draft',
+    scheduled_at     TIMESTAMP    NULL,
+    sent_at          TIMESTAMP    NULL,
+    recipients_count INT          DEFAULT 0,
+    created_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- -------------------------------------------------------------
 -- Tabla: proveedores (Fase 12)
 -- -------------------------------------------------------------
@@ -242,42 +477,6 @@ SET @sql_prov = IF(@col_prov = 0,
     'ALTER TABLE productos ADD COLUMN proveedor_id INT NULL, ADD CONSTRAINT fk_productos_proveedor FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON DELETE SET NULL',
     'SELECT 1');
 PREPARE stmt_prov FROM @sql_prov; EXECUTE stmt_prov; DEALLOCATE PREPARE stmt_prov;
-
--- ─────────────────────────────────────────────────────────────────────────────
--- Fase 16: Kits / Packs de productos
--- ─────────────────────────────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS kits (
-    id          INT          AUTO_INCREMENT PRIMARY KEY,
-    nombre      VARCHAR(150) NOT NULL,
-    descripcion TEXT,
-    activo      TINYINT(1)   DEFAULT 1,
-    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS kits_lineas (
-    id          INT  AUTO_INCREMENT PRIMARY KEY,
-    kit_id      INT  NOT NULL,
-    producto_id INT  NOT NULL,
-    cantidad    INT  NOT NULL DEFAULT 1,
-    UNIQUE KEY  uq_kit_producto (kit_id, producto_id),
-    FOREIGN KEY (kit_id)      REFERENCES kits(id)     ON DELETE CASCADE,
-    FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Seed: 2 kits de ejemplo
-INSERT IGNORE INTO kits (id, nombre, descripcion) VALUES
-  (1, 'Kit Revisión Básica',      'Filtro de aceite + aceite motor 1L + filtro de aire. Mantenimiento estándar 6.000 km.'),
-  (2, 'Kit Frenos Completo',      'Pastillas delantera + pastillas trasera + líquido de frenos. Sustitución de frenos en taller.');
-
--- Líneas del Kit 1 — se crean solo si los productos 1 y 2 existen
-INSERT IGNORE INTO kits_lineas (kit_id, producto_id, cantidad)
-SELECT 1, id, 1 FROM productos WHERE id IN (1, 2) AND deleted_at IS NULL;
-
--- Líneas del Kit 2
-INSERT IGNORE INTO kits_lineas (kit_id, producto_id, cantidad)
-SELECT 2, id, 1 FROM productos WHERE id IN (3, 4) AND deleted_at IS NULL;
 
 -- -------------------------------------------------------------
 -- Tablas: pedidos y pedidos_lineas (Fase 13)

@@ -289,4 +289,81 @@ class Movimiento
         $stmt->execute($params);
         return $stmt->fetchAll();
     }
+
+    /**
+     * Devuelve los productos con más salidas en los últimos N días.
+     *
+     * Útil para el dashboard analítico — bloque "Top más vendidos".
+     * Usa substr(fecha,1,10) para compatibilidad SQLite+MySQL.
+     *
+     * @param  int $limit Número máximo de productos a devolver (default 10).
+     * @param  int $dias  Período de análisis en días hacia atrás (default 30).
+     * @return array<int, array{producto_id: int, nombre: string, total_salidas: int}>
+     * @author Carlitos6712
+     */
+    public function topProductosVendidos(int $limit = 10, int $dias = 30): array
+    {
+        $desde  = date('Y-m-d', strtotime("-{$dias} days"));
+        $params = array_merge([':desde' => $desde, ':tipo' => 'salida'], $this->bizParam());
+
+        $sql  = "SELECT m.producto_id, p.nombre,
+                        SUM(m.cantidad) AS total_salidas
+                 FROM movimientos m
+                 JOIN productos p ON p.id = m.producto_id
+                 WHERE m.tipo = :tipo
+                   AND substr(m.fecha, 1, 10) >= :desde
+                   AND p.deleted_at IS NULL"
+              . $this->bizWhere('m')
+              . " GROUP BY m.producto_id, p.nombre
+                 ORDER BY total_salidas DESC
+                 LIMIT :limite";
+
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        $stmt->bindValue(':limite', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Devuelve productos con stock > 0 que no han tenido ningún movimiento en los últimos N días.
+     *
+     * Útil para el dashboard analítico — bloque "Stock muerto".
+     *
+     * @param  int $dias Umbral de inactividad en días (default 90).
+     * @return array<int, array{producto_id: int, nombre: string, stock: int, ultimo_movimiento: string|null}>
+     * @author Carlitos6712
+     */
+    public function productosSinMovimiento(int $dias = 90): array
+    {
+        $cutoff = date('Y-m-d', strtotime("-{$dias} days"));
+        $params = array_merge([':cutoff' => $cutoff], $this->bizParam());
+
+        $sql  = "SELECT p.id AS producto_id, p.nombre, p.stock, p.precio,
+                        COALESCE(c.nombre, 'Sin categoría') AS categoria_nombre,
+                        MAX(substr(m.fecha, 1, 10)) AS ultimo_movimiento
+                 FROM productos p
+                 LEFT JOIN movimientos m ON m.producto_id = p.id"
+              . ($this->businessId !== null ? " AND m.business_id = :biz_id2" : "")
+              . " LEFT JOIN categorias c ON c.id = p.categoria_id
+                 WHERE p.deleted_at IS NULL
+                   AND p.stock > 0"
+              . $this->bizWhere('p')
+              . " GROUP BY p.id, p.nombre, p.stock, p.precio, c.nombre
+                 HAVING MAX(substr(m.fecha, 1, 10)) < :cutoff
+                     OR MAX(substr(m.fecha, 1, 10)) IS NULL
+                 ORDER BY (p.precio * p.stock) DESC";
+
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        if ($this->businessId !== null) {
+            $stmt->bindValue(':biz_id2', $this->businessId, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
 }

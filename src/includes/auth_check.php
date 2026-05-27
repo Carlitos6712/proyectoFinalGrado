@@ -63,3 +63,27 @@ function requireAuth(): void
 }
 
 requireAuth();
+
+/**
+ * Devuelve true si el usuario activo tiene rol admin.
+ * Cubre ambos tipos de sesión: login local (rol) y login de empresa (user_role).
+ *
+ * @return bool
+ * @author Carlitos6712
+ */
+function isAdmin(): bool
+{
+    $rol = $_SESSION['user_role'] ?? $_SESSION['rol'] ?? '';
+    return $rol === 'admin';
+}
+
+/**
+ * Devuelve el rol normalizado del usuario activo.
+ *
+ * @return string 'admin' | 'superadmin' | 'employee'
+ * @author Carlitos6712
+ */
+function currentRole(): string
+{
+    return $_SESSION['user_role'] ?? $_SESSION['rol'] ?? 'employee';
+}

@@ -4,12 +4,13 @@
  *
  * @package  Es21Plus\Superadmin\Controllers
  * @author   Carlos Vico
- * @version  1.0.0
+ * @version  1.1.0
  */
 
 require_once __DIR__ . '/../../includes/Database.php';
 require_once __DIR__ . '/../../includes/AppException.php';
 require_once __DIR__ . '/../../core/Mailer.php';
+require_once __DIR__ . '/../../core/ActivityLogger.php';
 
 class EmployeeController
 {
@@ -150,7 +151,7 @@ class EmployeeController
 
     /**
      * Genera nueva contraseña aleatoria, la guarda y envía por correo.
-     * Nunca devuelve la contraseña en texto plano.
+     * Registra acción crítica en activity_logs.
      *
      * @param int $id
      * @throws AppException
@@ -158,11 +159,22 @@ class EmployeeController
      */
     public function resetPassword(int $id): void
     {
-        $emp = $this->find($id);
+        $emp   = $this->find($id);
         $plain = $this->generarPassword(10);
 
         $this->pdo->prepare('UPDATE employees SET password = ? WHERE id = ?')
             ->execute([password_hash($plain, PASSWORD_BCRYPT, ['cost' => 12]), $id]);
+
+        $saId = (int)($_SESSION['usuario_id'] ?? 0);
+        ActivityLogger::log(
+            (int)$emp['business_id'],
+            $saId,
+            'Reseteó contraseña del empleado "' . $emp['name'] . '"',
+            'employee',
+            $id,
+            ['employee_email' => $emp['email'], 'superadmin_id' => $saId],
+            true
+        );
 
         $body = "<h3>Nueva contraseña</h3>
                  <p>Hola {$emp['name']}, tu contraseña ha sido restablecida.</p>

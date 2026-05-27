@@ -20,6 +20,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 
 require_once __DIR__ . '/../includes/AppException.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../middleware/RoleMiddleware.php';
 
@@ -95,6 +96,11 @@ try {
         case 'POST':
             $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
+            $csrfToken = $body['csrf_token'] ?? '';
+            if (!validateCsrfToken('gestionar_empleados', $csrfToken)) {
+                jsonOut(false, null, 'Token CSRF inválido.', 403);
+            }
+
             $name  = trim($body['name']  ?? '');
             $email = trim($body['email'] ?? '');
             $role  = $body['role']  ?? 'employee';
@@ -128,6 +134,12 @@ try {
             fetchEmployee($pdo, $id, $businessId);
 
             $body  = json_decode(file_get_contents('php://input'), true) ?? [];
+
+            $csrfToken = $body['csrf_token'] ?? '';
+            if (!validateCsrfToken('gestionar_empleados', $csrfToken)) {
+                jsonOut(false, null, 'Token CSRF inválido.', 403);
+            }
+
             $name  = trim($body['name']  ?? '');
             $email = trim($body['email'] ?? '');
             $role  = $body['role'] ?? 'employee';
@@ -150,6 +162,13 @@ try {
         // ── PATCH: toggle activo / reset password ─────────────────────────────
         case 'PATCH':
             if (!$id) throw new AppException('ID requerido.', 400);
+
+            $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+            $csrfToken = $body['csrf_token'] ?? '';
+            if (!validateCsrfToken('gestionar_empleados', $csrfToken)) {
+                jsonOut(false, null, 'Token CSRF inválido.', 403);
+            }
+
             fetchEmployee($pdo, $id, $businessId);
 
             if ($accion === 'toggle') {

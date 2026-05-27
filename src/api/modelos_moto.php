@@ -13,7 +13,6 @@
  * @version  1.0.0
  */
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
@@ -24,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/../includes/AppException.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../includes/ModeloMoto.php';
 require_once __DIR__ . '/../includes/auth_check.php';
 
@@ -56,7 +56,7 @@ function requireAuth(string $rolRequerido = 'any'): void
     if (empty($_SESSION['usuario_id'])) {
         jsonResponse(false, null, 'No autenticado.', 401);
     }
-    if ($rolRequerido === 'admin' && ($_SESSION['rol'] ?? '') !== 'admin') {
+    if ($rolRequerido === 'admin' && !isAdmin()) {
         jsonResponse(false, null, 'Acceso denegado. Se requiere rol de administrador.', 403);
     }
 }
@@ -151,6 +151,12 @@ function handlePost(ModeloMoto $modelo): void
  */
 function handleDelete(ModeloMoto $modelo): void
 {
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $csrfToken = $body['csrf_token'] ?? '';
+    if (!validateCsrfToken('gestionar_modelos', $csrfToken)) {
+        jsonResponse(false, null, 'Token CSRF inválido.', 403);
+    }
+
     $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
     if (!$id) {
         throw new AppException('Se requiere el parámetro id.', 400);

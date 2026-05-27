@@ -14,8 +14,9 @@
  * @author   Carlitos6712
  * @version  1.0.0
  */
+if (session_status() === PHP_SESSION_NONE) session_start();
+
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
@@ -24,10 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-session_start();
-
 require_once __DIR__ . '/../includes/AppException.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/auth_check.php';
+require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../includes/Auditoria.php';
 require_once __DIR__ . '/../includes/Proveedor.php';
 
@@ -56,7 +57,7 @@ function jsonResponse(bool $success, mixed $data, string $message = '', int $cod
  */
 function requireAdmin(): void
 {
-    if (($_SESSION['rol'] ?? '') !== 'admin') {
+    if (!isAdmin()) {
         jsonResponse(false, null, 'Acceso restringido a administradores.', 403);
     }
 }
@@ -118,7 +119,11 @@ function handleGet(Proveedor $modelo): void
  */
 function handlePost(Proveedor $modelo): void
 {
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $csrfToken = $body['csrf_token'] ?? '';
+    if (!validateCsrfToken('gestionar_proveedores', $csrfToken)) {
+        jsonResponse(false, null, 'Token CSRF inválido.', 403);
+    }
     if (trim($body['nombre'] ?? '') === '') {
         jsonResponse(false, ['errors' => ['nombre' => 'El nombre del proveedor es obligatorio.']], 'Errores de validación.', 400);
     }
@@ -139,7 +144,11 @@ function handlePut(Proveedor $modelo): void
     if (!$id) {
         throw new AppException('Se requiere el parámetro id.', 400);
     }
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $csrfToken = $body['csrf_token'] ?? '';
+    if (!validateCsrfToken('gestionar_proveedores', $csrfToken)) {
+        jsonResponse(false, null, 'Token CSRF inválido.', 403);
+    }
     $modelo->obtener($id);
     $ok = $modelo->actualizar($id, $body);
     jsonResponse($ok, null, $ok ? 'Proveedor actualizado.' : 'No se pudo actualizar.');
@@ -159,6 +168,11 @@ function handlePatch(Proveedor $modelo): void
     $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
     if (!$id) {
         throw new AppException('Se requiere el parámetro id.', 400);
+    }
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $csrfToken = $body['csrf_token'] ?? '';
+    if (!validateCsrfToken('gestionar_proveedores', $csrfToken)) {
+        jsonResponse(false, null, 'Token CSRF inválido.', 403);
     }
     $prov = $modelo->obtener($id);
     if ((int)$prov['activo'] === 1) {

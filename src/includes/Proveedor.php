@@ -34,6 +34,18 @@ class Proveedor
      * @return array<int, array<string, mixed>>
      * @author Carlitos6712
      */
+    /**
+     * Cuenta proveedores activos.
+     *
+     * @return int
+     * @author Carlitos6712
+     */
+    public function contarActivos(): int
+    {
+        $stmt = $this->pdo->query("SELECT COUNT(*) FROM proveedores WHERE activo = 1");
+        return (int) $stmt->fetchColumn();
+    }
+
     public function listar(?bool $soloActivos = true): array
     {
         $where = $soloActivos ? " WHERE p.activo = 1" : "";

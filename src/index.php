@@ -694,7 +694,7 @@ async function cargarTopVentas() {
         canvas.style.display = '';
         empty.style.display  = 'none';
 
-        const labels  = datos.map(r => escHtml(r.nombre));
+        const labels  = datos.map(r => r.nombre);
         const valores = datos.map(r => parseInt(r.total_salidas, 10));
 
         if (chartTopVentas) chartTopVentas.destroy();
@@ -766,7 +766,7 @@ async function cargarValorCategoria() {
         canvas.style.display = '';
         empty.style.display  = 'none';
 
-        const labels  = datos.map(r => r.categoria);
+        const labels  = datos.map(r => r.categoria);  // canvas labels — no HTML escaping needed
         const valores = datos.map(r => parseFloat(r.valor_total));
         const total   = valores.reduce((a, b) => a + b, 0);
         totalEl.textContent = formatEuro(total);

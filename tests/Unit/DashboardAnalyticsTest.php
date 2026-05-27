@@ -11,10 +11,8 @@
 
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers Movimiento
- * @covers Producto
- */
+#[\PHPUnit\Framework\Attributes\CoversClass(Movimiento::class)]
+#[\PHPUnit\Framework\Attributes\CoversClass(Producto::class)]
 class DashboardAnalyticsTest extends TestCase
 {
     private PDO        $pdo;

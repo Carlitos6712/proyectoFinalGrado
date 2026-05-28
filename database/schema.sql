@@ -105,12 +105,14 @@ CREATE TABLE IF NOT EXISTS auditoria (
     id               BIGINT       AUTO_INCREMENT PRIMARY KEY,
     tabla            VARCHAR(50)  NOT NULL,
     registro_id      INT          NOT NULL,
-    accion           ENUM('crear','actualizar','eliminar') NOT NULL,
+    business_id      INT          NULL DEFAULT NULL,
+    accion           ENUM('crear','actualizar','eliminar','importacion_csv') NOT NULL,
     datos_anteriores JSON,
     datos_nuevos     JSON,
     usuario          VARCHAR(100) DEFAULT 'admin',
     ip               VARCHAR(45),
-    fecha            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+    fecha            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_auditoria_business (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------------------------------------------

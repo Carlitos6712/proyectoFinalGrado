@@ -585,6 +585,26 @@ class Producto
     }
 
     /**
+     * Busca un producto activo por su código de referencia.
+     *
+     * @param string $ref Valor de codigo_ref a buscar.
+     * @return array<string,mixed>|null Fila del producto o null si no existe.
+     * @author Carlitos6712
+     */
+    public function obtenerPorRef(string $ref): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT id, nombre, codigo_ref, imagen
+             FROM productos
+             WHERE codigo_ref = :ref AND deleted_at IS NULL" . $this->bizWhere('productos') . "
+             LIMIT 1"
+        );
+        $stmt->execute(array_merge([':ref' => $ref], $this->bizParam()));
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
      * Elimina el fichero físico de imagen de un producto si existe.
      *
      * @param int $id ID del producto.

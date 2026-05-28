@@ -1,4 +1,9 @@
 <?php
+// En contexto API los errores van al log, nunca al output (rompería el JSON)
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ob_start();
+
 /**
  * API REST para gestión de productos del inventario.
  *
@@ -44,7 +49,12 @@ require_once __DIR__ . '/../includes/Producto.php';
  */
 function jsonResponse(bool $success, mixed $data, string $message = '', int $code = 200): void
 {
+    // Descartar cualquier output previo (notices, warnings) que corrompería el JSON
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
     http_response_code($code);
+    header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => $success, 'data' => $data, 'message' => $message], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -64,6 +74,10 @@ try {
             requireAdmin();
             if (isset($_GET['action']) && $_GET['action'] === 'bulk_delete') {
                 handleBulkDelete($modelo);
+                break;
+            }
+            if (isset($_GET['action']) && $_GET['action'] === 'upload_imagenes') {
+                handleUploadImagenes($modelo);
                 break;
             }
             handlePost($modelo);
@@ -415,13 +429,82 @@ function handleBulkDelete(Producto $modelo): void
     );
 }
 
+/**
+ * Sube imágenes de forma masiva asociándolas por nombre de fichero = codigo_ref.
+ *
+ * Recibe $_FILES['imagenes'] (multiple). Por cada fichero extrae el nombre sin
+ * extensión, busca el producto con ese codigo_ref y lo guarda como WebP.
+ *
+ * @param Producto $modelo Instancia del modelo.
+ * @return void
+ * @author Carlitos6712
+ */
+function handleUploadImagenes(Producto $modelo): void
+{
+    if (empty($_FILES['imagenes'])) {
+        jsonResponse(false, null, 'No se han enviado imágenes.', 400);
+    }
+
+    // Normalizar estructura de $_FILES cuando son múltiples archivos
+    $files = [];
+    $raw   = $_FILES['imagenes'];
+    if (is_array($raw['name'])) {
+        $count = count($raw['name']);
+        for ($i = 0; $i < $count; $i++) {
+            $files[] = [
+                'name'     => $raw['name'][$i],
+                'tmp_name' => $raw['tmp_name'][$i],
+                'size'     => $raw['size'][$i],
+                'error'    => $raw['error'][$i],
+                'type'     => $raw['type'][$i],
+            ];
+        }
+    } else {
+        $files[] = $raw;
+    }
+
+    $ok      = [];
+    $errores = [];
+
+    foreach ($files as $file) {
+        $nombreOriginal = $file['name'] ?? '';
+        $ref            = pathinfo($nombreOriginal, PATHINFO_FILENAME);
+
+        if ($ref === '') {
+            $errores[] = ['archivo' => $nombreOriginal, 'motivo' => 'Nombre de archivo vacío.'];
+            continue;
+        }
+
+        $producto = $modelo->obtenerPorRef($ref);
+        if ($producto === null) {
+            $errores[] = ['archivo' => $nombreOriginal, 'motivo' => "No existe producto con ref '{$ref}'."];
+            continue;
+        }
+
+        try {
+            $nombre = $modelo->subirImagen($file, (int)$producto['id']);
+            $ok[]   = ['archivo' => $nombreOriginal, 'ref' => $ref, 'producto' => $producto['nombre'], 'imagen' => $nombre];
+        } catch (\Throwable $e) {
+            $errores[] = ['archivo' => $nombreOriginal, 'motivo' => $e->getMessage()];
+        }
+    }
+
+    jsonResponse(
+        true,
+        ['ok' => $ok, 'errores' => $errores],
+        sprintf('%d imagen(es) subida(s), %d error(es).', count($ok), count($errores))
+    );
+}
+
 function requireAdmin(): void
 {
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
-    $rol = $_SESSION['user_role'] ?? $_SESSION['rol'] ?? '';
-    if (!in_array($rol, ['admin', 'superadmin'], true)) {
+    $allowed = ['admin', 'superadmin'];
+    // Comprueba ambos campos: impersonación tiene user_role=employee pero rol=superadmin
+    if (!in_array($_SESSION['user_role'] ?? '', $allowed, true)
+        && !in_array($_SESSION['rol']       ?? '', $allowed, true)) {
         jsonResponse(false, null, 'Acceso denegado.', 403);
     }
 }

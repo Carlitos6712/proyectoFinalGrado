@@ -94,6 +94,10 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
     <title>Productos – es21plus</title>
     <link rel="stylesheet" href="css/estilos.css">
     <style>
+        .product-avatar-img {
+            object-fit: cover;
+            background: #e2e8f0;
+        }
         .th-sortable { padding: 0 !important; }
         .th-sort-link {
             display: flex;
@@ -204,11 +208,12 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
                 </p>
             </div>
             <div class="page-actions">
-                <button type="button" onclick="abrirModalImport()" class="btn-secondary" title="Importar productos desde CSV">
+                <button type="button" onclick="abrirModalFotos()" class="btn-secondary" title="Subir fotos masivamente por código ref.">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
                     </svg>
-                    Importar CSV
+                    Subir fotos
                 </button>
                 <a href="nuevo_producto.php" class="btn-primary">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -293,7 +298,14 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
                         </td>
                         <td>
                             <div class="product-cell">
-                                <div class="product-avatar"><?= $inicial ?></div>
+                                <?php if (!empty($p['imagen'])): ?>
+                                    <img src="<?= htmlspecialchars('uploads/productos/' . $p['imagen'], ENT_QUOTES, 'UTF-8') ?>"
+                                         alt="<?= htmlspecialchars($p['nombre'], ENT_QUOTES, 'UTF-8') ?>"
+                                         class="product-avatar product-avatar-img"
+                                         onerror="this.outerHTML='<div class=\'product-avatar\'><?= $inicial ?></div>'">
+                                <?php else: ?>
+                                    <div class="product-avatar"><?= $inicial ?></div>
+                                <?php endif; ?>
                                 <a href="ver_producto.php?id=<?= (int)$p['id'] ?>" class="product-name product-name-link"><?= htmlspecialchars($p['nombre'], ENT_QUOTES, 'UTF-8') ?></a>
                             </div>
                         </td>
@@ -409,128 +421,147 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
 
 <script src="js/app.js"></script>
 
-<!-- Modal Importar CSV -->
-<div id="modal-import" class="modal-overlay" style="display:none">
-    <div class="modal-box" style="max-width:600px">
+<!-- Modal subida masiva de fotos -->
+<div id="modal-fotos" class="modal-overlay" style="display:none">
+    <div class="modal-box" style="max-width:640px">
         <div class="modal-header">
-            <h3>Importar productos desde CSV</h3>
-            <button type="button" onclick="cerrarModalImport()" class="btn-close">&times;</button>
+            <h3>Subir fotos de productos</h3>
+            <button type="button" onclick="cerrarModalFotos()" class="btn-close">&times;</button>
         </div>
         <div class="modal-body">
-            <p style="margin-bottom:12px;color:var(--text-secondary)">
-                Formato esperado: <code>Ref,Nombre,Categoria,Marca,Precio,Stock,Stock Minimo,Descripcion,Proveedor,Ubicacion</code>
+            <p style="margin-bottom:12px;color:var(--text-secondary);font-size:.875rem">
+                Nombra cada foto con el <strong>código ref.</strong> del producto.<br>
+                Ejemplo: <code>2345.jpg</code> → producto con ref <code>2345</code>.<br>
+                Formatos aceptados: JPG, PNG, WebP · Máx. 2 MB por imagen.
             </p>
-            <div class="field-group">
-                <label class="field-label">Archivo CSV <span style="color:red">*</span></label>
-                <input type="file" id="import-file" accept=".csv" class="field-input">
+            <!-- Zona de drop -->
+            <div id="fotos-drop-zone" style="border:2px dashed #cbd5e1;border-radius:8px;padding:2rem;text-align:center;cursor:pointer;transition:border-color .2s;background:#f8fafc"
+                 onclick="document.getElementById('fotos-input').click()"
+                 ondragover="event.preventDefault();this.style.borderColor='#3b82f6'"
+                 ondragleave="this.style.borderColor='#cbd5e1'"
+                 ondrop="handleFotosDrop(event)">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" style="margin:0 auto 8px;display:block">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <p style="color:#64748b;font-size:.875rem;margin:0">Arrastra imágenes aquí o <span style="color:#3b82f6;font-weight:600">haz clic para seleccionar</span></p>
+                <input type="file" id="fotos-input" accept=".jpg,.jpeg,.png,.webp" multiple style="display:none" onchange="actualizarListaFotos()">
             </div>
-            <div class="field-group" style="margin-top:12px">
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                    <input type="checkbox" id="import-modo-actualizacion">
-                    <span>Modo actualización (actualizar si la Ref ya existe)</span>
-                </label>
-            </div>
-            <!-- Preview primeras 5 filas -->
-            <div id="import-preview" style="display:none;margin-top:16px">
-                <h4 style="margin-bottom:8px">Vista previa (primeras 5 filas)</h4>
-                <div style="overflow-x:auto">
-                    <table class="data-table" id="preview-table">
-                        <thead id="preview-head"></thead>
-                        <tbody id="preview-body"></tbody>
-                    </table>
-                </div>
+            <!-- Lista de archivos seleccionados -->
+            <div id="fotos-lista" style="display:none;margin-top:12px;max-height:160px;overflow-y:auto;font-size:.82rem;color:#374151">
+                <strong id="fotos-count"></strong>
             </div>
             <!-- Resultado -->
-            <div id="import-result" style="display:none;margin-top:16px"></div>
+            <div id="fotos-result" style="display:none;margin-top:16px"></div>
         </div>
         <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-            <button type="button" onclick="previsualizarCSV()" class="btn btn-secondary">Previsualizar</button>
-            <button type="button" onclick="importarCSV()" class="btn btn-primary" id="btn-importar">Importar</button>
-            <button type="button" onclick="cerrarModalImport()" class="btn btn-ghost">Cancelar</button>
+            <button type="button" onclick="subirFotos()" class="btn btn-primary" id="btn-subir-fotos">Subir fotos</button>
+            <button type="button" onclick="cerrarModalFotos()" class="btn btn-ghost">Cancelar</button>
         </div>
     </div>
 </div>
 
 <script>
-// ── Importación CSV ────────────────────────────────────────
-/**
- * Abre el modal de importación CSV y resetea su estado.
- */
-function abrirModalImport() {
-    document.getElementById('modal-import').style.display = 'flex';
-    document.getElementById('import-result').style.display = 'none';
-    document.getElementById('import-preview').style.display = 'none';
-    document.getElementById('import-file').value = '';
+// ── Subida masiva de fotos ─────────────────────────────────
+
+/** @type {File[]} */
+let fotosSeleccionadas = [];
+
+/** Abre el modal y resetea estado. */
+function abrirModalFotos() {
+    fotosSeleccionadas = [];
+    document.getElementById('fotos-input').value = '';
+    document.getElementById('fotos-lista').style.display = 'none';
+    document.getElementById('fotos-result').style.display = 'none';
+    document.getElementById('modal-fotos').style.display = 'flex';
+}
+
+/** Cierra el modal. */
+function cerrarModalFotos() {
+    document.getElementById('modal-fotos').style.display = 'none';
+}
+
+/** Actualiza la lista al seleccionar via input. */
+function actualizarListaFotos() {
+    fotosSeleccionadas = [...document.getElementById('fotos-input').files];
+    renderListaFotos();
 }
 
 /**
- * Cierra el modal de importación CSV.
+ * Maneja el drop de archivos en la zona.
+ * @param {DragEvent} e
  */
-function cerrarModalImport() {
-    document.getElementById('modal-import').style.display = 'none';
+function handleFotosDrop(e) {
+    e.preventDefault();
+    document.getElementById('fotos-drop-zone').style.borderColor = '#cbd5e1';
+    const nuevas = [...e.dataTransfer.files].filter(f => /\.(jpe?g|png|webp)$/i.test(f.name));
+    fotosSeleccionadas = nuevas;
+    renderListaFotos();
+}
+
+/** Renderiza la lista de archivos seleccionados. */
+function renderListaFotos() {
+    const lista = document.getElementById('fotos-lista');
+    const count = document.getElementById('fotos-count');
+    if (!fotosSeleccionadas.length) { lista.style.display = 'none'; return; }
+    count.textContent = `${fotosSeleccionadas.length} archivo(s) seleccionado(s):`;
+    lista.style.display = 'block';
 }
 
 /**
- * Lee el CSV seleccionado y muestra una vista previa de las primeras 5 filas.
+ * Envía los archivos al endpoint de subida masiva y muestra resultados.
+ * @returns {Promise<void>}
  */
-function previsualizarCSV() {
-    const file = document.getElementById('import-file').files[0];
-    if (!file) { alert('Selecciona un archivo CSV primero.'); return; }
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const lines = e.target.result.split('\n').filter(l => l.trim());
-        if (lines.length < 2) { alert('El CSV debe tener al menos una fila de datos.'); return; }
-        const headers = lines[0].replace(/^﻿/, '').split(',');
-        const rows = lines.slice(1, 6); // primeras 5 filas de datos
-        const thead = document.getElementById('preview-head');
-        const tbody = document.getElementById('preview-body');
-        thead.innerHTML = '<tr>' + headers.map(h => `<th>${h.trim()}</th>`).join('') + '</tr>';
-        tbody.innerHTML = rows.map(row => {
-            const cells = row.split(',');
-            return '<tr>' + cells.map(c => `<td>${c.trim()}</td>`).join('') + '</tr>';
-        }).join('');
-        document.getElementById('import-preview').style.display = 'block';
-    };
-    reader.readAsText(file, 'UTF-8');
-}
-
-/**
- * Envía el archivo CSV al endpoint de importación y muestra el resultado.
- */
-function importarCSV() {
-    const file = document.getElementById('import-file').files[0];
-    if (!file) { alert('Selecciona un archivo CSV primero.'); return; }
-    const modo = document.getElementById('import-modo-actualizacion').checked ? 'actualizacion' : '';
-    const formData = new FormData();
-    formData.append('csv', file);
-    formData.append('modo', modo);
-    const btn = document.getElementById('btn-importar');
+async function subirFotos() {
+    if (!fotosSeleccionadas.length) { alert('Selecciona al menos una imagen.'); return; }
+    const btn = document.getElementById('btn-subir-fotos');
     btn.disabled = true;
-    btn.textContent = 'Importando…';
-    fetch('api/productos.php?action=import', { method: 'POST', body: formData })
-        .then(r => r.json())
-        .then(data => {
-            const div = document.getElementById('import-result');
-            div.style.display = 'block';
-            if (data.success) {
-                const d = data.data;
-                const errHtml = d.errores && d.errores.length
-                    ? `<ul style="margin-top:8px">${d.errores.map(e => `<li>Línea ${e.linea}: ${e.motivo}</li>`).join('')}</ul>`
-                    : '';
-                div.innerHTML = `<div class="alert alert-success">
-                    ✅ Importación completada: <strong>${d.insertados}</strong> insertados,
-                    <strong>${d.actualizados}</strong> actualizados,
-                    <strong>${d.errores ? d.errores.length : 0}</strong> errores.${errHtml}
-                </div>`;
-            } else {
-                div.innerHTML = `<div class="alert alert-error">❌ ${data.message}</div>`;
-            }
-        })
-        .catch(() => {
-            document.getElementById('import-result').innerHTML = '<div class="alert alert-error">❌ Error de red al importar.</div>';
-            document.getElementById('import-result').style.display = 'block';
-        })
-        .finally(() => { btn.disabled = false; btn.textContent = 'Importar'; });
+    btn.textContent = 'Subiendo…';
+    document.getElementById('fotos-result').style.display = 'none';
+
+    const fd = new FormData();
+    fotosSeleccionadas.forEach(f => fd.append('imagenes[]', f));
+
+    try {
+        const res  = await fetch('api/productos.php?action=upload_imagenes', { method: 'POST', body: fd });
+        const text = await res.text();
+        const div  = document.getElementById('fotos-result');
+        div.style.display = 'block';
+
+        let json;
+        try {
+            json = JSON.parse(text);
+        } catch {
+            div.innerHTML = `<div class="alert alert-error">❌ Respuesta inválida del servidor (HTTP ${res.status}):<br><pre style="font-size:.75rem;overflow:auto;max-height:120px">${text.substring(0, 500)}</pre></div>`;
+            return;
+        }
+
+        if (json.success) {
+            const { ok, errores } = json.data;
+            const okHtml = ok.length
+                ? `<table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-top:6px">
+                    <thead><tr style="background:#f1f5f9"><th style="padding:4px 8px;text-align:left">Archivo</th><th style="padding:4px 8px;text-align:left">Producto</th></tr></thead>
+                    <tbody>${ok.map(r => `<tr><td style="padding:3px 8px"><code>${r.archivo}</code></td><td style="padding:3px 8px">${r.producto}</td></tr>`).join('')}</tbody>
+                   </table>` : '';
+            const errHtml = errores.length
+                ? `<ul style="margin:6px 0 0;padding-left:1.2rem;color:#b91c1c;font-size:.82rem">${errores.map(e => `<li><code>${e.archivo}</code>: ${e.motivo}</li>`).join('')}</ul>` : '';
+            const reloadBtn = ok.length
+                ? `<button onclick="location.reload()" class="btn btn-sm btn-primary" style="margin-top:8px">Recargar página</button>`
+                : '';
+            div.innerHTML = `<div class="alert ${errores.length && !ok.length ? 'alert-error' : 'alert-success'}">
+                <strong>${ok.length} subida(s) correcta(s)</strong>${errores.length ? `, ${errores.length} error(es)` : ''}.
+                ${okHtml}${errHtml}${reloadBtn}
+            </div>`;
+        } else {
+            document.getElementById('fotos-result').innerHTML = `<div class="alert alert-error">❌ ${json.message}</div>`;
+        }
+    } catch (err) {
+        document.getElementById('fotos-result').innerHTML = `<div class="alert alert-error">❌ Error de red: ${err.message}</div>`;
+        document.getElementById('fotos-result').style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Subir fotos';
+    }
 }
 </script>
 <script>

@@ -4,11 +4,12 @@
 # =============================================================
 FROM php:apache
 
-# Instalar extensiones PDO para MySQL
-RUN docker-php-ext-install pdo_mysql
-
-# Instalar unzip (requerido por Composer para descargar paquetes)
-RUN apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/*
+# Instalar dependencias del sistema y extensiones PHP (GD + PDO MySQL)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        unzip libpng-dev libjpeg62-turbo-dev libwebp-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-install pdo_mysql gd \
+    && rm -rf /var/lib/apt/lists/*
 
 # Instalar Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

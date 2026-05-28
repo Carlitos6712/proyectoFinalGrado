@@ -62,6 +62,10 @@ try {
                 break;
             }
             requireAdmin();
+            if (isset($_GET['action']) && $_GET['action'] === 'bulk_delete') {
+                handleBulkDelete($modelo);
+                break;
+            }
             handlePost($modelo);
             break;
         case 'PUT':    handlePut($modelo);    break;
@@ -371,12 +375,53 @@ function handleDelete(Producto $modelo): void
  * @return void
  * @author Carlitos6712
  */
+/**
+ * Elimina en bloque una lista de productos (soft-delete).
+ *
+ * Cuerpo JSON: { "ids": [1, 2, 3] }
+ *
+ * @param Producto $modelo Instancia del modelo.
+ * @return void
+ * @author Carlitos6712
+ */
+function handleBulkDelete(Producto $modelo): void
+{
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $ids  = array_values(array_filter(
+        array_map('intval', $body['ids'] ?? []),
+        fn($id) => $id > 0
+    ));
+
+    if (empty($ids)) {
+        jsonResponse(false, null, 'No se han proporcionado IDs válidos.', 400);
+    }
+
+    $eliminados = 0;
+    $errores    = [];
+    foreach ($ids as $id) {
+        try {
+            $modelo->obtener($id);
+            $modelo->eliminar($id);
+            $eliminados++;
+        } catch (\Throwable $e) {
+            $errores[] = $id;
+        }
+    }
+
+    jsonResponse(
+        true,
+        ['eliminados' => $eliminados, 'errores' => $errores],
+        "{$eliminados} producto(s) eliminado(s)."
+    );
+}
+
 function requireAdmin(): void
 {
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
-    if (!isAdmin()) {
+    $rol = $_SESSION['user_role'] ?? $_SESSION['rol'] ?? '';
+    if (!in_array($rol, ['admin', 'superadmin'], true)) {
         jsonResponse(false, null, 'Acceso denegado.', 403);
     }
 }

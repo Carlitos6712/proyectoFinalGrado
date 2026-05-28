@@ -17,6 +17,7 @@ RoleMiddleware::requireAdmin();
 require_once __DIR__ . '/includes/AppException.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/Categoria.php';
+require_once __DIR__ . '/core/Session.php';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 const CSV_MAX_BYTES  = 5 * 1024 * 1024; // 5 MB
@@ -88,9 +89,9 @@ if ($step === 1 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($bom !== "\xEF\xBB\xBF") {
                 rewind($fh);
             }
-            $headers = fgetcsv($fh, 0, $csvDelim) ?: [];
+            $headers = fgetcsv($fh, 0, $csvDelim, '"', '\\') ?: [];
             $count   = 0;
-            while (($row = fgetcsv($fh, 0, $csvDelim)) !== false && $count < 6) {
+            while (($row = fgetcsv($fh, 0, $csvDelim, '"', '\\')) !== false && $count < 6) {
                 $preview[] = $row;
                 $count++;
             }
@@ -147,9 +148,9 @@ if ($step === 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($fh) {
                     $bom = fread($fh, 3);
                     if ($bom !== "\xEF\xBB\xBF") rewind($fh);
-                    $headers = fgetcsv($fh, 0, $csvDelim) ?: [];
+                    $headers = fgetcsv($fh, 0, $csvDelim, '"', '\\') ?: [];
                     $count = 0;
-                    while (($row = fgetcsv($fh, 0, $csvDelim)) !== false && $count < 6) {
+                    while (($row = fgetcsv($fh, 0, $csvDelim, '"', '\\')) !== false && $count < 6) {
                         $preview[] = $row;
                         $count++;
                     }
@@ -163,15 +164,18 @@ if ($step === 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $catMap[mb_strtolower(trim($cat['nombre']))] = (int) $cat['id'];
                 }
 
-                $pdo = Database::getInstance();
+                $pdo        = Database::getInstance();
+                $businessId = Session::getBusinessId();
+                $bizCol     = $businessId !== null ? ', business_id' : '';
+                $bizVal     = $businessId !== null ? ', :biz_id'     : '';
                 $sql = "INSERT INTO productos
                             (nombre, descripcion, descripcion_larga, precio, stock, stock_minimo,
                              codigo_ref, marca, codigo_barras, url_proveedor, proveedor, ubicacion,
-                             peso, capacidad, longitud, anchura, diametro, alertas_email, categoria_id)
+                             peso, capacidad, longitud, anchura, diametro, alertas_email, categoria_id{$bizCol})
                         VALUES
                             (:nombre, :descripcion, :descripcion_larga, :precio, :stock, :stock_minimo,
                              :codigo_ref, :marca, :codigo_barras, :url_proveedor, :proveedor, :ubicacion,
-                             :peso, :capacidad, :longitud, :anchura, :diametro, :alertas_email, :categoria_id)";
+                             :peso, :capacidad, :longitud, :anchura, :diametro, :alertas_email, :categoria_id{$bizVal})";
                 $stmt = $pdo->prepare($sql);
 
                 $inserted = 0;
@@ -183,9 +187,9 @@ if ($step === 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Quitar BOM
                 $bom = fread($fh, 3);
                 if ($bom !== "\xEF\xBB\xBF") rewind($fh);
-                fgetcsv($fh, 0, $csvDelim); // saltar cabecera
+                fgetcsv($fh, 0, $csvDelim, '"', '\\'); // saltar cabecera
 
-                while (($row = fgetcsv($fh, 0, $csvDelim)) !== false) {
+                while (($row = fgetcsv($fh, 0, $csvDelim, '"', '\\')) !== false) {
                     $lineNum++;
                     $data = [
                         'nombre'            => '',
@@ -256,6 +260,9 @@ if ($step === 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $params = [];
                         foreach ($data as $k => $v) {
                             $params[":$k"] = $v;
+                        }
+                        if ($businessId !== null) {
+                            $params[':biz_id'] = $businessId;
                         }
                         $stmt->execute($params);
                         $inserted++;

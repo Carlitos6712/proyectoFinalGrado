@@ -17,14 +17,61 @@
 require_once __DIR__ . '/AppException.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Auditoria.php';
+require_once __DIR__ . '/../core/Session.php';
 
 class ImportadorProductos
 {
     private const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
     private const COLUMNAS = ['ref','nombre','categoria','marca','precio','stock','stock minimo','descripcion','proveedor','ubicacion'];
 
-    private PDO      $pdo;
+    /** Mapeo de variantes de nombre de columna → clave interna */
+    private const ALIAS_COLS = [
+        // ref / código de referencia
+        'ref'                     => 'ref',
+        'codigo_ref'              => 'ref',
+        'código ref.'             => 'ref',
+        'código ref'              => 'ref',
+        'codigo ref'              => 'ref',
+        'referencia'              => 'ref',
+        'código de referencia'    => 'ref',
+        'codigo de referencia'    => 'ref',
+        'sku'                     => 'ref',
+        // nombre
+        'nombre'                  => 'nombre',
+        'producto'                => 'nombre',
+        'name'                    => 'nombre',
+        // categoría
+        'categoria'               => 'categoria',
+        'categoría'               => 'categoria',
+        'categoria_nombre'        => 'categoria',
+        'category'                => 'categoria',
+        // marca
+        'marca'                   => 'marca',
+        'marca_nombre'            => 'marca',
+        'brand'                   => 'marca',
+        // precio
+        'precio'                  => 'precio',
+        'precio (€)'              => 'precio',
+        'price'                   => 'precio',
+        // stock
+        'stock'                   => 'stock',
+        // stock mínimo / minimo
+        'stock minimo'            => 'stock minimo',
+        'stock mínimo'            => 'stock minimo',
+        'stock_minimo'            => 'stock minimo',
+        // descripción
+        'descripcion'             => 'descripcion',
+        'descripción'             => 'descripcion',
+        // proveedor
+        'proveedor'               => 'proveedor',
+        // ubicación
+        'ubicacion'               => 'ubicacion',
+        'ubicación'               => 'ubicacion',
+    ];
+
+    private PDO       $pdo;
     private Auditoria $auditoria;
+    private ?int      $businessId;
 
     /**
      * @param PDO|null      $pdo       Conexión PDO (usa singleton si no se pasa).
@@ -33,8 +80,9 @@ class ImportadorProductos
      */
     public function __construct(?PDO $pdo = null, ?Auditoria $auditoria = null)
     {
-        $this->pdo       = $pdo       ?? Database::getInstance();
-        $this->auditoria = $auditoria ?? new Auditoria($this->pdo);
+        $this->pdo        = $pdo       ?? Database::getInstance();
+        $this->auditoria  = $auditoria ?? new Auditoria($this->pdo);
+        $this->businessId = Session::getBusinessId();
     }
 
     /**
@@ -82,7 +130,7 @@ class ImportadorProductos
         }
 
         // Leer cabecera
-        $cabeceraRaw = fgetcsv($handle, 0, ',');
+        $cabeceraRaw = fgetcsv($handle, 0, ',', '"', '\\');
         if ($cabeceraRaw === false || $cabeceraRaw === null) {
             fclose($handle);
             throw new AppException('El archivo CSV está vacío o mal formado.', 400);
@@ -91,8 +139,11 @@ class ImportadorProductos
         // Limpiar BOM UTF-8 de la primera columna
         $cabeceraRaw[0] = ltrim($cabeceraRaw[0], "\xEF\xBB\xBF");
 
-        // Normalizar cabeceras
-        $cabeceras = array_map(fn($c) => strtolower(trim($c)), $cabeceraRaw);
+        // Normalizar cabeceras aplicando alias
+        $cabeceras = array_map(function ($c) {
+            $key = strtolower(trim($c));
+            return self::ALIAS_COLS[$key] ?? $key;
+        }, $cabeceraRaw);
 
         // Validar columna mínima obligatoria
         if (!in_array('nombre', $cabeceras, true)) {
@@ -106,7 +157,7 @@ class ImportadorProductos
 
         // Leer todas las filas de datos
         $filas = [];
-        while (($fila = fgetcsv($handle, 0, ',')) !== false) {
+        while (($fila = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
             if ($fila === [null]) {
                 continue; // fila vacía
             }
@@ -202,11 +253,13 @@ class ImportadorProductos
                 }
 
                 // INSERT
+                $bizCol = $this->businessId !== null ? ', business_id' : '';
+                $bizVal = $this->businessId !== null ? ', :biz_id'     : '';
                 $stmt = $this->pdo->prepare(
-                    "INSERT INTO productos (nombre, descripcion, precio, stock, stock_minimo, codigo_ref, categoria_id, proveedor, ubicacion)
-                     VALUES (:nombre, :descripcion, :precio, :stock, :stock_minimo, :codigo_ref, :categoria_id, :proveedor, :ubicacion)"
+                    "INSERT INTO productos (nombre, descripcion, precio, stock, stock_minimo, codigo_ref, categoria_id, proveedor, ubicacion{$bizCol})
+                     VALUES (:nombre, :descripcion, :precio, :stock, :stock_minimo, :codigo_ref, :categoria_id, :proveedor, :ubicacion{$bizVal})"
                 );
-                $stmt->execute([
+                $params = [
                     ':nombre'       => $nombre,
                     ':descripcion'  => $descripcion,
                     ':precio'       => $precio,
@@ -216,7 +269,11 @@ class ImportadorProductos
                     ':categoria_id' => $categoriaId,
                     ':proveedor'    => $proveedor,
                     ':ubicacion'    => $ubicacion,
-                ]);
+                ];
+                if ($this->businessId !== null) {
+                    $params[':biz_id'] = $this->businessId;
+                }
+                $stmt->execute($params);
                 $insertados++;
             }
 
@@ -269,10 +326,15 @@ class ImportadorProductos
      */
     private function buscarPorRef(string $ref): ?int
     {
+        $bizWhere = $this->businessId !== null ? " AND business_id = :biz_id" : "";
         $stmt = $this->pdo->prepare(
-            "SELECT id FROM productos WHERE codigo_ref = :ref AND deleted_at IS NULL LIMIT 1"
+            "SELECT id FROM productos WHERE codigo_ref = :ref AND deleted_at IS NULL{$bizWhere} LIMIT 1"
         );
-        $stmt->execute([':ref' => $ref]);
+        $params = [':ref' => $ref];
+        if ($this->businessId !== null) {
+            $params[':biz_id'] = $this->businessId;
+        }
+        $stmt->execute($params);
         $row = $stmt->fetch();
         return $row ? (int)$row['id'] : null;
     }
@@ -289,10 +351,15 @@ class ImportadorProductos
         if (empty(trim($nombre))) {
             return null;
         }
+        $bizWhere = $this->businessId !== null ? " AND business_id = :biz_id" : "";
         $stmt = $this->pdo->prepare(
-            "SELECT id FROM categorias WHERE nombre = :nombre LIMIT 1"
+            "SELECT id FROM categorias WHERE nombre = :nombre{$bizWhere} LIMIT 1"
         );
-        $stmt->execute([':nombre' => trim($nombre)]);
+        $params = [':nombre' => trim($nombre)];
+        if ($this->businessId !== null) {
+            $params[':biz_id'] = $this->businessId;
+        }
+        $stmt->execute($params);
         $row = $stmt->fetch();
         return $row ? (int)$row['id'] : null;
     }

@@ -253,6 +253,16 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
             </select>
         </form>
 
+        <!-- Bulk action bar -->
+        <div id="bulk-bar" style="display:none;padding:.7rem 1rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--radius-md);margin-bottom:.75rem;align-items:center;gap:1rem;flex-wrap:wrap;">
+            <span id="bulk-count" style="font-weight:600;color:#1d4ed8;font-size:.875rem;"></span>
+            <button type="button" onclick="eliminarSeleccionados()" class="btn btn-sm btn-danger" style="display:inline-flex;align-items:center;gap:.35rem;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                Eliminar seleccionados
+            </button>
+            <button type="button" onclick="deseleccionarTodo()" class="btn btn-sm btn-ghost">Cancelar</button>
+        </div>
+
         <!-- Data table -->
         <div class="data-table-wrapper">
             <table class="data-table" id="tabla-productos">
@@ -277,7 +287,7 @@ $sortTh = function(string $campo, string $label) use ($filterQs, $ordenActivo): 
                         $inicial   = mb_strtoupper(mb_substr($p['nombre'], 0, 1, 'UTF-8'), 'UTF-8');
                     ?>
                     <tr class="<?= $esBajo ? 'row-low-stock' : '' ?>">
-                        <td class="td-check"><input type="checkbox" aria-label="Seleccionar fila"></td>
+                        <td class="td-check"><input type="checkbox" class="row-check" data-id="<?= (int)$p['id'] ?>" aria-label="Seleccionar fila"></td>
                         <td>
                             <span class="ref-code"><?= htmlspecialchars($p['codigo_ref'] ?? '–', ENT_QUOTES, 'UTF-8') ?></span>
                         </td>
@@ -521,6 +531,82 @@ function importarCSV() {
             document.getElementById('import-result').style.display = 'block';
         })
         .finally(() => { btn.disabled = false; btn.textContent = 'Importar'; });
+}
+</script>
+<script>
+/* ── Selección masiva y eliminación bulk ───────────────────────────────────── */
+
+const selectAll   = document.getElementById('selectAll');
+const tbodyProds  = document.getElementById('tbody-productos');
+const bulkBar     = document.getElementById('bulk-bar');
+const bulkCount   = document.getElementById('bulk-count');
+
+/**
+ * Actualiza la barra de acciones masivas según los checkboxes marcados.
+ */
+function actualizarBulkBar() {
+    const total   = document.querySelectorAll('.row-check').length;
+    const checked = document.querySelectorAll('.row-check:checked').length;
+    bulkBar.style.display    = checked > 0 ? 'flex' : 'none';
+    bulkCount.textContent    = `${checked} producto${checked !== 1 ? 's' : ''} seleccionado${checked !== 1 ? 's' : ''}`;
+    selectAll.checked        = checked === total && total > 0;
+    selectAll.indeterminate  = checked > 0 && checked < total;
+}
+
+/** Desmarca todos los checkboxes y oculta la barra. */
+function deseleccionarTodo() {
+    document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
+    selectAll.checked       = false;
+    selectAll.indeterminate = false;
+    bulkBar.style.display   = 'none';
+}
+
+if (selectAll) {
+    selectAll.addEventListener('change', function () {
+        document.querySelectorAll('.row-check').forEach(cb => cb.checked = this.checked);
+        actualizarBulkBar();
+    });
+}
+
+if (tbodyProds) {
+    tbodyProds.addEventListener('change', function (e) {
+        if (e.target.classList.contains('row-check')) {
+            actualizarBulkBar();
+        }
+    });
+}
+
+/**
+ * Elimina en bloque los productos seleccionados mediante la API.
+ * @returns {Promise<void>}
+ */
+async function eliminarSeleccionados() {
+    const ids = [...document.querySelectorAll('.row-check:checked')]
+        .map(cb => parseInt(cb.dataset.id, 10));
+    if (!ids.length) return;
+    if (!confirm(`¿Eliminar ${ids.length} producto${ids.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) return;
+
+    try {
+        const res  = await fetch('api/productos.php?action=bulk_delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        const json = await res.json();
+        if (json.success) {
+            ids.forEach(id => {
+                const cb = document.querySelector(`.row-check[data-id="${id}"]`);
+                if (cb) cb.closest('tr').remove();
+            });
+            deseleccionarTodo();
+            // Recargar para actualizar paginación y contadores
+            window.location.reload();
+        } else {
+            alert('Error: ' + (json.message ?? 'Error desconocido'));
+        }
+    } catch {
+        alert('Error de red al eliminar.');
+    }
 }
 </script>
 </body>

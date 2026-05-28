@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Tests unitarios para la validación y gestión de imágenes de producto.
  *
@@ -56,6 +56,7 @@ class ImagenTest extends TestCase
                 datos_nuevos     TEXT    NULL,
                 usuario          TEXT    DEFAULT 'admin',
                 ip               TEXT,
+                business_id      INTEGER NULL,
                 fecha            TEXT    DEFAULT CURRENT_TIMESTAMP
             )
         ");

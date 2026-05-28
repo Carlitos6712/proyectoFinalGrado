@@ -15,6 +15,7 @@
 
 require_once __DIR__ . '/AppException.php';
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/../core/Session.php';
 
 class Auditoria
 {
@@ -53,16 +54,18 @@ class Auditoria
         ?array $datosAnteriores,
         ?array $datosNuevos
     ): void {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $ip         = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $businessId = Session::getBusinessId();
 
         $stmt = $this->pdo->prepare(
             "INSERT INTO auditoria
-             (tabla, registro_id, accion, datos_anteriores, datos_nuevos, ip)
-             VALUES (:tabla, :registro_id, :accion, :datos_anteriores, :datos_nuevos, :ip)"
+             (tabla, registro_id, business_id, accion, datos_anteriores, datos_nuevos, ip)
+             VALUES (:tabla, :registro_id, :business_id, :accion, :datos_anteriores, :datos_nuevos, :ip)"
         );
         $stmt->execute([
             ':tabla'            => $tabla,
             ':registro_id'      => $registroId,
+            ':business_id'      => $businessId,
             ':accion'           => $accion,
             ':datos_anteriores' => $datosAnteriores !== null
                 ? json_encode($datosAnteriores, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
@@ -151,9 +154,16 @@ class Auditoria
         ?string $fechaHasta,
         bool $contar = false
     ): array {
-        $select = $contar ? "SELECT COUNT(*) FROM auditoria" : "SELECT * FROM auditoria";
-        $where  = [];
-        $params = [];
+        $select     = $contar ? "SELECT COUNT(*) FROM auditoria" : "SELECT * FROM auditoria";
+        $where      = [];
+        $params     = [];
+        $businessId = Session::getBusinessId();
+
+        // Superadmin sin business_id ve todo; cualquier otro taller solo sus registros
+        if ($businessId !== null) {
+            $where[]              = "business_id = :business_id";
+            $params[':business_id'] = $businessId;
+        }
 
         if ($tabla !== null && $tabla !== '') {
             $where[]         = "tabla = :tabla";

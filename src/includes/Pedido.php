@@ -51,8 +51,10 @@ class Pedido
     {
         $where  = '';
         $params = [];
-        if ($estado !== null && $estado !== '') {
-            $where          = " WHERE p.estado = :estado";
+        if ($estado === 'pendientes') {
+            $where = " WHERE p.estado IN ('borrador','enviado')";
+        } elseif ($estado !== null && $estado !== '') {
+            $where             = " WHERE p.estado = :estado";
             $params[':estado'] = $estado;
         }
 

@@ -14,17 +14,19 @@ require_once __DIR__ . '/includes/Producto.php';
 require_once __DIR__ . '/includes/Movimiento.php';
 require_once __DIR__ . '/includes/Categoria.php';
 require_once __DIR__ . '/includes/Pedido.php';
+require_once __DIR__ . '/includes/Kit.php';
 
 $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-$totalProductos   = 0;
-$valorInventario  = 0.0;
-$stockBajoCount   = 0;
-$movimientosMes   = 0;
-$totalCategorias  = 0;
+$totalProductos    = 0;
+$valorInventario   = 0.0;
+$stockBajoCount    = 0;
+$movimientosMes    = 0;
+$totalCategorias   = 0;
 $pedidosPendientes = 0;
+$totalKits         = 0;
 $productosStockBajo = [];
 $ultimosMovimientos = [];
 $error = '';
@@ -35,12 +37,14 @@ try {
     $categoriaModel  = new Categoria();
     $pedidoModel     = new Pedido();
 
+    $kitModel           = new Kit();
     $totalProductos     = $productoModel->contarActivos();
     $valorInventario    = $productoModel->valorInventario();
     $stockBajoCount     = count($productoModel->filtrarStockBajo());
     $movimientosMes     = $movimientoModel->contarEsteMes();
     $totalCategorias    = count($categoriaModel->listar());
     $pedidosPendientes  = $pedidoModel->contarPendientes();
+    $totalKits          = count($kitModel->listar());
     $productosStockBajo = $productoModel->filtrarStockBajo();
     // Solo los top 5
     $productosStockBajo = array_slice($productosStockBajo, 0, 5);
@@ -60,121 +64,7 @@ try {
 </head>
 <body class="layout">
 
-<!-- ===== SIDEBAR ===== -->
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <div class="sidebar-logo">
-            <svg class="logo-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-            </svg>
-            <span class="logo-text">es21<strong>plus</strong></span>
-        </div>
-        <button class="sidebar-close" id="sidebarClose" aria-label="Cerrar menú">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-        </button>
-    </div>
-
-    <nav class="sidebar-nav">
-        <div class="nav-section">
-            <span class="nav-section-label">Principal</span>
-            <a href="index.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['index.php','dashboard.php']) ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Dashboard</span>
-            </a>
-            <a href="productos.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['productos.php','nuevo_producto.php','editar_producto.php','eliminar_producto.php']) ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Productos</span>
-            </a>
-            <a href="categorias.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'categorias.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Categorías</span>
-            </a>
-            <a href="marcas.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'marcas.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Marcas</span>
-            </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-            <a href="modelos_moto.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
-                <span class="nav-label">Modelos de Moto</span>
-            </a>
-            <a href="proveedores.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
-                <span class="nav-label">Proveedores</span>
-            </a>
-            <a href="pedidos.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'pedidos.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
-                <span class="nav-label">Pedidos</span>
-            </a>
-            <?php endif; ?>
-        </div>
-        <div class="nav-section">
-            <span class="nav-section-label">Operaciones</span>
-            <a href="movimientos.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'movimientos.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Movimientos</span>
-            </a>
-            <a href="kits.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'kits.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
-                </span>
-                <span class="nav-label">Kits</span>
-            </a>
-        </div>
-        <div class="nav-section">
-            <span class="nav-section-label">Administración</span>
-            <a href="auditoria.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'auditoria.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Auditoría</span>
-            </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-            <a href="usuarios.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'usuarios.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-                <span class="nav-label">Usuarios</span>
-            </a>
-            <?php endif; ?>
-        </div>
-    </nav>
-
-    <div class="sidebar-footer">
-        <div class="sidebar-user">
-            <div class="user-avatar-sm">CV</div>
-            <div class="sidebar-user-info">
-                <span class="user-name-sm">Carlos Vico</span>
-                <span class="user-role">Administrador</span>
-            </div>
-        </div>
-    </div>
-</aside>
+<?php require_once __DIR__ . '/includes/_sidebar.php'; ?>
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -273,7 +163,7 @@ try {
 
         <!-- Stat cards -->
         <div class="stat-cards">
-            <div class="stat-card">
+            <a href="productos.php" class="stat-card stat-card-link">
                 <div class="stat-card-icon stat-icon-blue">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -283,8 +173,8 @@ try {
                     <span class="stat-value"><?= $totalProductos ?></span>
                     <span class="stat-label">Total Productos</span>
                 </div>
-            </div>
-            <div class="stat-card">
+            </a>
+            <a href="productos.php" class="stat-card stat-card-link">
                 <div class="stat-card-icon stat-icon-green">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
@@ -294,19 +184,19 @@ try {
                     <span class="stat-value"><?= number_format($valorInventario, 2, ',', '.') ?> €</span>
                     <span class="stat-label">Valor Inventario</span>
                 </div>
-            </div>
-            <div class="stat-card <?= $stockBajoCount > 0 ? 'stat-card-warning' : '' ?>">
+            </a>
+            <a href="productos.php?stock_bajo=1" class="stat-card stat-card-link <?= $stockBajoCount > 0 ? 'stat-card-warning' : '' ?>">
                 <div class="stat-card-icon stat-icon-orange">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                     </svg>
                 </div>
                 <div class="stat-card-body">
-                    <a href="productos.php" class="stat-value stat-link"><?= $stockBajoCount ?></a>
+                    <span class="stat-value"><?= $stockBajoCount ?></span>
                     <span class="stat-label">Stock Bajo</span>
                 </div>
-            </div>
-            <div class="stat-card">
+            </a>
+            <a href="movimientos.php" class="stat-card stat-card-link">
                 <div class="stat-card-icon stat-icon-purple">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
@@ -316,16 +206,25 @@ try {
                     <span class="stat-value"><?= $movimientosMes ?></span>
                     <span class="stat-label">Movimientos (mes)</span>
                 </div>
-            </div>
-            <div class="stat-card <?= $pedidosPendientes > 0 ? 'stat-card-warning' : '' ?>">
+            </a>
+            <a href="pedidos.php?estado=pendientes" class="stat-card stat-card-link <?= $pedidosPendientes > 0 ? 'stat-card-warning' : '' ?>">
                 <div class="stat-card-icon stat-icon-blue">
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
                 </div>
                 <div class="stat-card-body">
-                    <a href="pedidos.php" class="stat-value stat-link"><?= $pedidosPendientes ?></a>
+                    <span class="stat-value"><?= $pedidosPendientes ?></span>
                     <span class="stat-label">Pedidos pendientes</span>
                 </div>
-            </div>
+            </a>
+            <a href="kits.php" class="stat-card stat-card-link">
+                <div class="stat-card-icon stat-icon-purple">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                </div>
+                <div class="stat-card-body">
+                    <span class="stat-value"><?= $totalKits ?></span>
+                    <span class="stat-label">Kits activos</span>
+                </div>
+            </a>
         </div>
 
         <!-- Chart card -->
@@ -361,7 +260,7 @@ try {
                                 <th>Categoría</th>
                                 <th>Stock</th>
                                 <th>Mínimo</th>
-                                <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+                                <?php if (isAdmin()): ?>
                                 <th>Acción</th>
                                 <?php endif; ?>
                             </tr>
@@ -381,7 +280,7 @@ try {
                                     <span class="stock-value stock-value-low"><?= (int)$p['stock'] ?></span>
                                 </td>
                                 <td><?= (int)($p['stock_minimo'] ?? 5) ?></td>
-                                <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
+                                <?php if (isAdmin()): ?>
                                 <td>
                                     <a href="nuevo_pedido.php?producto_id=<?= (int)$p['id'] ?>&cantidad=<?= max(1, ($p['stock_minimo'] ?? 5) - ($p['stock'] ?? 0)) ?>"
                                        class="btn btn-sm btn-primary">
@@ -461,107 +360,23 @@ try {
             </div>
         </div>
         <div class="card" style="margin-bottom:2rem;">
-            <div class="card-body" style="padding:1.25rem;">
-                <div id="top-ventas-wrapper" style="position:relative;min-height:200px;">
-                    <canvas id="chart-top-ventas" style="max-height:320px;"></canvas>
+            <div class="card-body" style="padding:0;">
+                <div id="top-ventas-wrapper">
                     <div id="top-ventas-empty" style="display:none;text-align:center;padding:3rem;color:#94a3b8;">
                         Sin datos de ventas en este período.
                     </div>
+                    <table class="data-table" id="top-ventas-table" style="display:none;">
+                        <thead>
+                            <tr>
+                                <th style="width:3rem;text-align:center;">#</th>
+                                <th>Producto</th>
+                                <th style="width:9rem;text-align:right;">Unidades salidas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top-ventas-tbody"></tbody>
+                    </table>
                 </div>
             </div>
-        </div>
-
-        <!-- 17.4 Valor del inventario por categoría -->
-        <div class="page-header">
-            <div class="page-header-info">
-                <h2 class="page-title" style="font-size:1.1rem;">Valor del inventario por categoría</h2>
-                <p class="page-subtitle">Distribución del valor (precio × stock) por categoría</p>
-            </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr auto;gap:1.5rem;align-items:start;margin-bottom:2rem;">
-            <div class="card">
-                <div class="card-body" style="padding:1.25rem;">
-                    <canvas id="chart-valor-categoria" style="max-height:300px;"></canvas>
-                    <div id="valor-categoria-empty" style="display:none;text-align:center;padding:3rem;color:#94a3b8;">
-                        Sin productos con stock.
-                    </div>
-                </div>
-            </div>
-            <div class="stat-card" style="min-width:180px;align-self:center;">
-                <div class="stat-card-icon stat-icon-blue">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                    </svg>
-                </div>
-                <div class="stat-card-body">
-                    <span id="valor-total-global" class="stat-value stat-value-blue">–</span>
-                    <span class="stat-label">Valor total inventario</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- 17.5 Rotación de stock -->
-        <div class="page-header">
-            <div class="page-header-info">
-                <h2 class="page-title" style="font-size:1.1rem;">Rotación de stock</h2>
-                <p class="page-subtitle">Índice = unidades salidas / stock actual — top 10 productos</p>
-            </div>
-            <div class="page-actions">
-                <select id="rotacion-dias" class="field-input field-select" style="width:140px;"
-                        onchange="cargarRotacion()">
-                    <option value="7">Últimos 7 días</option>
-                    <option value="30" selected>Últimos 30 días</option>
-                    <option value="90">Últimos 90 días</option>
-                </select>
-            </div>
-        </div>
-        <div class="data-table-wrapper" style="margin-bottom:2rem;">
-            <table class="data-table" id="tabla-rotacion">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Producto</th>
-                        <th>Stock actual</th>
-                        <th>Uds. salidas</th>
-                        <th>Índice rotación</th>
-                    </tr>
-                </thead>
-                <tbody id="rotacion-body">
-                    <tr><td colspan="5" style="text-align:center;padding:2rem;color:#94a3b8;">Cargando…</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- 17.6 Stock muerto -->
-        <div class="page-header">
-            <div class="page-header-info">
-                <h2 class="page-title" style="font-size:1.1rem;">Stock muerto</h2>
-                <p class="page-subtitle">Productos con stock sin movimiento en el umbral seleccionado</p>
-            </div>
-            <div class="page-actions">
-                <select id="stock-muerto-umbral" class="field-input field-select" style="width:140px;"
-                        onchange="cargarStockMuerto()">
-                    <option value="30">30 días</option>
-                    <option value="60">60 días</option>
-                    <option value="90" selected>90 días</option>
-                </select>
-            </div>
-        </div>
-        <div class="data-table-wrapper" style="margin-bottom:2rem;">
-            <table class="data-table" id="tabla-stock-muerto">
-                <thead>
-                    <tr>
-                        <th>Producto</th>
-                        <th>Categoría</th>
-                        <th>Stock</th>
-                        <th>Valor inmovilizado</th>
-                        <th>Último movimiento</th>
-                    </tr>
-                </thead>
-                <tbody id="stock-muerto-body">
-                    <tr><td colspan="5" style="text-align:center;padding:2rem;color:#94a3b8;">Cargando…</td></tr>
-                </tbody>
-            </table>
         </div>
 
     </main>
@@ -651,15 +466,6 @@ try {
  * @author Carlitos6712
  * =================================================================== */
 
-let chartTopVentas      = null;
-let chartValorCategoria = null;
-
-/** Paleta de colores para el gráfico de tarta */
-const PALETA = [
-    '#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6',
-    '#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'
-];
-
 /** Formatea un número como euros */
 function formatEuro(v) {
     return parseFloat(v).toLocaleString('es-ES', { style:'currency', currency:'EUR', minimumFractionDigits:2 });
@@ -672,228 +478,56 @@ function escHtml(s) {
 
 /* ── 17.3 Top 10 más vendidos ───────────────────────────────────── */
 
+const MEDALLAS = ['🥇','🥈','🥉'];
+
 /**
- * Carga y renderiza el gráfico de barras horizontal de top ventas.
+ * Carga y renderiza la tabla ranking de top ventas.
  * @returns {Promise<void>}
  */
 async function cargarTopVentas() {
-    const dias = document.getElementById('top-ventas-dias').value;
+    const dias  = document.getElementById('top-ventas-dias').value;
+    const tbody = document.getElementById('top-ventas-tbody');
+    const table = document.getElementById('top-ventas-table');
+    const empty = document.getElementById('top-ventas-empty');
     try {
-        const res  = await fetch(`api/dashboard.php?seccion=top_ventas&dias=${dias}&limit=10`);
-        const json = await res.json();
-        const datos = json.data ?? [];
-
-        const canvas = document.getElementById('chart-top-ventas');
-        const empty  = document.getElementById('top-ventas-empty');
-
-        if (!datos.length) {
-            canvas.style.display = 'none';
-            empty.style.display  = '';
-            return;
-        }
-        canvas.style.display = '';
-        empty.style.display  = 'none';
-
-        const labels  = datos.map(r => r.nombre);
-        const valores = datos.map(r => parseInt(r.total_salidas, 10));
-
-        if (chartTopVentas) chartTopVentas.destroy();
-        chartTopVentas = new Chart(canvas, {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [{
-                    label: 'Unidades vendidas',
-                    data: valores,
-                    backgroundColor: 'rgba(59,130,246,0.75)',
-                    borderColor:     'rgba(59,130,246,1)',
-                    borderWidth: 1,
-                    borderRadius: 5,
-                    borderSkipped: false
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` ${ctx.parsed.x} uds.`
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        ticks: { precision: 0 },
-                        grid: { color: 'rgba(0,0,0,.06)' }
-                    },
-                    y: {
-                        grid: { display: false },
-                        ticks: { font: { size: 12 } }
-                    }
-                }
-            }
-        });
-    } catch (e) {
-        console.error('Error top ventas:', e);
-    }
-}
-
-/* ── 17.4 Valor por categoría ───────────────────────────────────── */
-
-/**
- * Carga y renderiza el gráfico doughnut de valor por categoría.
- * @returns {Promise<void>}
- */
-async function cargarValorCategoria() {
-    try {
-        const res   = await fetch('api/dashboard.php?seccion=valor_categorias');
+        const res   = await fetch(`api/dashboard.php?seccion=top_ventas&dias=${dias}&limit=10`);
         const json  = await res.json();
         const datos = json.data ?? [];
 
-        const canvas = document.getElementById('chart-valor-categoria');
-        const empty  = document.getElementById('valor-categoria-empty');
-        const totalEl = document.getElementById('valor-total-global');
-
         if (!datos.length) {
-            canvas.style.display = 'none';
-            empty.style.display  = '';
-            totalEl.textContent  = '–';
+            table.style.display = 'none';
+            empty.style.display = '';
             return;
         }
-        canvas.style.display = '';
-        empty.style.display  = 'none';
 
-        const labels  = datos.map(r => r.categoria);  // canvas labels — no HTML escaping needed
-        const valores = datos.map(r => parseFloat(r.valor_total));
-        const total   = valores.reduce((a, b) => a + b, 0);
-        totalEl.textContent = formatEuro(total);
-
-        if (chartValorCategoria) chartValorCategoria.destroy();
-        chartValorCategoria = new Chart(canvas, {
-            type: 'doughnut',
-            data: {
-                labels,
-                datasets: [{
-                    data: valores,
-                    backgroundColor: PALETA.slice(0, datos.length),
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                cutout: '60%',
-                plugins: {
-                    legend: {
-                        position: 'right',
-                        labels: { usePointStyle: true, padding: 12, font: { size: 12 } }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => {
-                                const v = ctx.parsed;
-                                const pct = ((v / total) * 100).toFixed(1);
-                                const num = datos[ctx.dataIndex].num_productos;
-                                return ` ${formatEuro(v)} (${pct}%) — ${num} producto(s)`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    } catch (e) {
-        console.error('Error valor categoría:', e);
-    }
-}
-
-/* ── 17.5 Rotación de stock ─────────────────────────────────────── */
-
-/**
- * Carga y renderiza la tabla de rotación de stock con código de color.
- * @returns {Promise<void>}
- */
-async function cargarRotacion() {
-    const dias  = document.getElementById('rotacion-dias').value;
-    const tbody = document.getElementById('rotacion-body');
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:#94a3b8;">Cargando…</td></tr>';
-    try {
-        const res   = await fetch(`api/dashboard.php?seccion=rotacion&dias=${dias}`);
-        const json  = await res.json();
-        const datos = (json.data ?? []).slice(0, 10);
-
-        if (!datos.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:#94a3b8;">Sin productos con stock en este período.</td></tr>';
-            return;
-        }
+        const max = parseInt(datos[0].total_salidas, 10) || 1;
 
         tbody.innerHTML = datos.map((r, i) => {
-            const rot = parseFloat(r.rotacion);
-            let color, pill;
-            if (rot >= 1) {
-                color = '#166534'; pill = 'background:#dcfce7;color:#166534';
-            } else if (rot >= 0.5) {
-                color = '#92400e'; pill = 'background:#fef3c7;color:#92400e';
-            } else {
-                color = '#991b1b'; pill = 'background:#fee2e2;color:#991b1b';
-            }
+            const uds  = parseInt(r.total_salidas, 10);
+            const pct  = Math.round((uds / max) * 100);
+            const pos  = i < 3 ? MEDALLAS[i] : `<span style="color:#94a3b8;font-weight:600;">${i + 1}</span>`;
             return `<tr>
-                <td><span class="ref-code">${i + 1}</span></td>
-                <td><a href="ver_producto.php?id=${r.producto_id}" style="color:inherit;text-decoration:none;font-weight:600;">${escHtml(r.nombre)}</a></td>
-                <td><strong>${parseInt(r.stock, 10)}</strong> uds.</td>
-                <td>${parseInt(r.total_salidas, 10)} uds.</td>
-                <td><span style="padding:3px 10px;border-radius:999px;font-size:.8rem;font-weight:600;${pill}">${rot.toFixed(2)}</span></td>
+                <td style="text-align:center;font-size:1.1rem;">${pos}</td>
+                <td>
+                    <div>${escHtml(r.nombre)}</div>
+                    <div style="margin-top:4px;height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden;">
+                        <div style="width:${pct}%;height:100%;background:#3b82f6;border-radius:3px;"></div>
+                    </div>
+                </td>
+                <td style="text-align:right;font-weight:600;">${uds} uds.</td>
             </tr>`;
         }).join('');
+
+        table.style.display = '';
+        empty.style.display = 'none';
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="5" style="color:#ef4444">Error: ${e.message}</td></tr>`;
-    }
-}
-
-/* ── 17.6 Stock muerto ──────────────────────────────────────────── */
-
-/**
- * Carga y renderiza la tabla de stock muerto ordenada por valor inmovilizado.
- * @returns {Promise<void>}
- */
-async function cargarStockMuerto() {
-    const umbral = document.getElementById('stock-muerto-umbral').value;
-    const tbody  = document.getElementById('stock-muerto-body');
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:#94a3b8;">Cargando…</td></tr>';
-    try {
-        const res   = await fetch(`api/dashboard.php?seccion=stock_muerto&umbral=${umbral}`);
-        const json  = await res.json();
-        const datos = json.data ?? [];
-
-        if (!datos.length) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:#94a3b8;">No hay stock muerto en los últimos ${umbral} días. ¡Buen trabajo!</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = datos.map(r => {
-            const valorInm = parseFloat(r.precio ?? 0) * parseInt(r.stock, 10);
-            const ultimo   = r.ultimo_movimiento ?? 'Nunca';
-            return `<tr>
-                <td><a href="ver_producto.php?id=${r.producto_id}" style="color:inherit;text-decoration:none;font-weight:600;">${escHtml(r.nombre)}</a></td>
-                <td><span class="ref-code">${escHtml(r.categoria_nombre ?? '–')}</span></td>
-                <td><strong>${parseInt(r.stock, 10)}</strong> uds.</td>
-                <td style="font-weight:600;color:#dc2626;">${formatEuro(valorInm)}</td>
-                <td style="color:#94a3b8;">${escHtml(ultimo)}</td>
-            </tr>`;
-        }).join('');
-    } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="5" style="color:#ef4444">Error: ${e.message}</td></tr>`;
+        console.error('Error top ventas:', e);
     }
 }
 
 /* ── Inicialización ─────────────────────────────────────────────── */
 (function initAnalytics() {
     cargarTopVentas();
-    cargarValorCategoria();
-    cargarRotacion();
-    cargarStockMuerto();
 }());
 </script>
 </body>

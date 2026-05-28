@@ -247,6 +247,48 @@ class Movimiento
     }
 
     /**
+     * Cuenta todos los movimientos del negocio.
+     *
+     * @return int
+     * @author Carlitos6712
+     */
+    public function contarTodos(): int
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM movimientos m
+             JOIN productos p ON p.id = m.producto_id" . $this->bizWhere()
+        );
+        $stmt->execute($this->bizParam());
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Lista todos los movimientos del negocio con paginación.
+     *
+     * @param int $pagina    Página actual (1-indexed).
+     * @param int $porPagina Registros por página.
+     * @return array<int, array<string, mixed>>
+     * @author Carlitos6712
+     */
+    public function listarTodosPaginado(int $pagina, int $porPagina): array
+    {
+        $offset = ($pagina - 1) * $porPagina;
+        $sql    = "SELECT m.*, p.nombre AS producto_nombre
+                   FROM movimientos m
+                   JOIN productos p ON p.id = m.producto_id" . $this->bizWhere() . "
+                   ORDER BY m.fecha DESC
+                   LIMIT :limite OFFSET :offset";
+        $stmt   = $this->pdo->prepare($sql);
+        foreach ($this->bizParam() as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        $stmt->bindValue(':limite',  $porPagina, PDO::PARAM_INT);
+        $stmt->bindValue(':offset',  $offset,    PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
      * Lista movimientos filtrados para exportación CSV.
      *
      * Sin fechas, exporta los últimos 30 días por defecto.

@@ -65,7 +65,7 @@ function requireAuth(): void
 requireAuth();
 
 /**
- * Devuelve true si el usuario activo tiene rol admin.
+ * Devuelve true si el usuario activo tiene rol admin o superadmin.
  * Cubre ambos tipos de sesión: login local (rol) y login de empresa (user_role).
  *
  * @return bool
@@ -74,7 +74,7 @@ requireAuth();
 function isAdmin(): bool
 {
     $rol = $_SESSION['user_role'] ?? $_SESSION['rol'] ?? '';
-    return $rol === 'admin';
+    return in_array($rol, ['admin', 'superadmin'], true);
 }
 
 /**

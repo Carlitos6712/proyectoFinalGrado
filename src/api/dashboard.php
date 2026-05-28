@@ -36,11 +36,12 @@ require_once __DIR__ . '/../includes/Auditoria.php';
 require_once __DIR__ . '/../includes/AlertaStock.php';
 require_once __DIR__ . '/../includes/Producto.php';
 require_once __DIR__ . '/../includes/Movimiento.php';
-require_once __DIR__ . '/../core/Session.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-Session::start();
-
-if (!Session::isLoggedIn()) {
+$isAuth = !empty($_SESSION['user_id']) || !empty($_SESSION['usuario_id']);
+if (!$isAuth) {
     http_response_code(401);
     echo json_encode(['success' => false, 'data' => null, 'message' => 'No autenticado.'], JSON_UNESCAPED_UNICODE);
     exit;

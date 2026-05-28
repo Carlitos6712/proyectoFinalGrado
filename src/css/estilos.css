@@ -2621,6 +2621,7 @@ a.stat-card-link.stat-card-warning:hover {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-width: 0;
 }
 
 .dashboard-grid > .card > .card-body {

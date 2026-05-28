@@ -2,10 +2,6 @@
 /**
  * Historial de auditoría de cambios en el inventario.
  *
- * Muestra un log paginado y filtrable de todas las operaciones de
- * crear, actualizar y eliminar realizadas sobre productos y categorías.
- * Los registros son de solo lectura: no existe ninguna ruta de borrado.
- *
  * @package  Es21Plus
  * @author   Carlitos6712
  * @version  1.0.0
@@ -22,7 +18,6 @@ $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-// ── Parámetros de filtro y paginación ────────────────────────────────────────
 $filtroTabla  = trim($_GET['tabla']       ?? '');
 $filtroAccion = trim($_GET['accion']      ?? '');
 $fechaDesde   = trim($_GET['fecha_desde'] ?? '');
@@ -30,10 +25,10 @@ $fechaHasta   = trim($_GET['fecha_hasta'] ?? '');
 $pagina       = max(1, (int) ($_GET['pagina'] ?? 1));
 $porPagina    = 25;
 
-$registros     = [];
-$total         = 0;
-$totalPaginas  = 1;
-$error         = '';
+$registros    = [];
+$total        = 0;
+$totalPaginas = 1;
+$error        = '';
 
 try {
     $auditoria = new Auditoria(Database::getInstance());
@@ -46,49 +41,50 @@ try {
     $total        = $auditoria->contar($filtroTablaVal, $filtroAccionVal, $fechaDesdeVal, $fechaHastaVal);
     $totalPaginas = max(1, (int) ceil($total / $porPagina));
     $pagina       = min($pagina, $totalPaginas);
-
     $registros    = $auditoria->listar($filtroTablaVal, $filtroAccionVal, $fechaDesdeVal, $fechaHastaVal, $pagina, $porPagina);
 } catch (\Throwable $e) {
     $error = 'Error al cargar la auditoría: ' . htmlspecialchars($e->getMessage());
 }
 
-// ── Helper: decodifica y formatea un JSON para mostrar diff ──────────────────
-function formatearDiff(?string $json): string
+/**
+ * Devuelve los nombres de campos modificados como chips de código.
+ *
+ * @param string|null $anterior JSON anterior.
+ * @param string|null $nuevo    JSON nuevo.
+ * @return string HTML con los campos.
+ * @author Carlitos6712
+ */
+function camposModificados(?string $anterior, ?string $nuevo): string
 {
-    if ($json === null || $json === '') {
-        return '<span class="audit-null">—</span>';
+    $ant  = json_decode($anterior ?? '{}', true) ?? [];
+    $nuev = json_decode($nuevo    ?? '{}', true) ?? [];
+    $campos = array_unique(array_merge(array_keys($ant), array_keys($nuev)));
+    if (empty($campos)) {
+        return '<span style="color:#9ca3af;">—</span>';
     }
-    $data = json_decode($json, true);
-    if (!is_array($data)) {
-        return htmlspecialchars($json);
-    }
-    $lines = [];
-    foreach ($data as $k => $v) {
-        $val    = is_null($v) ? 'null' : htmlspecialchars((string) $v);
-        $lines[] = '<span class="audit-key">' . htmlspecialchars($k) . '</span>: ' . $val;
-    }
-    return implode('<br>', $lines);
+    return implode(' ', array_map(
+        fn($k) => '<code class="field-chip">' . htmlspecialchars($k) . '</code>',
+        $campos
+    ));
 }
 
 function urlFiltros(array $overrides = []): string
 {
     global $filtroTabla, $filtroAccion, $fechaDesde, $fechaHasta, $pagina;
-    $params = [
+    $params = array_filter(array_merge([
         'tabla'       => $filtroTabla,
         'accion'      => $filtroAccion,
         'fecha_desde' => $fechaDesde,
         'fecha_hasta' => $fechaHasta,
         'pagina'      => $pagina,
-    ];
-    $params = array_merge($params, $overrides);
-    $params = array_filter($params, fn($v) => $v !== '' && $v !== null);
+    ], $overrides), fn($v) => $v !== '' && $v !== null);
     return 'auditoria.php?' . http_build_query($params);
 }
 
 $badgeAccion = [
-    'crear'     => 'badge-success',
-    'actualizar'=> 'badge-warning',
-    'eliminar'  => 'badge-danger',
+    'crear'     => 'badge-estado badge-recibido',
+    'actualizar'=> 'badge-estado badge-enviado',
+    'eliminar'  => 'badge-estado badge-cancelado',
 ];
 ?>
 <!DOCTYPE html>
@@ -99,140 +95,70 @@ $badgeAccion = [
     <title>Auditoría – es21plus</title>
     <link rel="stylesheet" href="css/estilos.css">
     <style>
-        .audit-key    { font-weight: 600; color: var(--color-primary, #3b82f6); }
-        .audit-null   { color: var(--color-muted, #9ca3af); font-style: italic; }
-        .audit-diff   { font-size: .78rem; line-height: 1.6; font-family: monospace; }
-        .badge        { display: inline-block; padding: .2em .55em; border-radius: 9999px; font-size: .72rem; font-weight: 700; text-transform: uppercase; }
-        .badge-success{ background: #d1fae5; color: #065f46; }
-        .badge-warning{ background: #fef3c7; color: #92400e; }
-        .badge-danger { background: #fee2e2; color: #991b1b; }
-        .diff-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
-        .diff-col h4  { margin: 0 0 .25rem; font-size: .72rem; text-transform: uppercase; color: var(--color-muted, #9ca3af); }
-        .filters-bar  { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; margin-bottom: 1.25rem; }
-        .filters-bar label { display: flex; flex-direction: column; gap: .25rem; font-size: .82rem; font-weight: 600; }
+        .field-chip {
+            display: inline-block;
+            padding: .1em .45em;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: .3em;
+            font-size: .72rem;
+            color: #475569;
+            font-family: monospace;
+        }
+        .filters-bar { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; }
+        .filters-bar label { display: flex; flex-direction: column; gap: .3rem; font-size: .82rem; font-weight: 600; color: var(--text-primary); }
         .filters-bar input,
-        .filters-bar select { padding: .4rem .6rem; border: 1px solid var(--color-border,#e5e7eb); border-radius: .375rem; font-size: .85rem; }
+        .filters-bar select { padding: .4rem .65rem; border: 1px solid var(--border); border-radius: .375rem; font-size: .85rem; background: var(--card-bg); color: var(--text-primary); }
+
+        /* Modal detalle */
+        .audit-modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,.45); z-index: 900;
+            align-items: center; justify-content: center;
+        }
+        .audit-modal-overlay.open { display: flex; }
+        .audit-modal {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 20px 60px rgba(0,0,0,.25);
+            width: 100%; max-width: 680px;
+            max-height: 85vh; overflow-y: auto;
+            padding: 1.75rem;
+        }
+        .audit-modal-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 1.25rem;
+        }
+        .audit-modal-title { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
+        .audit-modal-meta  { font-size: .8rem; color: var(--text-muted); margin-top: .2rem; }
+        .audit-modal-close {
+            background: none; border: none; cursor: pointer;
+            color: var(--text-muted); font-size: 1.4rem; line-height: 1; padding: 0;
+        }
+        .audit-modal-close:hover { color: var(--text-primary); }
+        .diff-section { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .diff-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: .85rem 1rem;
+        }
+        .diff-panel-title {
+            font-size: .7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .05em; color: var(--text-muted);
+            margin-bottom: .6rem;
+        }
+        .diff-row { display: flex; gap: .5rem; padding: .25rem 0; border-bottom: 1px solid var(--border); font-size: .82rem; }
+        .diff-row:last-child { border-bottom: none; }
+        .diff-key   { font-weight: 600; color: #3b82f6; min-width: 90px; flex-shrink: 0; font-family: monospace; }
+        .diff-val   { color: var(--text-primary); word-break: break-all; font-family: monospace; }
+        .diff-null  { color: #9ca3af; font-style: italic; }
+        @media (max-width: 540px) { .diff-section { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body class="layout">
 
-<!-- ===== SIDEBAR ===== -->
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <div class="sidebar-logo">
-            <svg class="logo-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-            </svg>
-            <span class="logo-text">es21<strong>plus</strong></span>
-        </div>
-        <button class="sidebar-close" id="sidebarClose" aria-label="Cerrar menú">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-        </button>
-    </div>
-
-    <nav class="sidebar-nav">
-        <div class="nav-section">
-            <span class="nav-section-label">Principal</span>
-            <a href="index.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['index.php','dashboard.php']) ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Dashboard</span>
-            </a>
-            <a href="productos.php" class="nav-item <?= in_array(basename($_SERVER['PHP_SELF']), ['productos.php','nuevo_producto.php','editar_producto.php','eliminar_producto.php']) ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Productos</span>
-            </a>
-            <a href="categorias.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'categorias.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Categorías</span>
-            </a>
-            <a href="marcas.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'marcas.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Marcas</span>
-            </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-            <a href="modelos_moto.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'modelos_moto.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 18H4a2 2 0 0 1-2-2v-5l2-5h13l2 5v7h-3M14 18H8"/></svg></span>
-                <span class="nav-label">Modelos de Moto</span>
-            </a>
-            <a href="proveedores.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'proveedores.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></span>
-                <span class="nav-label">Proveedores</span>
-            </a>
-            <a href="pedidos.php"
-               class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'pedidos.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
-                <span class="nav-label">Pedidos</span>
-            </a>
-
-            <?php endif; ?>
-        </div>
-        <div class="nav-section">
-            <span class="nav-section-label">Operaciones</span>
-            <a href="movimientos.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'movimientos.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Movimientos</span>
-            </a>
-            <a href="kits.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'kits.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
-                </span>
-                <span class="nav-label">Kits</span>
-            </a>
-        </div>
-        <div class="nav-section">
-            <span class="nav-section-label">Administración</span>
-            <a href="auditoria.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'auditoria.php' ? 'active' : '' ?>">
-                <span class="nav-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-                    </svg>
-                </span>
-                <span class="nav-label">Auditoría</span>
-            </a>
-            <?php if (($_SESSION['rol'] ?? '') === 'admin'): ?>
-            <a href="usuarios.php" class="nav-item <?= basename($_SERVER['PHP_SELF']) === 'usuarios.php' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-                <span class="nav-label">Usuarios</span>
-            </a>
-            <?php endif; ?>
-        </div>
-    </nav>
-
-    <div class="sidebar-footer">
-        <div class="sidebar-user">
-            <div class="user-avatar-sm">CV</div>
-            <div class="sidebar-user-info">
-                <span class="user-name-sm">Carlos Vico</span>
-                <span class="user-role">Administrador</span>
-            </div>
-        </div>
-    </div>
-</aside>
-
+<?php require_once __DIR__ . '/includes/_sidebar.php'; ?>
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <div class="main-wrapper">
@@ -243,25 +169,38 @@ $badgeAccion = [
                     <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
                 </svg>
             </button>
-            <h1 class="topbar-title">Auditoría de cambios</h1>
+            <nav class="breadcrumb-nav">
+                <a href="index.php" class="breadcrumb-item">Inicio</a>
+                <span class="breadcrumb-sep">›</span>
+                <span class="breadcrumb-item active">Auditoría</span>
+            </nav>
         </div>
         <div class="topbar-right">
             <?php require_once __DIR__ . '/includes/topbar_user.php'; ?>
         </div>
     </header>
 
-    <main class="main-content">
+    <main class="content">
 
         <?php if ($error !== ''): ?>
-            <div class="alert alert-danger"><?= $error ?></div>
+        <div class="toast toast-error" data-autodismiss="6000">
+            <span class="toast-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+            <div class="toast-content"><span class="toast-title">Error</span><span class="toast-message"><?= $error ?></span></div>
+            <button class="toast-close" aria-label="Cerrar">×</button>
+            <div class="toast-progress"></div>
+        </div>
         <?php endif; ?>
 
-        <?php if ($flashSuccess !== ''): ?>
-            <div class="alert alert-success"><?= htmlspecialchars($flashSuccess) ?></div>
-        <?php endif; ?>
+        <!-- Page header -->
+        <div class="page-header">
+            <div class="page-header-info">
+                <h1 class="page-title">Auditoría de cambios</h1>
+                <p class="page-subtitle"><?= number_format($total) ?> registro<?= $total !== 1 ? 's' : '' ?> encontrado<?= $total !== 1 ? 's' : '' ?></p>
+            </div>
+        </div>
 
-        <!-- ── Filtros ──────────────────────────────────────────────── -->
-        <section class="card" style="margin-bottom:1.5rem;">
+        <!-- Filtros -->
+        <div class="card" style="margin-bottom:1.25rem;">
             <div class="card-body">
                 <form method="GET" action="auditoria.php" class="filters-bar">
                     <label>
@@ -270,6 +209,7 @@ $badgeAccion = [
                             <option value="">Todas</option>
                             <option value="productos"  <?= $filtroTabla === 'productos'   ? 'selected' : '' ?>>Productos</option>
                             <option value="categorias" <?= $filtroTabla === 'categorias'  ? 'selected' : '' ?>>Categorías</option>
+                            <option value="pedidos"    <?= $filtroTabla === 'pedidos'     ? 'selected' : '' ?>>Pedidos</option>
                         </select>
                     </label>
                     <label>
@@ -289,91 +229,154 @@ $badgeAccion = [
                         Hasta
                         <input type="date" name="fecha_hasta" value="<?= htmlspecialchars($fechaHasta) ?>">
                     </label>
-                    <button type="submit" class="btn btn-primary" style="align-self:flex-end;">Filtrar</button>
-                    <a href="auditoria.php" class="btn btn-secondary" style="align-self:flex-end;">Limpiar</a>
+                    <button type="submit" class="btn-primary" style="align-self:flex-end;">Filtrar</button>
+                    <a href="auditoria.php" class="btn-ghost" style="align-self:flex-end;">Limpiar</a>
                 </form>
             </div>
-        </section>
+        </div>
 
-        <!-- ── Tabla de registros ───────────────────────────────────── -->
-        <section class="card">
-            <div class="card-header">
-                <h2 class="card-title">
-                    Registros de auditoría
-                    <span style="font-size:.85rem;font-weight:400;color:var(--color-muted,#9ca3af);">(<?= number_format($total) ?> total)</span>
-                </h2>
-            </div>
-            <div class="card-body" style="overflow-x:auto;">
+        <!-- Tabla -->
+        <div class="card">
+            <div class="card-body" style="padding:0;">
                 <?php if (empty($registros)): ?>
-                    <p style="text-align:center;color:var(--color-muted,#9ca3af);padding:2rem;">
-                        No hay registros de auditoría con los filtros seleccionados.
-                    </p>
+                <div class="td-empty" style="padding:2rem;text-align:center;">
+                    No hay registros de auditoría con los filtros seleccionados.
+                </div>
                 <?php else: ?>
-                <table class="table">
+                <table class="data-table">
                     <thead>
                         <tr>
-                            <th>#</th>
                             <th>Fecha</th>
                             <th>Tabla</th>
-                            <th>ID</th>
+                            <th>Reg.</th>
                             <th>Acción</th>
-                            <th>Diff (anterior → nuevo)</th>
-                            <th>IP</th>
+                            <th>Campos</th>
                             <th>Usuario</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($registros as $r): ?>
+                    <?php foreach ($registros as $r): ?>
                         <tr>
-                            <td><?= (int) $r['id'] ?></td>
-                            <td style="white-space:nowrap;"><?= htmlspecialchars($r['fecha']) ?></td>
-                            <td><?= htmlspecialchars($r['tabla']) ?></td>
-                            <td><?= (int) $r['registro_id'] ?></td>
+                            <td style="white-space:nowrap;font-size:.85rem;">
+                                <?= htmlspecialchars(date('d/m/Y H:i', strtotime($r['fecha'])), ENT_QUOTES, 'UTF-8') ?>
+                            </td>
                             <td>
-                                <span class="badge <?= $badgeAccion[$r['accion']] ?? 'badge-secondary' ?>">
-                                    <?= htmlspecialchars($r['accion']) ?>
+                                <span class="category-pill"><?= htmlspecialchars($r['tabla'], ENT_QUOTES, 'UTF-8') ?></span>
+                            </td>
+                            <td style="color:var(--text-muted);font-size:.85rem;">#<?= (int)$r['registro_id'] ?></td>
+                            <td>
+                                <span class="badge-estado <?= $badgeAccion[$r['accion']] ?? 'badge-estado badge-borrador' ?>">
+                                    <?= htmlspecialchars($r['accion'], ENT_QUOTES, 'UTF-8') ?>
                                 </span>
                             </td>
-                            <td class="audit-diff">
-                                <div class="diff-grid">
-                                    <div class="diff-col">
-                                        <h4>Anterior</h4>
-                                        <?= formatearDiff($r['datos_anteriores']) ?>
-                                    </div>
-                                    <div class="diff-col">
-                                        <h4>Nuevo</h4>
-                                        <?= formatearDiff($r['datos_nuevos']) ?>
-                                    </div>
-                                </div>
+                            <td><?= camposModificados($r['datos_anteriores'], $r['datos_nuevos']) ?></td>
+                            <td style="font-size:.85rem;"><?= htmlspecialchars($r['usuario'] ?? 'admin', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td class="td-actions">
+                                <button
+                                    class="btn btn-sm btn-ghost"
+                                    onclick="abrirDetalle(<?= htmlspecialchars(json_encode($r, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)"
+                                    title="Ver detalle">
+                                    Ver
+                                </button>
                             </td>
-                            <td><?= htmlspecialchars($r['ip'] ?? '') ?></td>
-                            <td><?= htmlspecialchars($r['usuario'] ?? 'admin') ?></td>
                         </tr>
-                        <?php endforeach; ?>
+                    <?php endforeach; ?>
                     </tbody>
                 </table>
                 <?php endif; ?>
             </div>
 
-            <!-- ── Paginación ──────────────────────────────────────── -->
             <?php if ($totalPaginas > 1): ?>
-            <div class="card-footer" style="display:flex;justify-content:center;gap:.5rem;padding:1rem;">
+            <div class="card-footer" style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:1rem;">
                 <?php if ($pagina > 1): ?>
-                    <a href="<?= htmlspecialchars(urlFiltros(['pagina' => $pagina - 1])) ?>" class="btn btn-secondary btn-sm">← Anterior</a>
+                    <a href="<?= htmlspecialchars(urlFiltros(['pagina' => $pagina - 1])) ?>" class="btn btn-sm btn-ghost">← Anterior</a>
                 <?php endif; ?>
-                <span style="display:flex;align-items:center;font-size:.85rem;">
-                    Página <?= $pagina ?> de <?= $totalPaginas ?>
-                </span>
+                <span style="font-size:.85rem;color:var(--text-muted);">Página <?= $pagina ?> de <?= $totalPaginas ?></span>
                 <?php if ($pagina < $totalPaginas): ?>
-                    <a href="<?= htmlspecialchars(urlFiltros(['pagina' => $pagina + 1])) ?>" class="btn btn-secondary btn-sm">Siguiente →</a>
+                    <a href="<?= htmlspecialchars(urlFiltros(['pagina' => $pagina + 1])) ?>" class="btn btn-sm btn-ghost">Siguiente →</a>
                 <?php endif; ?>
             </div>
             <?php endif; ?>
-        </section>
+        </div>
 
     </main>
 </div>
 
+<!-- ── Modal de detalle ──────────────────────────────────────────────────── -->
+<div class="audit-modal-overlay" id="auditModal" onclick="cerrarDetalle(event)">
+    <div class="audit-modal" role="dialog" aria-modal="true">
+        <div class="audit-modal-header">
+            <div>
+                <div class="audit-modal-title" id="modalTitle">Detalle del cambio</div>
+                <div class="audit-modal-meta" id="modalMeta"></div>
+            </div>
+            <button class="audit-modal-close" onclick="cerrarDetalle()" aria-label="Cerrar">×</button>
+        </div>
+        <div class="diff-section" id="modalDiff"></div>
+    </div>
+</div>
+
 <script src="js/app.js"></script>
+<script>
+/**
+ * Formatea un objeto JSON como lista de filas clave→valor.
+ * @param {Object|null} obj
+ * @returns {string} HTML
+ */
+function renderDiffPanel(obj) {
+    if (!obj || typeof obj !== 'object' || !Object.keys(obj).length) {
+        return '<span style="color:#9ca3af;font-style:italic;font-size:.82rem;">Sin datos</span>';
+    }
+    return Object.entries(obj).map(([k, v]) => {
+        const val = v === null || v === undefined
+            ? '<span class="diff-null">null</span>'
+            : '<span class="diff-val">' + String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>';
+        return `<div class="diff-row"><span class="diff-key">${k}</span>${val}</div>`;
+    }).join('');
+}
+
+/**
+ * Abre el modal de detalle con los datos del registro de auditoría.
+ * @param {Object} r Fila de auditoría.
+ */
+function abrirDetalle(r) {
+    const acciones = { crear: 'Crear', actualizar: 'Actualizar', eliminar: 'Eliminar' };
+    document.getElementById('modalTitle').textContent =
+        `${acciones[r.accion] ?? r.accion} en ${r.tabla} #${r.registro_id}`;
+    document.getElementById('modalMeta').textContent =
+        `${r.fecha}  ·  Usuario: ${r.usuario ?? 'admin'}  ·  IP: ${r.ip ?? '—'}`;
+
+    const ant  = r.datos_anteriores ? JSON.parse(r.datos_anteriores) : null;
+    const nuev = r.datos_nuevos     ? JSON.parse(r.datos_nuevos)     : null;
+
+    document.getElementById('modalDiff').innerHTML = `
+        <div class="diff-panel">
+            <div class="diff-panel-title">Antes</div>
+            ${renderDiffPanel(ant)}
+        </div>
+        <div class="diff-panel">
+            <div class="diff-panel-title">Después</div>
+            ${renderDiffPanel(nuev)}
+        </div>`;
+
+    document.getElementById('auditModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+/**
+ * Cierra el modal de detalle.
+ * @param {Event} [e]
+ */
+function cerrarDetalle(e) {
+    if (e && e.target !== document.getElementById('auditModal')) return;
+    document.getElementById('auditModal').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') cerrarDetalle();
+});
+</script>
 </body>
 </html>

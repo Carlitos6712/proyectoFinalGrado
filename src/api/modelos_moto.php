@@ -10,6 +10,7 @@
  *
  * @package  Es21Plus\Api
  * @author   Carlitos6712
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 header('Content-Type: application/json; charset=utf-8');

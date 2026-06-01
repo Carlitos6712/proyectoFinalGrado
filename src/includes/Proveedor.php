@@ -2,18 +2,22 @@
 require_once __DIR__ . '/AppException.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Auditoria.php';
+require_once __DIR__ . '/../core/Session.php';
 
 /**
  * Gestión de proveedores del inventario.
  *
  * @package  Es21Plus\Includes
  * @author   Carlitos6712
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 class Proveedor
 {
     private PDO       $pdo;
     private Auditoria $auditoria;
+    /** Filtra todas las queries por empresa cuando está en modo multi-tenant. */
+    private ?int      $businessId;
 
     /**
      * @param PDO|null       $pdo       Conexión PDO inyectada (útil para tests con SQLite); si es null usa el singleton MySQL.
@@ -23,8 +27,21 @@ class Proveedor
      */
     public function __construct(?PDO $pdo = null, ?Auditoria $auditoria = null)
     {
-        $this->pdo       = $pdo       ?? Database::getInstance();
-        $this->auditoria = $auditoria ?? new Auditoria($this->pdo);
+        $this->pdo        = $pdo       ?? Database::getInstance();
+        $this->auditoria  = $auditoria ?? new Auditoria($this->pdo);
+        $this->businessId = Session::getBusinessId();
+    }
+
+    private function bizWhere(string $alias = 'p'): string
+    {
+        if ($this->businessId === null) return "";
+        $col = $alias !== '' ? "{$alias}.business_id" : "business_id";
+        return " AND {$col} = :biz_id";
+    }
+
+    private function bizParam(): array
+    {
+        return $this->businessId !== null ? [':biz_id' => $this->businessId] : [];
     }
 
     /**
@@ -42,21 +59,25 @@ class Proveedor
      */
     public function contarActivos(): int
     {
-        $stmt = $this->pdo->query("SELECT COUNT(*) FROM proveedores WHERE activo = 1");
+        $sql  = "SELECT COUNT(*) FROM proveedores WHERE activo = 1" . $this->bizWhere('');
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->bizParam());
         return (int) $stmt->fetchColumn();
     }
 
     public function listar(?bool $soloActivos = true): array
     {
-        $where = $soloActivos ? " WHERE p.activo = 1" : "";
+        $cond  = "WHERE 1=1";
+        $cond .= $soloActivos ? " AND p.activo = 1" : "";
+        $cond .= $this->bizWhere();
         $sql   = "SELECT p.*, COUNT(pr.id) AS total_productos
                   FROM proveedores p
                   LEFT JOIN productos pr ON pr.proveedor_id = p.id AND pr.deleted_at IS NULL
-                  {$where}
+                  {$cond}
                   GROUP BY p.id
                   ORDER BY p.nombre";
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute();
+        $stmt->execute($this->bizParam());
         return $stmt->fetchAll();
     }
 
@@ -70,8 +91,9 @@ class Proveedor
      */
     public function obtener(int $id): array
     {
-        $stmt = $this->pdo->prepare("SELECT * FROM proveedores WHERE id = :id");
-        $stmt->execute([':id' => $id]);
+        $sql  = "SELECT * FROM proveedores WHERE id = :id" . $this->bizWhere('');
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute(array_merge([':id' => $id], $this->bizParam()));
         $row = $stmt->fetch();
         if (!$row) {
             throw new AppException("Proveedor #{$id} no encontrado.", 404);
@@ -93,18 +115,24 @@ class Proveedor
         if ($nombre === '') {
             throw new AppException('El nombre es obligatorio', 400);
         }
-        $stmt = $this->pdo->prepare(
-            "INSERT INTO proveedores (nombre, contacto, email, telefono, web, notas, activo)
-             VALUES (:nombre, :contacto, :email, :telefono, :web, :notas, 1)"
+        $bizCol = $this->businessId !== null ? ', business_id' : '';
+        $bizVal = $this->businessId !== null ? ', :biz_id'    : '';
+        $stmt   = $this->pdo->prepare(
+            "INSERT INTO proveedores (nombre, contacto, email, telefono, web, notas, activo{$bizCol})
+             VALUES (:nombre, :contacto, :email, :telefono, :web, :notas, 1{$bizVal})"
         );
-        $stmt->execute([
+        $params = [
             ':nombre'   => $nombre,
             ':contacto' => $datos['contacto'] ?? null,
             ':email'    => $datos['email']    ?? null,
             ':telefono' => $datos['telefono'] ?? null,
             ':web'      => $datos['web']      ?? null,
             ':notas'    => $datos['notas']    ?? null,
-        ]);
+        ];
+        if ($this->businessId !== null) {
+            $params[':biz_id'] = $this->businessId;
+        }
+        $stmt->execute($params);
         $id = (int) $this->pdo->lastInsertId();
         $this->auditar('crear', $id, null, array_merge($datos, ['nombre' => $nombre]));
         return $id;
@@ -125,13 +153,14 @@ class Proveedor
         if ($nombre === '') {
             throw new AppException('El nombre es obligatorio', 400);
         }
+        $biz  = $this->bizWhere('');
         $stmt = $this->pdo->prepare(
             "UPDATE proveedores
              SET nombre = :nombre, contacto = :contacto, email = :email,
                  telefono = :telefono, web = :web, notas = :notas
-             WHERE id = :id"
+             WHERE id = :id{$biz}"
         );
-        $resultado = $stmt->execute([
+        $resultado = $stmt->execute(array_merge([
             ':id'       => $id,
             ':nombre'   => $nombre,
             ':contacto' => $datos['contacto'] ?? $anterior['contacto'],
@@ -139,7 +168,7 @@ class Proveedor
             ':telefono' => $datos['telefono'] ?? $anterior['telefono'],
             ':web'      => $datos['web']      ?? $anterior['web'],
             ':notas'    => $datos['notas']    ?? $anterior['notas'],
-        ]);
+        ], $this->bizParam()));
         if ($resultado && $stmt->rowCount() > 0) {
             $this->auditar('actualizar', $id, $anterior, $datos);
         }
@@ -165,8 +194,9 @@ class Proveedor
                 409
             );
         }
-        $stmt = $this->pdo->prepare("UPDATE proveedores SET activo = 0 WHERE id = :id");
-        $resultado = $stmt->execute([':id' => $id]);
+        $biz  = $this->bizWhere('');
+        $stmt = $this->pdo->prepare("UPDATE proveedores SET activo = 0 WHERE id = :id{$biz}");
+        $resultado = $stmt->execute(array_merge([':id' => $id], $this->bizParam()));
         if ($resultado) {
             $this->auditar('actualizar', $id, $anterior, ['activo' => 0]);
         }

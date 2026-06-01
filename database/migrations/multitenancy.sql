@@ -15,6 +15,7 @@ ALTER TABLE productos     ADD INDEX IF NOT EXISTS idx_biz_productos    (business
 ALTER TABLE categorias    ADD INDEX IF NOT EXISTS idx_biz_categorias   (business_id);
 ALTER TABLE movimientos   ADD INDEX IF NOT EXISTS idx_biz_movimientos  (business_id);
 ALTER TABLE alertas_stock ADD INDEX IF NOT EXISTS idx_biz_alertas      (business_id);
+ALTER TABLE proveedores   ADD INDEX IF NOT EXISTS idx_biz_proveedores  (business_id);
 
 -- -------------------------------------------------------------
 -- Clave foránea hacia businesses (ON DELETE CASCADE)

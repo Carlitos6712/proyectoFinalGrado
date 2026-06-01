@@ -58,15 +58,16 @@ class ProveedorTest extends TestCase
         );
         $this->pdo->exec(
             "CREATE TABLE proveedores (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre     TEXT    NOT NULL,
-                contacto   TEXT,
-                email      TEXT,
-                telefono   TEXT,
-                web        TEXT,
-                notas      TEXT,
-                activo     INTEGER DEFAULT 1,
-                created_at TEXT    DEFAULT CURRENT_TIMESTAMP
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre      TEXT    NOT NULL,
+                contacto    TEXT,
+                email       TEXT,
+                telefono    TEXT,
+                web         TEXT,
+                notas       TEXT,
+                activo      INTEGER DEFAULT 1,
+                business_id INTEGER NULL,
+                created_at  TEXT    DEFAULT CURRENT_TIMESTAMP
             )"
         );
         $this->pdo->exec(

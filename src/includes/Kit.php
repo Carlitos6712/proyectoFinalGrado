@@ -11,6 +11,7 @@ require_once __DIR__ . '/Auditoria.php';
  *
  * @package  Es21Plus\Includes
  * @author   Carlitos6712
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 class Kit
@@ -46,7 +47,7 @@ class Kit
              LEFT JOIN kits_lineas kl ON kl.kit_id = k.id
              {$where}
              GROUP BY k.id
-             ORDER BY k.nombre"
+             ORDER BY k.created_at ASC"
         );
         $stmt->execute();
         return $stmt->fetchAll();

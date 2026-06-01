@@ -203,42 +203,49 @@ class Movimiento
     }
 
     /**
-     * Cuenta el total de movimientos de un producto.
+     * Cuenta los movimientos de un producto, con filtro opcional de tipo.
      *
-     * @param int $productoId ID del producto.
+     * @param int         $productoId ID del producto.
+     * @param string|null $tipo       'entrada', 'salida' o null (todos).
      * @return int
      */
-    public function contarPorProducto(int $productoId): int
+    public function contarPorProducto(int $productoId, ?string $tipo = null): int
     {
+        $tipoWhere = $this->tipoWhere($tipo);
         $stmt = $this->pdo->prepare(
             "SELECT COUNT(*) FROM movimientos m
-             WHERE m.producto_id = :producto_id" . $this->bizWhere()
+             WHERE m.producto_id = :producto_id" . $this->bizWhere() . $tipoWhere
         );
-        $stmt->execute(array_merge([':producto_id' => $productoId], $this->bizParam()));
+        $params = array_merge([':producto_id' => $productoId], $this->bizParam());
+        if ($tipo !== null) $params[':tipo'] = $tipo;
+        $stmt->execute($params);
         return (int) $stmt->fetchColumn();
     }
 
     /**
-     * Lista movimientos de un producto con paginación, más recientes primero.
+     * Lista movimientos de un producto con paginación y filtro de tipo opcional.
      *
-     * @param int $productoId ID del producto.
-     * @param int $pagina     Página actual (1-indexed).
-     * @param int $porPagina  Registros por página.
+     * @param int         $productoId ID del producto.
+     * @param int         $pagina     Página actual (1-indexed).
+     * @param int         $porPagina  Registros por página.
+     * @param string|null $tipo       'entrada', 'salida' o null (todos).
      * @return array<int, array<string, mixed>>
      */
-    public function listarPorProductoPaginado(int $productoId, int $pagina, int $porPagina): array
+    public function listarPorProductoPaginado(int $productoId, int $pagina, int $porPagina, ?string $tipo = null): array
     {
-        $offset = ($pagina - 1) * $porPagina;
-        $sql    = "SELECT m.*, p.nombre AS producto_nombre
-                   FROM movimientos m
-                   JOIN productos p ON m.producto_id = p.id
-                   WHERE m.producto_id = :producto_id" . $this->bizWhere() . "
-                   ORDER BY m.fecha DESC
-                   LIMIT :limite OFFSET :offset";
-        $stmt   = $this->pdo->prepare($sql);
+        $offset    = ($pagina - 1) * $porPagina;
+        $tipoWhere = $this->tipoWhere($tipo);
+        $sql       = "SELECT m.*, p.nombre AS producto_nombre
+                      FROM movimientos m
+                      JOIN productos p ON m.producto_id = p.id
+                      WHERE m.producto_id = :producto_id" . $this->bizWhere() . $tipoWhere . "
+                      ORDER BY m.fecha DESC
+                      LIMIT :limite OFFSET :offset";
+        $stmt = $this->pdo->prepare($sql);
         foreach ($this->bizParam() as $k => $v) {
             $stmt->bindValue($k, $v);
         }
+        if ($tipo !== null) $stmt->bindValue(':tipo', $tipo);
         $stmt->bindValue(':producto_id', $productoId, PDO::PARAM_INT);
         $stmt->bindValue(':limite',      $porPagina,  PDO::PARAM_INT);
         $stmt->bindValue(':offset',      $offset,     PDO::PARAM_INT);
@@ -247,45 +254,60 @@ class Movimiento
     }
 
     /**
-     * Cuenta todos los movimientos del negocio.
+     * Cuenta todos los movimientos del negocio con filtro de tipo opcional.
      *
+     * @param string|null $tipo 'entrada', 'salida' o null (todos).
      * @return int
      * @author Carlitos6712
      */
-    public function contarTodos(): int
+    public function contarTodos(?string $tipo = null): int
     {
-        $stmt = $this->pdo->prepare(
-            "SELECT COUNT(*) FROM movimientos m
-             JOIN productos p ON p.id = m.producto_id" . $this->bizWhere()
-        );
-        $stmt->execute($this->bizParam());
+        $tipoWhere = $this->tipoWhere($tipo);
+        $sql  = "SELECT COUNT(*) FROM movimientos m
+                 JOIN productos p ON p.id = m.producto_id
+                 WHERE 1=1" . $this->bizWhere() . $tipoWhere;
+        $stmt = $this->pdo->prepare($sql);
+        $params = $this->bizParam();
+        if ($tipo !== null) $params[':tipo'] = $tipo;
+        $stmt->execute($params);
         return (int) $stmt->fetchColumn();
     }
 
     /**
-     * Lista todos los movimientos del negocio con paginación.
+     * Lista todos los movimientos del negocio con paginación y filtro de tipo opcional.
      *
-     * @param int $pagina    Página actual (1-indexed).
-     * @param int $porPagina Registros por página.
+     * @param int         $pagina    Página actual (1-indexed).
+     * @param int         $porPagina Registros por página.
+     * @param string|null $tipo      'entrada', 'salida' o null (todos).
      * @return array<int, array<string, mixed>>
      * @author Carlitos6712
      */
-    public function listarTodosPaginado(int $pagina, int $porPagina): array
+    public function listarTodosPaginado(int $pagina, int $porPagina, ?string $tipo = null): array
     {
-        $offset = ($pagina - 1) * $porPagina;
-        $sql    = "SELECT m.*, p.nombre AS producto_nombre
-                   FROM movimientos m
-                   JOIN productos p ON p.id = m.producto_id" . $this->bizWhere() . "
-                   ORDER BY m.fecha DESC
-                   LIMIT :limite OFFSET :offset";
-        $stmt   = $this->pdo->prepare($sql);
+        $offset    = ($pagina - 1) * $porPagina;
+        $tipoWhere = $this->tipoWhere($tipo);
+        $sql       = "SELECT m.*, p.nombre AS producto_nombre
+                      FROM movimientos m
+                      JOIN productos p ON p.id = m.producto_id
+                      WHERE 1=1" . $this->bizWhere() . $tipoWhere . "
+                      ORDER BY m.fecha DESC
+                      LIMIT :limite OFFSET :offset";
+        $stmt = $this->pdo->prepare($sql);
         foreach ($this->bizParam() as $k => $v) {
             $stmt->bindValue($k, $v);
         }
+        if ($tipo !== null) $stmt->bindValue(':tipo', $tipo);
         $stmt->bindValue(':limite',  $porPagina, PDO::PARAM_INT);
         $stmt->bindValue(':offset',  $offset,    PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
+    }
+
+    private function tipoWhere(?string $tipo): string
+    {
+        return ($tipo !== null && in_array($tipo, ['entrada', 'salida'], true))
+            ? " AND m.tipo = :tipo"
+            : "";
     }
 
     /**

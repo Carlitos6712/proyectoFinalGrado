@@ -27,8 +27,13 @@ $flashSuccess = $_SESSION['flash_success'] ?? '';
 $flashError   = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-$productoId = filter_input(INPUT_GET, 'producto_id', FILTER_VALIDATE_INT)
-           ?? filter_input(INPUT_POST, 'producto_id', FILTER_VALIDATE_INT);
+$productoId  = filter_input(INPUT_GET, 'producto_id', FILTER_VALIDATE_INT)
+            ?? filter_input(INPUT_POST, 'producto_id', FILTER_VALIDATE_INT);
+$tipoFiltro  = $_GET['tipo'] ?? '';
+if (!in_array($tipoFiltro, ['entrada', 'salida'], true)) {
+    $tipoFiltro = '';
+}
+$tipoParam = $tipoFiltro !== '' ? $tipoFiltro : null;
 
 try {
     $productoModel   = new Producto();
@@ -37,10 +42,10 @@ try {
 
     if (!$productoId) {
         $paginaActual = max(1, (int) filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT));
-        $totalMovs    = $movimientoModel->contarTodos();
+        $totalMovs    = $movimientoModel->contarTodos($tipoParam);
         $totalPaginas = max(1, (int) ceil($totalMovs / POR_PAGINA_MOVIMIENTOS));
         $paginaActual = min($paginaActual, $totalPaginas);
-        $movimientos  = $movimientoModel->listarTodosPaginado($paginaActual, POR_PAGINA_MOVIMIENTOS);
+        $movimientos  = $movimientoModel->listarTodosPaginado($paginaActual, POR_PAGINA_MOVIMIENTOS, $tipoParam);
     } else {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tipo          = $_POST['tipo']         ?? '';
@@ -55,11 +60,11 @@ try {
 
         $producto     = $productoModel->obtener($productoId);
         $resumen      = $movimientoModel->resumenStock($productoId);
-        $totalMovs    = $movimientoModel->contarPorProducto($productoId);
+        $totalMovs    = $movimientoModel->contarPorProducto($productoId, $tipoParam);
         $paginaActual = max(1, (int) filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT));
         $totalPaginas = max(1, (int) ceil($totalMovs / POR_PAGINA_MOVIMIENTOS));
         $paginaActual = min($paginaActual, $totalPaginas);
-        $movimientos  = $movimientoModel->listarPorProductoPaginado($productoId, $paginaActual, POR_PAGINA_MOVIMIENTOS);
+        $movimientos  = $movimientoModel->listarPorProductoPaginado($productoId, $paginaActual, POR_PAGINA_MOVIMIENTOS, $tipoParam);
     }
 
 } catch (AppException $e) {
@@ -270,6 +275,17 @@ $balance  = $entradas - $salidas;
                 <h2 class="page-title" style="font-size:1.1rem;">Historial de Movimientos</h2>
                 <p class="page-subtitle"><?= $totalMovs ?> movimiento(s) registrado(s)</p>
             </div>
+            <div class="page-actions">
+                <?php
+                $baseUrl = "movimientos.php?producto_id={$productoId}";
+                ?>
+                <a href="<?= $baseUrl ?>"
+                   class="btn-ghost<?= $tipoFiltro === '' ? ' btn-ghost-active' : '' ?>">Todos</a>
+                <a href="<?= $baseUrl ?>&tipo=entrada"
+                   class="btn-ghost<?= $tipoFiltro === 'entrada' ? ' btn-ghost-active' : '' ?>" style="color:#16a34a">Entradas</a>
+                <a href="<?= $baseUrl ?>&tipo=salida"
+                   class="btn-ghost<?= $tipoFiltro === 'salida' ? ' btn-ghost-active' : '' ?>" style="color:#dc2626">Salidas</a>
+            </div>
         </div>
 
         <!-- Exportar CSV de movimientos -->
@@ -344,7 +360,7 @@ $balance  = $entradas - $salidas;
             <?php if ($totalPaginas > 1): ?>
             <nav class="pagination" aria-label="Paginación de movimientos">
                 <?php
-                $buildUrl = fn(int $p) => "movimientos.php?producto_id={$productoId}&page={$p}";
+                $buildUrl = fn(int $p) => "movimientos.php?producto_id={$productoId}&page={$p}" . ($tipoFiltro !== '' ? "&tipo={$tipoFiltro}" : "");
                 ?>
                 <a href="<?= $buildUrl(1) ?>"
                    class="page-btn <?= $paginaActual === 1 ? 'page-btn-disabled' : '' ?>">«</a>
@@ -375,6 +391,14 @@ $balance  = $entradas - $salidas;
             <div class="page-header-info">
                 <h1 class="page-title">Movimientos de Stock</h1>
                 <p class="page-subtitle"><?= $totalMovs ?> movimiento(s) registrado(s) en total</p>
+            </div>
+            <div class="page-actions">
+                <a href="movimientos.php"
+                   class="btn-ghost<?= $tipoFiltro === '' ? ' btn-ghost-active' : '' ?>">Todos</a>
+                <a href="movimientos.php?tipo=entrada"
+                   class="btn-ghost<?= $tipoFiltro === 'entrada' ? ' btn-ghost-active' : '' ?>" style="color:#16a34a">Entradas</a>
+                <a href="movimientos.php?tipo=salida"
+                   class="btn-ghost<?= $tipoFiltro === 'salida' ? ' btn-ghost-active' : '' ?>" style="color:#dc2626">Salidas</a>
             </div>
         </div>
 
@@ -434,7 +458,7 @@ $balance  = $entradas - $salidas;
             </span>
             <?php if ($totalPaginas > 1): ?>
             <nav class="pagination" aria-label="Paginación de movimientos">
-                <?php $buildUrl = fn(int $p) => "movimientos.php?page={$p}"; ?>
+                <?php $buildUrl = fn(int $p) => "movimientos.php?page={$p}" . ($tipoFiltro !== '' ? "&tipo={$tipoFiltro}" : ""); ?>
                 <a href="<?= $buildUrl(1) ?>"
                    class="page-btn <?= $paginaActual === 1 ? 'page-btn-disabled' : '' ?>">«</a>
                 <a href="<?= $buildUrl(max(1, $paginaActual - 1)) ?>"

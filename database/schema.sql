@@ -225,15 +225,17 @@ CREATE TABLE IF NOT EXISTS compatibilidades (
 -- Tabla: proveedores (Fase 12)
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS proveedores (
-    id         INT          AUTO_INCREMENT PRIMARY KEY,
-    nombre     VARCHAR(150) NOT NULL,
-    contacto   VARCHAR(100),
-    email      VARCHAR(150),
-    telefono   VARCHAR(30),
-    web        VARCHAR(500),
-    notas      TEXT,
-    activo     TINYINT(1)   DEFAULT 1,
-    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    nombre      VARCHAR(150) NOT NULL,
+    contacto    VARCHAR(100),
+    email       VARCHAR(150),
+    telefono    VARCHAR(30),
+    web         VARCHAR(500),
+    notas       TEXT,
+    activo      TINYINT(1)   DEFAULT 1,
+    business_id INT          NULL DEFAULT NULL,
+    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_biz_proveedores (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Añadir proveedor_id FK a productos (Fase 12)
@@ -304,3 +306,13 @@ CREATE TABLE IF NOT EXISTS pedidos_lineas (
     FOREIGN KEY (pedido_id)   REFERENCES pedidos(id)   ON DELETE CASCADE,
     FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------------------------------------------
+-- Migración: business_id en proveedores (aislamiento multi-tenant)
+-- -------------------------------------------------------------
+SET @col_biz_prov = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'proveedores' AND COLUMN_NAME = 'business_id');
+SET @sql_biz_prov = IF(@col_biz_prov = 0,
+    'ALTER TABLE proveedores ADD COLUMN business_id INT NULL DEFAULT NULL, ADD INDEX idx_biz_proveedores (business_id)',
+    'SELECT 1');
+PREPARE _stmt FROM @sql_biz_prov; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;

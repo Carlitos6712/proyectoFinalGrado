@@ -4,6 +4,7 @@
  *
  * @package  Es21Plus
  * @author   Carlitos6712
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 require_once __DIR__ . '/includes/auth_check.php';
@@ -322,7 +323,7 @@ if ($provSelId) {
                                             <input type="hidden" name="accion" value="desactivar">
                                             <input type="hidden" name="id" value="<?= (int)$prov['id'] ?>">
                                             <button type="submit" class="action-btn action-btn-red" title="Desactivar proveedor"
-                                                    onclick="return confirm('¿Desactivar el proveedor «<?= htmlspecialchars($prov['nombre'], ENT_JS, 'UTF-8') ?>»?')">
+                                                    onclick="return confirm('¿Desactivar el proveedor «<?= htmlspecialchars($prov['nombre'], ENT_QUOTES, 'UTF-8') ?>»?')">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                     <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
                                                 </svg>

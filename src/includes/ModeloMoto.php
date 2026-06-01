@@ -9,6 +9,7 @@ require_once __DIR__ . '/../core/Session.php';
  *
  * @package  Es21Plus\Includes
  * @author   Carlitos6712
+ * @author   miguelrechefdez
  * @version  1.0.0
  */
 class ModeloMoto

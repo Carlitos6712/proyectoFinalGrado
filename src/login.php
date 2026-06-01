@@ -413,7 +413,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <a href="registro.php" style="color:#6366f1;text-decoration:none;">Crear cuenta</a>
         &nbsp;&middot;&nbsp;
         <?php endif; ?>
-        &copy; <?= date('Y') ?> es21plus · Carlos Vico
+        &copy; <?= date('Y') ?> es21plus &middot; Carlos Vico &amp; Miguel Reche
     </div>
 </div>
 </body>

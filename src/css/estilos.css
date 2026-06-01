@@ -819,6 +819,13 @@ img, svg {
   font-weight: 500;
 }
 
+.btn-ghost-active {
+  background-color: var(--surface-elevated, #f1f5f9);
+  color: var(--text-primary);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
 .btn-ghost:hover {
   background-color: var(--surface-elevated, #f1f5f9);
   color: var(--text-primary);
